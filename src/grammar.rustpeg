@@ -1,0 +1,220 @@
+use super::*;
+
+S = [ \t\n]
+
+ident -> String
+	= [_a-zA-Z-]+ { match_str.to_owned() }
+
+#[pub]
+document -> Almost
+	= expr
+
+#[pub]
+expr -> Almost
+	= S* e:expr_content S* { e }
+
+expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
+	match suf {
+		Some(suf) => Almost::make(|p| {
+			let sub = sub.complete(p.clone());
+			move || suf.call(p, sub)
+		}),
+		None => sub,
+	}
+}
+
+expr_subject -> Almost
+	= n:number { Almost::val(Value::Num(n)) }
+	/ l:list { l }
+	/ d:dict { d }
+	/ r:reference { r }
+
+expr_suffix -> Suffix
+	= d:index { d }
+
+reference -> Almost
+	= n:ident { Almost::Ref(n) }
+
+index -> Suffix
+	= "." k:ident { Suffix::IndexIdent(k) }
+
+#[pub]
+dict -> Almost
+	= "{" items:dict_item* "}" {
+		Almost::Dict(items)
+	}
+
+dict_item -> AlmostDictElement
+	= i:dict_known { i }
+	/ i:dict_local { i }
+
+dict_known -> AlmostDictElement
+	= S* k:ident S* "=" S* v:expr S* {
+		AlmostDictElement::Known(k, v)
+	}
+
+dict_local -> AlmostDictElement
+	= "local" S+ k:ident "=" v:expr { AlmostDictElement::Priv(k, v) }
+
+#[pub]
+list -> Almost
+	= "[" contents:expr* "]" {
+		Almost::List(contents)
+	}
+
+#[pub]
+number -> f64
+	= n:number_root s:si_prefix { n * s }
+
+number_root -> f64
+	= n:number_binary { n }
+	/ n:number_hex { n }
+	/ n:number_decimal { n }
+
+number_binary -> f64
+	= f:number_binary_float e:exp {
+		f * (1 << e) as f64
+	}
+
+number_binary_float -> f64
+	= "0b" w:number_binary_whole f:number_binary_fraction {
+		w + f
+	}
+
+number_binary_whole -> f64
+	= [01_]+ {
+		let mut r: u64 = 0;
+		for c in match_str.as_bytes() {
+			if *c == b'_' { continue }
+			r <<= 1;
+			if *c == b'1' {
+				r |= 1;
+			}
+			else {
+				debug_assert_eq!(*c, b'0');
+			}
+		}
+		r as f64
+	}
+
+number_binary_fraction -> f64
+	= "." [01][01_]* {
+		let mut r = 0;
+		let mut div = 1;
+		for c in match_str[1..].as_bytes() {
+			if *c == b'_' { continue }
+			r <<= 1;
+			div <<= 1;
+			if *c == b'1' {
+				r |= 1;
+			}
+			else {
+				debug_assert_eq!(*c, b'0');
+			}
+		}
+		(r as f64) / (div as f64)
+	}
+	/ "" { 0.0 }
+
+number_hex -> f64
+	= "0x" w:number_hex_whole f:number_hex_fraction {
+		w + f
+	}
+
+number_hex_whole -> f64
+	= [0-9A-Fa-f_]+ {
+		let mut r: u64 = 0;
+		for c in match_str.as_bytes() {
+			if *c == b'_' { continue }
+			r <<= 4;
+			
+			// ASCII order is 0-9 A-Z a-z
+			if *c < b'A' {
+				debug_assert!(b'0' <= *c && *c <= b'9');
+				r |= (*c - b'0') as u64;
+			} else if *c < b'a' {
+				debug_assert!(b'A' <= *c && *c <= b'F');
+				r |= 10 + (*c - b'A') as u64;
+			}
+			else {
+				debug_assert!(b'a' <= *c && *c <= b'f');
+				r |= 10 + (*c - b'a') as u64;
+			}
+		}
+		r as f64
+	}
+
+number_hex_fraction -> f64
+	= "." [0-9A-Fa-f][0-9A-Fa-f_]* {
+		let mut r = 0;
+		let mut div = 1;
+		for c in match_str[1..].as_bytes() {
+			if *c == b'_' { continue }
+			r <<= 4;
+			div <<= 4;
+			if *c < b'A' {
+				debug_assert!(b'0' <= *c && *c <= b'9');
+				r |= (*c - b'0') as u64;
+			} else if *c < b'a' {
+				debug_assert!(b'A' <= *c && *c <= b'F');
+				r |= 10 + (*c - b'A') as u64;
+			}
+			else {
+				debug_assert!(b'a' <= *c && *c <= b'f');
+				r |= 10 + (*c - b'a') as u64;
+			}
+		}
+		(r as f64) / (div as f64)
+	}
+	/ "" { 0.0 }
+
+number_decimal -> f64
+	= f:number_decimal_float e:exp {
+		f * (10.0 as f64).powi(e)
+	}
+
+number_decimal_float -> f64
+	= "0d" [0-9_]* ("." [0-9_]+)? {
+		match_str[2..].replace("_", "").parse().unwrap()
+	}
+	/ [0-9][0-9_]* ("." [0-9_]+)? {
+		match_str.replace("_", "").parse().unwrap()
+	}
+
+exp -> i32
+	= "e" [+-]? [0-9][0-9_]* {
+		match_str[1..].replace("_", "").parse::<i32>().unwrap()
+	}
+	/ "" { 0 as i32 }
+
+#[pub]
+si_prefix -> f64
+	= "Ei" { 1152921504606846976.0 }
+	/ "Pi" { 1125899906842624.0 }
+	/ "Ti" { 1099511627776.0 }
+	/ "Gi" { 1073741824.0 }
+	/ "Mi" { 1048576.0 }
+	/ "Ki" { 1024.0 } /* Accept this as kilo is the only >1 lower case. */
+	/ "ki" { 1024.0 }
+	/ "mi" { 0.0009765625 }
+	/ "ui" { 9.5367431640625e-07 }
+	/ "µi" { 9.5367431640625e-07 }
+	/ "ni" { 9.313225746154785e-10 }
+	/ "pi" { 9.094947017729282e-13 }
+	/ "fi" { 8.881784197001252e-16 }
+	/ "ai" { 8.673617379884035e-19 }
+	/ "E" { 1_000_000_000_000_000_000.0 }
+	/ "P" { 1_000_000_000_000_000.0 }
+	/ "T" { 1_000_000_000_000.0 }
+	/ "G" { 1_000_000_000.0 }
+	/ "M" { 1_000_000.0 }
+	/ "K" { 1_000.0 } /* Accept this as kilo is the only >1 lower case. */
+	/ "k" { 1_000.0 }
+	/ "m" { 0.001 }
+	/ "u" { 0.000_001 }
+	/ "µ" { 0.000_001 }
+	/ "n" { 0.000_000_000_001 }
+	/ "p" { 0.000_000_000_000_001 }
+	/ "f" { 0.000_000_000_000_000_001 }
+	/ "a" { 0.000_000_000_000_000_000_001 }
+	/ ""  { 1.0 }

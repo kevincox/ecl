@@ -1,0 +1,10 @@
+[package]
+name = "ecl"
+version = "0.1.0"
+authors = ["Kevin Cox <kevincox@kevincox.ca>"]
+
+[dependencies]
+peg = "0.3.0"
+ramp = "0.3.3"
+serde = "0.8"
+serde_json = "0.8"
