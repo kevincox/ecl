@@ -13,24 +13,19 @@ document -> Almost
 expr -> Almost
 	= S* e:expr_content S* { e }
 
-expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
-	match suf {
-		Some(suf) => Almost::make(|p| {
-			let sub = sub.complete(p.clone());
-			move || suf.call(p, sub)
-		}),
-		None => sub,
-	}
+// expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
+expr_content -> Almost = sub:expr_subject {
+	sub
 }
 
 expr_subject -> Almost
-	= n:number { Almost::val(Value::Num(n)) }
+	= n:number { Almost::val(Val::Num(n)) }
 	/ l:list { l }
 	/ d:dict { d }
 	/ r:reference { r }
 
-expr_suffix -> Suffix
-	= d:index { d }
+// expr_suffix -> Suffix
+// 	= d:index { d }
 
 reference -> Almost
 	= n:ident { Almost::Ref(n) }
@@ -50,6 +45,7 @@ dict_item -> AlmostDictElement
 
 dict_known -> AlmostDictElement
 	= S* k:ident S* "=" S* v:expr S* {
+		println!("Read: {}", k);
 		AlmostDictElement::Known(k, v)
 	}
 
