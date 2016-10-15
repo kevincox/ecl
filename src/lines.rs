@@ -54,7 +54,7 @@ impl<W: fmt::Write> Serializer<W> {
 		if !self.path_seperators.is_empty() {
 			self.path.push('.');
 		}
-		self.path += segment;
+		self.path += &super::format_key(segment);
 		self.path_seperators.push(prev_len);
 	}
 	
@@ -130,8 +130,8 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 		Err(Error::NotImplemented(concat!(file!(), ":", line!())))
 	}
 	
-	fn serialize_str(&mut self, _value: &str) -> Result<()> {
-		Err(Error::NotImplemented(concat!(file!(), ":", line!())))
+	fn serialize_str(&mut self, value: &str) -> Result<()> {
+		self.write("STR", &super::escape_string(value))
 	}
 	
 	fn serialize_bytes(&mut self, _value: &[u8]) -> Result<()> {

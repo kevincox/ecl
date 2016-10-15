@@ -15,21 +15,20 @@ document -> Almost
 expr -> Almost
 	= S* e:expr_content S* { e }
 
-expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
-	match suf {
-		Some(suf) => Almost::suffix(sub, suf),
-		None => sub,
-	}
+expr_content -> Almost = sub:expr_subject suf:expr_suffix* {
+	Almost::expr(sub, suf)
 }
 
 expr_subject -> Almost
 	= n:number { Almost::val(move |_| Val::Num(n)) }
+	/ s:string { s }
 	/ l:list { l }
 	/ d:dict { d }
 	/ r:reference { r }
 
 expr_suffix -> Suffix
 	= "." k:ident { Suffix::IndexIdent(k) }
+	/ "." k:string { Suffix::IndexExpr(k) }
 	/ S* "+" S* rhs:expr { Suffix::Add(rhs) }
 
 reference -> Almost
@@ -43,12 +42,28 @@ dict -> Almost
 
 dict_item -> AlmostDictElement
 	= i:dict_known { i }
+	/ i:dict_auto { i }
+	/ i:dict_full { i }
 	/ i:dict_local { i }
 
 dict_known -> AlmostDictElement
 	= S* k:ident S* "=" S* v:expr S* {
 		AlmostDictElement::Known(k, v)
 	}
+
+dict_auto -> AlmostDictElement
+	= S* path:ident ++ "." S* "=" S* v:expr S* {
+		AlmostDictElement::Auto(path, v)
+	}
+
+dict_full -> AlmostDictElement
+	= S* path:dict_path_element ++ "." S* "=" S* v:expr S* {
+		AlmostDictElement::Dyn(path, v)
+	}
+
+dict_path_element -> Almost
+	= i:ident { Almost::str_static(i) }
+	/ s:string { s }
 
 dict_local -> AlmostDictElement
 	= "local" S+ k:ident S* "=" S* v:expr S* { AlmostDictElement::Priv(k, v) }
@@ -184,7 +199,6 @@ exp -> i32
 	}
 	/ "" { 0 as i32 }
 
-#[pub]
 si_prefix -> f64
 	= "Ei" { 1152921504606846976.0 }
 	/ "Pi" { 1125899906842624.0 }
@@ -215,3 +229,17 @@ si_prefix -> f64
 	/ "f" { 0.000_000_000_000_000_001 }
 	/ "a" { 0.000_000_000_000_000_000_001 }
 	/ ""  { 1.0 }
+
+string -> Almost
+	= '"' c:string_contents* '"' { Almost::str(c) }
+
+string_contents -> StringPart
+	= [^"\\$]+ { /*"*/ StringPart::Lit(match_str.to_owned()) }
+	/ "$" r:reference { StringPart::Exp(r) }
+	/ "${" e:expr "}" { StringPart::Exp(e) }
+	/ "\\$" { StringPart::Esc("$") }
+	/ "\\t" { StringPart::Esc("\t")}
+	/ "\\n" { StringPart::Esc("\n")}
+	/ "\\0" { StringPart::Esc("\0")}
+	/ "\\" [A-Z-a-z0-9] { panic!("Unknown escape sequence {:?} in string", match_str) }
+	/ "\\" . { StringPart::Lit(match_str.to_owned()) }

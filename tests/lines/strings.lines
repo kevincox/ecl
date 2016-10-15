@@ -1,0 +1,5 @@
+	DCT	{
+basic	STR	"hi"
+escape	STR	"\${basic} \t\n"
+interp	STR	"hi - 4"
+	DCT	}

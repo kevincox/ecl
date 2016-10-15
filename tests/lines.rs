@@ -16,7 +16,7 @@ fn test_lines() {
 		let path = entry.unwrap().path();
 		if path.extension().unwrap() != "ecl" { continue }
 		
-		println!("Testing {:?}", path);
+		// println!("Testing {:?}", path);
 		
 		let mut ecl = fs::File::open(path.as_path()).unwrap();
 		let mut lines = fs::File::open(path.with_extension("lines")).unwrap();
