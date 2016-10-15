@@ -1,0 +1,13 @@
+	DCT	{
+b	NUM	8
+c	DCT	{
+c.c	NUM	5
+c.d	NUM	5
+c.e	NUM	8
+c	DCT	}
+d	LST	[
+d.1	NUM	5
+d.2	NUM	5
+d.3	NUM	8
+d	LST	]
+	DCT	}

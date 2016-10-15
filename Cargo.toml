@@ -8,3 +8,6 @@ peg = "0.3.0"
 ramp = "0.3.3"
 serde = "0.8"
 serde_json = "0.8"
+
+[dev-dependencies]
+difference = "0.4"

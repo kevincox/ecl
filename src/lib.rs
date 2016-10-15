@@ -1,28 +1,20 @@
-#![feature(plugin,fnbox)]
+#![feature(plugin)]
 #![plugin(peg_syntax_ext)]
 peg_file! grammar("grammar.rustpeg");
 
-use std::boxed::FnBox;
-use std::cell::{Ref, RefMut, RefCell, UnsafeCell};
+use std::cell::{RefCell};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt;
 use std::iter::Iterator;
 use std::mem;
-use std::ops;
-use std::rc::Rc;
 
 extern crate serde;
 
-pub mod serde_lines;
+pub mod lines;
 
-fn map<T, F>(val: &mut T, f: F)
-	where F: FnOnce(T) -> T
-{
-	unsafe {
-		let old = mem::replace(val, mem::uninitialized());
-		mem::forget(mem::replace(val, f(old)));
-	}
+fn i_promise_this_will_stay_alive<T>(v: &T) -> &'static T {
+	unsafe { mem::transmute(v) }
 }
 
 #[derive(Debug)]
@@ -34,6 +26,7 @@ pub enum Val {
 	Ref(&'static Val),
 	Str(String),
 	Thunk(Thunk),
+	ThunkRef(ThunkRef),
 }
 
 static NIL: Val = Val::Nil;
@@ -42,12 +35,15 @@ unsafe impl Sync for Val {  }
 
 impl Val {
 	fn get(&self) -> &Val {
-		println!("get() on {:?}", self);
-		match *self {
-			Val::Thunk(ref t) => t.eval().get(),
-			Val::Ref(r) => r.get(),
-			ref other => other
-		}
+		// println!("{:?}.get()", self);
+		let r = match *self {
+			Val::Thunk(ref t) => t.eval(),
+			Val::ThunkRef(ref t) => t.eval(),
+			Val::Ref(r) => r,
+			ref other => return other,
+		};
+		// println!("{:?}.get() -> {:?}", self, r);
+		r.get()
 	}
 	
 	fn get_str(&self) -> Option<&str> {
@@ -129,6 +125,7 @@ impl Val {
 					None => d.parent.lookup(key),
 				}
 			},
+			&Val::List(ref l) => l.parent.lookup(key),
 			other => panic!("Lookup in non-container {:?}", other),
 		}
 	}
@@ -146,70 +143,91 @@ impl PartialEq for Val {
 
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
-		s.serialize_none()
-	}
-}
-
-#[derive(Debug)]
-pub enum Almost {
-	Dict(Vec<AlmostDictElement>),
-	// Ind(Box<FnBox(Val) -> Box<FnBox() -> Val>>),
-	List(Vec<Almost>),
-	Ref(String),
-	Val(Val),
-}
-
-impl Almost {
-	fn val(v: Val) -> Almost {
-		Almost::Val(v)
-	}
-	
-	// fn make<A,T>(l: A) -> Almost where
-	// 	A: FnOnce(Val) -> T + 'static,
-	// 	T: FnBox() -> Val + 'static
-	// {
-	// 	Almost::Ind(Box::new(move |p| {
-	// 		Box::new(l(p)) as Box<FnBox() -> Val>
-	// 	}))
-	// }
-	
-	fn complete(&self, p: &Val) -> Val {
-		match self {
-			&Almost::Dict(ref sd) => {
-				let sd: &Vec<AlmostDictElement> = unsafe { mem::transmute(sd) };
-				Val::Dict(Dict {
-					parent: unsafe { mem::transmute(p) },
-					source: &sd[..],
-					data: RefCell::new(DictData {
-						data: Vec::with_capacity(sd.len()),
-						order: BTreeMap::new(),
-					})
-				})
+		match self.get() {
+			&Val::Dict(ref d) => {
+				let mut state = try!(s.serialize_map(Some(d.source.len())));
+				d.eval(self);
+				let prv = d.data.borrow();
+				for (k, i) in &prv.order {
+					if let DictVal::Pub(ref v) = prv.data[*i] {
+						try!(s.serialize_map_key(&mut state, k));
+						try!(s.serialize_map_value(&mut state, v));
+					}
+				}
+				s.serialize_map_end(state)
 			},
-			// Almost::Ind(almostfun) => {
-			// 	Thunk::new(almostfun(p))
-			// },
-			&Almost::List(ref sd) => {
-				let sd: &Vec<Almost> = unsafe { mem::transmute(sd) };
-				Val::List(List {
-					parent: unsafe { mem::transmute(p) },
-					data: RefCell::new((0..sd.len()).map(|_| None).collect()),
-					source: &sd[..],
-				})
+			&Val::List(ref l) => {
+				let len = l.source.len();
+				let mut state = try!(s.serialize_seq_fixed_size(len));
+				for i in 0..len {
+					try!(s.serialize_seq_elt(&mut state, l.index(self, i)));
+				}
+				s.serialize_seq_end(state)
 			},
-			&Almost::Ref(ref n) => {
-				let n: &String = unsafe { mem::transmute(n) };
-				let p: &Val = unsafe { mem::transmute(p) };
-				Thunk::new(Box::new(move || {
-					Val::Ref(unsafe { mem::transmute(p.lookup(n)) } )
-				}))
+			&Val::Nil => s.serialize_none(),
+			&Val::Num(n) => {
+				s.serialize_f64(n)
 			},
-			&Almost::Val(ref v) => Val::Ref(unsafe { mem::transmute(v) }),
+			other => panic!("Don't know how to serialize {:?}", other),
 		}
 	}
 }
 
-#[derive(Debug)]
+pub struct Almost(Box<Fn(&'static Val) -> Val>);
+
+impl Almost {
+	fn val<F: Fn(&'static Val) -> Val + 'static>(f: F) -> Almost {
+		Almost(Box::new(f))
+	}
+	
+	fn dict(items: Vec<AlmostDictElement>) -> Almost {
+		Almost::val(move |p| {
+			let items: &'static [AlmostDictElement] = unsafe { mem::transmute(&items[..]) };
+			Val::Dict(Dict {
+				parent: p,
+				source: items,
+				data: RefCell::new(DictData {
+					data: Vec::with_capacity(items.len()),
+					order: BTreeMap::new(),
+				})
+			})
+		})
+	}
+	
+	fn list(items: Vec<Almost>) -> Almost {
+		Almost::val(move |p| {
+			let items: &'static [Almost] = unsafe { mem::transmute(&items[..]) };
+			Val::List(List {
+				parent: p,
+				data: RefCell::new((0..items.len()).map(|_| None).collect()),
+				source: items,
+			})
+		})
+	}
+	
+	fn ref_(id: String) -> Almost {
+		Almost::val(move |p| {
+			let id = i_promise_this_will_stay_alive(&id);
+			ThunkRef::new(move || p.lookup(id))
+		})
+	}
+	
+	fn suffix(subject: Almost, suffix: Suffix) -> Almost {
+		Almost::val(move |p| {
+			let sub = subject.complete(p);
+			let suffix = i_promise_this_will_stay_alive(&suffix);
+			ThunkRef::new(move || {
+				return suffix.call(p, &sub);
+			})
+		})
+	}
+	
+	fn complete(&self, p: &Val) -> Val {
+		let p: &Val = unsafe { mem::transmute(p) };
+		self.0(p)
+	}
+}
+
 pub enum AlmostDictElement {
 	Unknown(Almost,Almost),
 	Known(String,Almost),
@@ -235,14 +253,15 @@ impl AlmostDictElement {
 	}
 }
 
+#[derive(Debug,Clone)]
 pub enum Suffix {
 	IndexIdent(String),
 }
 
 impl Suffix {
-	fn call(&self, _parent: &'static Val, subject: &'static Val) -> &Val {
+	fn call(&self, _parent: &'static Val, subject: &Val) -> &'static Val {
 		match self {
-			&Suffix::IndexIdent(ref id) => subject.index_str(&id),
+			&Suffix::IndexIdent(ref id) => i_promise_this_will_stay_alive(subject.index_str(&id)),
 		}
 	}
 }
@@ -336,6 +355,27 @@ impl Dict {
 			return Some(unsafe { &*r })
 		}
 	}
+	
+	fn eval(&self, value: &Val) {
+		loop {
+			let next = self.data.borrow().data.len();
+			
+			let source = match self.source.get(next) {
+				Some(s) => s,
+				None => return,
+			};
+			
+			let (k, v) = source.complete(value);
+			
+			let mut prv = self.data.borrow_mut();
+			prv.data.push(v);
+			
+			match prv.order.entry(k) {
+				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
+				Entry::Vacant(e) => e.insert(next),
+			};
+		}
+	}
 }
 
 impl PartialEq for Dict {
@@ -347,7 +387,7 @@ impl PartialEq for Dict {
 impl fmt::Debug for Dict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		if self.source.is_empty() {
-			return writeln!(f, "{{}}")
+			return write!(f, "{{}}")
 		}
 		
 		let prv = self.data.borrow();
@@ -369,48 +409,25 @@ impl fmt::Debug for Dict {
 
 pub struct Thunk {
 	code: Box<Fn() -> Val>,
-	data: UnsafeCell<Option<Box<Val>>>,
+	data: RefCell<Option<Box<Val>>>,
 }
 
 impl Thunk {
-	fn new(code: Box<Fn() -> Val>) -> Val {
-		Val::Thunk(Thunk{ code: code, data: UnsafeCell::new(None) })
+	fn new<F: Fn() -> Val + 'static>(code: F) -> Val {
+		Val::Thunk(Thunk{ code: Box::new(code), data: RefCell::new(None) })
 	}
 	
 	fn eval(&self) -> &Val {
-		unsafe {
-			let data = self.data.get();
-			if (*data).is_none() {
-				*data = Some(Box::new((self.code)()))
-			}
+		let mut data = self.data.borrow_mut();
+		if data.is_none() {
+			*data = Some(Box::new((self.code)()))
 		}
-		unsafe{&*self.data.get()}.as_ref().unwrap()
+		i_promise_this_will_stay_alive(data.as_ref().unwrap())
 	}
 }
 impl PartialEq for Thunk {
 	fn eq(&self, _that: &Self) -> bool {
 		false
-	}
-}
-
-pub struct Context {
-	almost: Almost,
-	val: Val,
-}
-
-impl Context {
-	fn new(doc: &str) -> Result<Context, grammar::ParseError> {
-		let almost = try!(grammar::document(doc));
-		let val = almost.complete(&NIL);
-		Ok(Context { almost: almost, val: val })
-	}
-}
-
-impl ops::Deref for Context {
-	type Target = Val;
-	
-	fn deref(&self) -> &Self::Target {
-		&self.val
 	}
 }
 
@@ -420,10 +437,45 @@ impl fmt::Debug for Thunk {
 	}
 }
 
+
+pub struct ThunkRef {
+	code: Box<Fn() -> &'static Val>,
+	data: RefCell<Option<&'static Val>>,
+}
+
+impl ThunkRef {
+	fn new<F: Fn() -> &'static Val + 'static>(code: F) -> Val {
+		Val::ThunkRef(ThunkRef{ code: Box::new(code), data: RefCell::new(None) })
+	}
+	
+	fn eval(&self) -> &Val {
+		let mut data = self.data.borrow_mut();
+		if data.is_none() {
+			*data = Some((self.code)())
+		}
+		
+		i_promise_this_will_stay_alive(data.unwrap())
+	}
+}
+impl PartialEq for ThunkRef {
+	fn eq(&self, _that: &Self) -> bool {
+		false
+	}
+}
+
+impl fmt::Debug for ThunkRef {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "<code>")
+	}
+}
+
+pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
+	let almost = try!(grammar::document(doc));
+	Ok(Thunk::new(move || almost.complete(&NIL)))
+}
+
 #[cfg(test)]
 mod tests {
-	use serde::Serialize;
-	
 	use super::*;
 	use super::grammar;
 	
@@ -438,20 +490,20 @@ mod tests {
 	
 	#[test]
 	fn dict() {
-		assert!(Context::new("{}").unwrap().is_empty());
-		let v = Context::new("{a=4 b = 0}").unwrap();
+		assert!(parse("{}").unwrap().is_empty());
+		let v = parse("{a=4 b = 0}").unwrap();
 		assert_eq!(*v.index_str("a"), Val::Num(4.0));
 		assert_eq!(*v.index_str("b"), Val::Num(0.0));
 		
-		let v = Context::new("{a=4 b=a}").unwrap();
+		let v = parse("{a=4 b=a}").unwrap();
 		assert_eq!(*v.index_str("a"), Val::Num(4.0));
 		assert_eq!(*v.index_str("b"), Val::Num(4.0));
 	}
 	
 	#[test]
 	fn list() {
-		assert!(Context::new("[]").unwrap().is_empty());
-		let v = Context::new("[0d29 0b1.1]").unwrap();
+		assert!(parse("[]").unwrap().is_empty());
+		let v = parse("[0d29 0b1.1]").unwrap();
 		assert_eq!(*v.index_int(0), Val::Num(29.0));
 		assert_eq!(*v.index_int(1), Val::Num(1.5));
 	}
@@ -488,33 +540,6 @@ mod tests {
 	
 	#[test]
 	fn ident() {
-		// assert_eq!(Context::new("{b = 4}.b").unwrap(), Val::Num(4.0));
-	}
-	
-	#[test]
-	fn to_lines() {
-// 		let mut out = Vec::new();
-// 		Context::new(r###"
-// 			{
-// 				array = [ 1 2 3 { val = 1.3 } ]
-// 				other = 2
-// 				dict = {
-// 					a = 1
-// 					b = 2
-// 					c = 3
-// 				}
-// 			}
-// 		"###).unwrap().serialize(&mut serde_lines::Serializer::new(&mut out));
-// 		assert_eq!(String::from_utf8(out).unwrap(), r###"array ARR [
-// array.1 NUM 1
-// array.2 NUM 2
-// array.3 NUM 3
-// array.4 DIC {
-// array.4.val NUM 1.3
-// dict.a NUM 1
-// dict.b NUM 2
-// dict.c NUM 3
-// other NUM 2
-// "###);
+		// assert_eq!(parse("{b = 4}.b").unwrap(), Val::Num(4.0));
 	}
 }

@@ -1,3 +1,4 @@
+use std::mem;
 use super::*;
 
 S = [ \t\n]
@@ -7,28 +8,31 @@ ident -> String
 
 #[pub]
 document -> Almost
-	= expr
+	= items:dict_item+ { Almost::dict(items) }
+	/ e:expr { e }
 
 #[pub]
 expr -> Almost
 	= S* e:expr_content S* { e }
 
-// expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
-expr_content -> Almost = sub:expr_subject {
-	sub
+expr_content -> Almost = sub:expr_subject suf:expr_suffix? {
+	match suf {
+		Some(suf) => Almost::suffix(sub, suf),
+		None => sub,
+	}
 }
 
 expr_subject -> Almost
-	= n:number { Almost::val(Val::Num(n)) }
+	= n:number { Almost::val(move |_| Val::Num(n)) }
 	/ l:list { l }
 	/ d:dict { d }
 	/ r:reference { r }
 
-// expr_suffix -> Suffix
-// 	= d:index { d }
+expr_suffix -> Suffix
+	= d:index { d }
 
 reference -> Almost
-	= n:ident { Almost::Ref(n) }
+	= n:ident { Almost::ref_(n) }
 
 index -> Suffix
 	= "." k:ident { Suffix::IndexIdent(k) }
@@ -36,7 +40,7 @@ index -> Suffix
 #[pub]
 dict -> Almost
 	= "{" items:dict_item* "}" {
-		Almost::Dict(items)
+		Almost::dict(items)
 	}
 
 dict_item -> AlmostDictElement
@@ -45,17 +49,16 @@ dict_item -> AlmostDictElement
 
 dict_known -> AlmostDictElement
 	= S* k:ident S* "=" S* v:expr S* {
-		println!("Read: {}", k);
 		AlmostDictElement::Known(k, v)
 	}
 
 dict_local -> AlmostDictElement
-	= "local" S+ k:ident "=" v:expr { AlmostDictElement::Priv(k, v) }
+	= "local" S+ k:ident S* "=" S* v:expr S* { AlmostDictElement::Priv(k, v) }
 
 #[pub]
 list -> Almost
-	= "[" contents:expr* "]" {
-		Almost::List(contents)
+	= "[" items:expr* "]" {
+		Almost::list(items)
 	}
 
 #[pub]
