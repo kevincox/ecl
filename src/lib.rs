@@ -129,6 +129,13 @@ impl Val {
 			other => panic!("Lookup in non-container {:?}", other),
 		}
 	}
+	
+	fn add(&self, that: &Val) -> Val {
+		match (self.get(), that.get()) {
+			(&Val::Num(l), &Val::Num(r)) => Val::Num(l + r),
+			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
+		}
+	}
 }
 
 impl PartialEq for Val {
@@ -182,10 +189,10 @@ impl Almost {
 	
 	fn dict(items: Vec<AlmostDictElement>) -> Almost {
 		Almost::val(move |p| {
-			let items: &'static [AlmostDictElement] = unsafe { mem::transmute(&items[..]) };
+			let items = i_promise_this_will_stay_alive(&items);
 			Val::Dict(Dict {
 				parent: p,
-				source: items,
+				source: &items[..],
 				data: RefCell::new(DictData {
 					data: Vec::with_capacity(items.len()),
 					order: BTreeMap::new(),
@@ -216,8 +223,9 @@ impl Almost {
 		Almost::val(move |p| {
 			let sub = subject.complete(p);
 			let suffix = i_promise_this_will_stay_alive(&suffix);
-			ThunkRef::new(move || {
-				return suffix.call(p, &sub);
+			Thunk::new(move || {
+				let sub = i_promise_this_will_stay_alive(&sub);
+				suffix.call(p, sub)
 			})
 		})
 	}
@@ -253,15 +261,23 @@ impl AlmostDictElement {
 	}
 }
 
-#[derive(Debug,Clone)]
 pub enum Suffix {
+	Add(Almost),
 	IndexIdent(String),
 }
 
 impl Suffix {
-	fn call(&self, _parent: &'static Val, subject: &Val) -> &'static Val {
-		match self {
-			&Suffix::IndexIdent(ref id) => i_promise_this_will_stay_alive(subject.index_str(&id)),
+	fn call(&self, parent: &'static Val, subject: &'static Val) -> Val {
+		match *self {
+			Suffix::Add(ref a) => {
+				let val = a.complete(parent);
+				Thunk::new(move || {
+					let val = i_promise_this_will_stay_alive(&val);
+					subject.add(val)
+				})
+			},
+			Suffix::IndexIdent(ref id) =>
+				Val::Ref(i_promise_this_will_stay_alive(subject.index_str(&id))),
 		}
 	}
 }

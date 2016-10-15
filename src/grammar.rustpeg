@@ -29,13 +29,11 @@ expr_subject -> Almost
 	/ r:reference { r }
 
 expr_suffix -> Suffix
-	= d:index { d }
+	= "." k:ident { Suffix::IndexIdent(k) }
+	/ S* "+" S* rhs:expr { Suffix::Add(rhs) }
 
 reference -> Almost
 	= n:ident { Almost::ref_(n) }
-
-index -> Suffix
-	= "." k:ident { Suffix::IndexIdent(k) }
 
 #[pub]
 dict -> Almost
