@@ -23,6 +23,7 @@ fn i_promise_this_will_stay_alive<T>(v: &T) -> &'static T {
 #[derive(Debug)]
 pub enum Val {
 	ADict(String,Box<Val>),
+	Bool(bool),
 	Dict(Dict),
 	List(List),
 	Num(f64),
@@ -34,6 +35,8 @@ pub enum Val {
 }
 
 static NIL: Val = Val::Nil;
+static TRUE: Val = Val::Bool(true);
+static FALSE: Val = Val::Bool(false);
 
 unsafe impl Sync for Val {  }
 
@@ -121,7 +124,13 @@ impl Val {
 	
 	fn lookup(&self, key: &str) -> &Val {
 		match self.get() {
-			&Val::Nil => self,
+			&Val::Nil => {
+				match key {
+					"true" => &TRUE,
+					"false" => &FALSE,
+					other => panic!("Undefined variable {:?}", other),
+				}
+			},
 			&Val::Dict(ref d) => {
 				match d.index(i_promise_this_will_stay_alive(self), key) {
 					Some(&DictVal::Pub(ref v)) => v,
@@ -171,6 +180,7 @@ impl serde::Serialize for Val {
 				try!(s.serialize_map_value(&mut state, v));
 				s.serialize_map_end(state)
 			},
+			&Val::Bool(b) => s.serialize_bool(b),
 			&Val::Dict(ref d) => {
 				let mut state = try!(s.serialize_map(Some(d.source.len())));
 				d.eval(this);

@@ -184,7 +184,7 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 	}
 	
 	fn serialize_seq(&mut self, _len: Option<usize>) -> Result<Self::SeqState> {
-		try!(self.write("LST", "["));
+		try!(self.write("LIST", "["));
 		Ok(0)
 	}
 	
@@ -207,7 +207,7 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 	}
 	
 	fn serialize_seq_end(&mut self, _state: Self::SeqState) -> Result<()> {
-		self.write("LST", "]")
+		self.write("LIST", "]")
 	}
 	
 	fn serialize_tuple(&mut self, _len: usize) -> Result<Self::TupleState> {
@@ -269,7 +269,7 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 	}
 	
 	fn serialize_map(&mut self, _len: Option<usize>) -> Result<Self::MapState> {
-		self.write("DCT", "{")
+		self.write("DICT", "{")
 	}
 	
 	fn serialize_map_key<T: serde::Serialize>(
@@ -291,7 +291,7 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 	}
 	
 	fn serialize_map_end(&mut self, _state: Self::MapState) -> Result<()> {
-		self.write("DCT", "}")
+		self.write("DICT", "}")
 	}
 	
 	fn serialize_struct(

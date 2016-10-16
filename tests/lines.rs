@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::io::Read;
 
@@ -34,12 +35,14 @@ fn test_lines() {
 			good += 1;
 		} else {
 			bad += 1;
-			println!("ERROR: Difference detected in {:?}", path);
 			difference::print_diff(&input, &output, "\n");
+			println!("ERROR: Above difference found in {:?}", path);
 		}
 	}
 	
 	println!("RESULT: {}/{} differ from the expected value.", bad, bad + good);
+	
+	env::remove_var("RUST_BACKTRACE");
 	assert_eq!(bad, 0);
 	assert!(good > 0);
 }

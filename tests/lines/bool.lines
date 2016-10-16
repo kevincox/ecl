@@ -1,0 +1,9 @@
+	DICT	{
+f	BOOL	false
+t	BOOL	true
+weird	DICT	{
+weird.f	BOOL	false
+weird.t	NUM	4
+weird.true	NUM	4
+weird	DICT	}
+	DICT	}
