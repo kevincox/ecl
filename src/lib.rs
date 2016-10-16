@@ -15,6 +15,7 @@ extern crate regex;
 extern crate serde;
 
 pub mod lines;
+pub use grammar::ParseError;
 
 fn i_promise_this_will_stay_alive<T>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
