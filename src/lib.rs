@@ -1,4 +1,5 @@
 #![feature(plugin)]
+// #![plugin(afl_plugin)]
 #![plugin(peg_syntax_ext)]
 peg_file! grammar("grammar.rustpeg");
 
@@ -23,9 +24,11 @@ fn i_promise_this_will_stay_alive<T>(v: &T) -> &'static T {
 
 #[derive(Debug)]
 pub enum Val {
-	ADict(String,Box<Val>),
+	ADict(ADict),
 	Bool(bool),
+	Builtin(Builtin),
 	Dict(Dict),
+	Func(Func),
 	List(List),
 	Num(f64),
 	Nil,
@@ -43,7 +46,7 @@ unsafe impl Sync for Val {  }
 
 impl Val {
 	fn get(&self) -> &Val {
-		// println!("{:?} ({:?}).get()", self, self as *const Val);
+		println!("{:?} ({:?}).get()", self, self as *const Val);
 		let r = match *self {
 			Val::Thunk(ref t) => t.eval(),
 			Val::ThunkRef(ref t) => t.eval(),
@@ -67,7 +70,7 @@ impl Val {
 	
 	pub fn is_empty(&self) -> bool {
 		match *self.get() {
-			Val::List(ref l) => l.source.is_empty(),
+			Val::List(ref l) => l.data.is_empty(),
 			Val::Dict(ref d) => {
 				if d.source.is_empty() {
 					true
@@ -94,17 +97,18 @@ impl Val {
 	fn index_int(&self, k: usize) -> &Val {
 		match &*self.get() {
 			&Val::List(ref l) => {
-				l.index(i_promise_this_will_stay_alive(self), k)
+				&l.data[k]
 			},
 			this => panic!("Can't index {:?} with an int", this),
 		}
 	}
 	
 	pub fn index_str(&self, key: &str) -> &Val {
+		println!("Index {:?} in {:?}", key, self);
 		match *self.get() {
-			Val::ADict(ref k, ref v) => {
-				if k == key {
-					v
+			Val::ADict(ref d) => {
+				if d.key == key {
+					&*d.val
 				} else {
 					&NIL
 				}
@@ -124,23 +128,33 @@ impl Val {
 	}
 	
 	fn lookup(&self, key: &str) -> &Val {
-		match self.get() {
-			&Val::Nil => {
+		println!("Lookup {:?} in {:?}", key, self);
+		match *self.get() {
+			Val::ADict(ref d) => {
+				if d.key == key {
+					&*d.val
+				} else {
+					d.parent.lookup(key)
+				}
+			},
+			Val::Nil => {
 				match key {
+					"nil" => &NIL,
 					"true" => &TRUE,
 					"false" => &FALSE,
+					"reverse" => &REVERSE,
 					other => panic!("Undefined variable {:?}", other),
 				}
 			},
-			&Val::Dict(ref d) => {
+			Val::Dict(ref d) => {
 				match d.index(i_promise_this_will_stay_alive(self), key) {
 					Some(&DictVal::Pub(ref v)) => v,
 					Some(&DictVal::Priv(ref v)) => v,
 					None => d.parent.lookup(key),
 				}
 			},
-			&Val::List(ref l) => l.parent.lookup(key),
-			other => panic!("Lookup in non-container {:?}", other),
+			Val::List(ref l) => l.parent.lookup(key),
+			ref other => panic!("Lookup in non-container {:?}", other),
 		}
 	}
 	
@@ -149,6 +163,27 @@ impl Val {
 			(&Val::Num(l), &Val::Num(r)) => Val::Num(l + r),
 			(&Val::Str(ref l), &Val::Str(ref r)) => Val::Str(l.clone() + &r),
 			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
+		}
+	}
+	
+	fn call(&self, arg: Val) -> Val {
+		match *self.get() {
+			Val::Builtin(ref f) => {
+				f.1(arg)
+			},
+			Val::Func(ref f) => {
+				let f = i_promise_this_will_stay_alive(f);
+				let scope = Val::ADict(ADict {
+					parent: f.parent,
+					key: f.arg.to_owned(),
+					val: Box::new(arg),
+				});
+				Thunk::new(move || {
+					let scope = i_promise_this_will_stay_alive(&scope);
+					f.body.complete(scope)
+				})
+			},
+			ref other => panic!("Can't call {:?}", other),
 		}
 	}
 	
@@ -175,10 +210,10 @@ impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
 		let this = i_promise_this_will_stay_alive(self);
 		match self.get() {
-			&Val::ADict(ref k, ref v) => {
+			&Val::ADict(ref d) => {
 				let mut state = try!(s.serialize_map(Some(1)));
-				try!(s.serialize_map_key(&mut state, k));
-				try!(s.serialize_map_value(&mut state, v));
+				try!(s.serialize_map_key(&mut state, &d.key));
+				try!(s.serialize_map_value(&mut state, &d.val));
 				s.serialize_map_end(state)
 			},
 			&Val::Bool(b) => s.serialize_bool(b),
@@ -195,10 +230,10 @@ impl serde::Serialize for Val {
 				s.serialize_map_end(state)
 			},
 			&Val::List(ref l) => {
-				let len = l.source.len();
+				let len = l.data.len();
 				let mut state = try!(s.serialize_seq_fixed_size(len));
-				for i in 0..len {
-					try!(s.serialize_seq_elt(&mut state, l.index(this, i)));
+				for e in &l.data {
+					try!(s.serialize_seq_elt(&mut state, e));
 				}
 				s.serialize_seq_end(state)
 			},
@@ -210,78 +245,158 @@ impl serde::Serialize for Val {
 	}
 }
 
-pub struct Almost(Box<Fn(&'static Val) -> Val>);
+pub struct Builtin(&'static str, &'static Fn(Val) -> Val);
+
+impl fmt::Debug for Builtin {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "<builtin {:?}>", self.0)
+	}
+}
+
+static REVERSE: Val = Val::Builtin(Builtin("reverse", &|v| {
+	match *v.get() {
+		Val::List(ref l) => {
+			let l = i_promise_this_will_stay_alive(l); // TODO does it?
+			let mut data: Vec<_> = l.data.iter().map(|v| Val::Ref(v)).collect();
+			data.reverse();
+			let p = i_promise_this_will_stay_alive(l.parent); // TODO does it?
+			Val::List(List {
+				parent: l.parent,
+				data: data,
+			})
+		}
+		ref other => panic!("Can't reverse {:?}", other)
+	}
+}));
+
+pub enum Almost {
+	Dict(Vec<AlmostDictElement>),
+	Expr(Box<Almost>, Vec<Suffix>),
+	L(Box<Fn(&'static Val) -> Val>),
+	Num(f64),
+	Ref(String),
+	Str(Vec<StringPart>),
+	StrStatic(String),
+}
 
 impl Almost {
 	fn val<F: Fn(&'static Val) -> Val + 'static>(f: F) -> Almost {
-		Almost(Box::new(f))
+		Almost::L(Box::new(f))
 	}
 	
 	fn dict(items: Vec<AlmostDictElement>) -> Almost {
+		Almost::Dict(items)
+	}
+	
+	fn function(arg: String, body: Almost) -> Almost {
 		Almost::val(move |p| {
-			let items = i_promise_this_will_stay_alive(&items);
-			Val::Dict(Dict {
-				parent: p,
-				source: &items[..],
-				data: RefCell::new(DictData {
-					data: Vec::with_capacity(items.len()),
-					order: BTreeMap::new(),
-				})
-			})
+			let arg = i_promise_this_will_stay_alive(&arg);
+			let body = i_promise_this_will_stay_alive(&body);
+			Val::Func(Func { parent: p, arg: arg, body: body })
 		})
 	}
 	
 	fn list(items: Vec<Almost>) -> Almost {
 		Almost::val(move |p| {
 			let items = i_promise_this_will_stay_alive(&items);
-			Val::List(List {
-				parent: p,
-				data: RefCell::new((0..items.len()).map(|_| None).collect()),
-				source: &items[..],
-			})
+			List::new(p, items)
 		})
 	}
 	
 	fn str(c: Vec<StringPart>) -> Almost {
-		Almost::val(move |p| {
-			let mut r = String::new();
-			for part in &c {
-				match part {
-					&StringPart::Esc(ref s) => r += s,
-					&StringPart::Exp(ref e) => r += &e.complete(p).to_string(),
-					&StringPart::Lit(ref s) => r += &s,
-				}
-			}
-			Val::Str(r)
-		})
+		Almost::Str(c)
 	}
 	
 	fn str_static(s: String) -> Almost {
-		Almost::val(move |_| Val::Str(s.clone()))
-	}
-	
-	fn ref_(id: String) -> Almost {
-		Almost::val(move |p| {
-			let id = i_promise_this_will_stay_alive(&id);
-			ThunkRef::new(move || p.lookup(id))
-		})
+		Almost::StrStatic(s)
 	}
 	
 	fn expr(subject: Almost, suffixes: Vec<Suffix>) -> Almost {
-		Almost::val(move |p| {
-			let suffixes = i_promise_this_will_stay_alive(&suffixes);
-			let subject = i_promise_this_will_stay_alive(&subject);
-			Thunk::new(move || {
-				let subject = subject.complete(p);
-				suffixes.iter().fold(subject, |a, e| {
-					e.call(p, a)
-				})
-			})
-		})
+		Almost::Expr(Box::new(subject), suffixes)
 	}
 	
 	fn complete(&self, p: &'static Val) -> Val {
-		self.0(p)
+		match *self {
+			Almost::Dict(ref items) => {
+				let items = i_promise_this_will_stay_alive(items);
+				Val::Dict(Dict {
+					parent: p,
+					source: &items[..],
+					data: RefCell::new(DictData {
+						data: Vec::with_capacity(items.len()),
+						order: BTreeMap::new(),
+					})
+				})
+			},
+			Almost::Expr(ref subject, ref suffixes) => {
+				let suffixes = i_promise_this_will_stay_alive(suffixes);
+				let subject = i_promise_this_will_stay_alive(subject);
+				Thunk::new(move || {
+					let subject = subject.complete(p);
+					suffixes.iter().fold(subject, |a, e| {
+						e.call(p, a)
+					})
+				})
+			},
+			Almost::L(ref l) => l(p),
+			Almost::Num(n) => Val::Num(n),
+			Almost::Ref(ref id) => {
+				let id = i_promise_this_will_stay_alive(id);
+				ThunkRef::new(move || p.lookup(id))
+			},
+			Almost::Str(ref c) => {
+				let mut r = String::new();
+				for part in c {
+					match part {
+						&StringPart::Esc(s) => r.push(s),
+						&StringPart::Exp(ref e) => r += &e.complete(p).to_string(),
+						&StringPart::Lit(ref s) => r += &s,
+					}
+				}
+				Val::Str(r)
+			},
+			Almost::StrStatic(ref s) => {
+				Val::Str(s.clone())
+			},
+		}
+	}
+}
+
+impl fmt::Debug for Almost {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			Almost::Dict(ref items) => {
+				try!(writeln!(f, "Dict({{"));
+				for i in items {
+					try!(writeln!(f, "\t{:?}", i));
+				}
+				write!(f, "}})")
+			},
+			Almost::Expr(ref subject, ref suffixes) => {
+				try!(write!(f, "Expr({:?}", subject));
+				for s in suffixes {
+					try!(write!(f, "{:?}", s));
+				}
+				write!(f, ")")
+			},
+			Almost::L(_) => write!(f, "<opaque>"),
+			Almost::Num(n) => write!(f, "{}", n),
+			Almost::Ref(ref id) => write!(f, "Ref({})", format_key(id)),
+			Almost::Str(ref parts) => {
+				try!(write!(f, "\""));
+				for part in parts {
+					match *part {
+						StringPart::Esc(s)     => try!(write!(f, "{}", s)),
+						StringPart::Exp(ref s) => try!(write!(f, "${{{:?}}}", s)),
+						StringPart::Lit(ref s) => try!(write!(f, "{}", escape_string_contents(&s))),
+					}
+				}
+				write!(f, "\"")
+			},
+			Almost::StrStatic(ref s) => {
+				write!(f, "{}", escape_string(&s))
+			},
+		}
 	}
 }
 
@@ -332,10 +447,11 @@ impl AlmostDictElement {
 		if path.is_empty() {
 			v.complete(p)
 		} else {
-			Val::ADict(
-				path[0].to_owned(),
-				Box::new(Self::make_auto(p, &path[1..], v))
-			)
+			Val::ADict(ADict {
+				parent: p,
+				key: path[0].to_owned(),
+				val: Box::new(Self::make_auto(p, &path[1..], v))
+			})
 		}
 	}
 	
@@ -347,13 +463,52 @@ impl AlmostDictElement {
 			let k = k
 				.get_str().expect("Dict index must be string")
 				.to_owned();
-			Val::ADict(k, Box::new(Self::make_auto_dyn(p, &path[1..], v)))
+			Val::ADict(ADict {
+				parent: p,
+				key: k,
+				val: Box::new(Self::make_auto_dyn(p, &path[1..], v)),
+			})
+		}
+	}
+}
+
+impl fmt::Debug for AlmostDictElement {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			&AlmostDictElement::Auto(ref path, ref v) => {
+				let mut sep = ' ';
+				try!(write!(f, "pub  "));
+				for e in path {
+					try!(write!(f, "{}{}", sep, format_key(e)));
+					sep = '.';
+				}
+				write!(f, " = {:?}", v)
+			},
+			&AlmostDictElement::Dyn(ref path, ref v) => {
+				let mut sep = ' ';
+				try!(write!(f, "pub  "));
+				for e in path {
+					try!(write!(f, "{}{:?}", sep, e));
+					sep = '.';
+				}
+				write!(f, " = {:?}", v)
+			},
+			&AlmostDictElement::Unknown(ref k, ref v) => {
+				write!(f, "pub   {:?} = {:?}", k, v)
+			},
+			&AlmostDictElement::Known(ref k, ref v) => {
+				write!(f, "pub   {} = {:?}", format_key(k), v)
+			},
+			&AlmostDictElement::Priv(ref k, ref v) => {
+				write!(f, "local {} = {:?}", format_key(k), v)
+			},
 		}
 	}
 }
 
 pub enum Suffix {
 	Add(Almost),
+	Call(Almost),
 	IndexExpr(Almost),
 	IndexIdent(String),
 }
@@ -364,6 +519,10 @@ impl Suffix {
 			Suffix::Add(ref a) => {
 				let val = a.complete(parent);
 				subject.add(val)
+			},
+			Suffix::Call(ref a) => {
+				let val = a.complete(parent);
+				subject.call(val)
 			},
 			Suffix::IndexExpr(ref key) => {
 				let k = key.complete(parent);
@@ -380,23 +539,28 @@ impl Suffix {
 	}
 }
 
+impl fmt::Debug for Suffix {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			Suffix::Add(ref a) => write!(f, " + {:?}", a),
+			Suffix::Call(ref a) => write!(f, ": {:?}", a),
+			Suffix::IndexExpr(ref a) => write!(f, ".{:?}", a),
+			Suffix::IndexIdent(ref s) => write!(f, ".{}", format_key(s)),
+		}
+	}
+}
+
 pub struct List {
 	parent: &'static Val,
-	data: RefCell<Vec<Option<Val>>>,
-	source: &'static [Almost]
+	data: Vec<Val>,
 }
 
 impl List {
-	fn index(&self, val: &'static Val, key: usize) -> &Val {
-		if self.data.borrow()[key].is_none() {
-			let mut l = self.data.borrow_mut();
-			l[key] = Some(self.source[key].complete(val));
-			l[key].as_ref().unwrap();
-		}
-		
-		// I promise I won't modify/delete this value as long as I live.
-		let r = self.data.borrow()[key].as_ref().unwrap() as *const Val;
-		unsafe { &*r }
+	fn new(p: &'static Val, items: &'static [Almost]) -> Val {
+		Val::List(List {
+			parent: p,
+			data: items.iter().map(|a| a.complete(p)).collect(),
+		})
 	}
 }
 
@@ -521,6 +685,30 @@ impl fmt::Debug for Dict {
 	}
 }
 
+pub struct ADict {
+	parent: &'static Val,
+	key: String,
+	val: Box<Val>,
+}
+
+impl fmt::Debug for ADict {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "ADict{{ {} = {:?} }}", format_key(&self.key), self.val)
+	}
+}
+
+pub struct Func {
+	parent: &'static Val,
+	arg: &'static str,
+	body: &'static Almost,
+}
+
+impl fmt::Debug for Func {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{} -> <body>", self.arg)
+	}
+}
+
 pub struct Thunk {
 	code: Box<Fn() -> Val>,
 	data: RefCell<Option<Box<Val>>>,
@@ -600,11 +788,15 @@ pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
 	Ok(Thunk::new(move || almost.complete(&NIL)))
 }
 
-pub enum StringPart { Esc(&'static str), Lit(String), Exp(Almost) }
+pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
+	let almost = try!(grammar::document(doc));
+	println!("{:?}", almost);
+	Ok(())
+}
 
-pub fn escape_string(s: &str) -> String {
-	let mut r = String::with_capacity(s.len() + 2);
-	r.push('"');
+pub enum StringPart { Esc(char), Lit(String), Exp(Almost) }
+
+fn do_escape_string_contents(s: &str, r: &mut String) {
 	for c in s.chars() {
 		match c {
 			'"'  => r.push_str("\\\""),
@@ -615,6 +807,19 @@ pub fn escape_string(s: &str) -> String {
 			_ => r.push(c),
 		}
 	}
+}
+
+fn escape_string_contents(s: &str) -> String {
+	let mut r = String::with_capacity(s.len());
+	do_escape_string_contents(s, &mut r);
+	r
+}
+
+
+pub fn escape_string(s: &str) -> String {
+	let mut r = String::with_capacity(s.len() + 2);
+	r.push('"');
+	do_escape_string_contents(s, &mut r);
 	r.push('"');
 	r
 }

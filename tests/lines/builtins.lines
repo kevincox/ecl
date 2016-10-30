@@ -1,0 +1,5 @@
+	DICT	{
+false_	BOOL	false
+nil_	NIL	nil
+true_	BOOL	true
+	DICT	}

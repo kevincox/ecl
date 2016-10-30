@@ -3,44 +3,46 @@ use super::*;
 
 S = whitespace_element+
 
-whitespace_element = whitespace_character / comment
-whitespace_character = [ \t\n]
-comment = "#" [^\n]* "\n"
+whitespace_element
+	= [ \t\n]
+	/ "#" [^\n]* "\n"
 
 ident -> String
 	= [_a-zA-Z-]+ { match_str.to_owned() }
 
 #[pub]
 document -> Almost
-	= items:dict_item+ { Almost::dict(items) }
-	/ e:expr { e }
+	= S? items:dict_item ++ S S? { Almost::dict(items) }
+	/ S? e:expr S? { e }
 
 #[pub]
 expr -> Almost
-	= S? e:expr_content S? { e }
+	= S? e:expr_content { e }
 
 expr_content -> Almost = sub:expr_subject suf:expr_suffix* {
 	Almost::expr(sub, suf)
 }
 
 expr_subject -> Almost
-	= n:number { Almost::val(move |_| Val::Num(n)) }
+	= n:number { Almost::Num(n) }
 	/ s:string { s }
 	/ l:list { l }
 	/ d:dict { d }
+	/ f:function { f }
 	/ r:reference { r }
 
 expr_suffix -> Suffix
-	= "." k:ident { Suffix::IndexIdent(k) }
-	/ "." k:string { Suffix::IndexExpr(k) }
+	= S? "." S? k:ident { Suffix::IndexIdent(k) }
+	/ S? "." S? k:string { Suffix::IndexExpr(k) }
 	/ S? "+" S? rhs:expr { Suffix::Add(rhs) }
+	/ S? ":" S? rhs:expr { Suffix::Call(rhs) }
 
 reference -> Almost
-	= n:ident { Almost::ref_(n) }
+	= n:ident { Almost::Ref(n) }
 
 #[pub]
 dict -> Almost
-	= "{" items:dict_item* "}" {
+	= "{" S? items:dict_item ** S S? "}" {
 		Almost::dict(items)
 	}
 
@@ -51,17 +53,17 @@ dict_item -> AlmostDictElement
 	/ i:dict_local { i }
 
 dict_known -> AlmostDictElement
-	= S? k:ident S? "=" S? v:expr S? {
+	= k:ident S? "=" S? v:expr {
 		AlmostDictElement::Known(k, v)
 	}
 
 dict_auto -> AlmostDictElement
-	= S? path:ident ++ "." S? "=" S? v:expr S? {
+	= path:ident ++ "." S? "=" S? v:expr {
 		AlmostDictElement::Auto(path, v)
 	}
 
 dict_full -> AlmostDictElement
-	= S? path:dict_path_element ++ "." S? "=" S? v:expr S? {
+	= path:dict_path_element ++ "." S? "=" S? v:expr {
 		AlmostDictElement::Dyn(path, v)
 	}
 
@@ -70,12 +72,17 @@ dict_path_element -> Almost
 	/ s:string { s }
 
 dict_local -> AlmostDictElement
-	= S? "local" S k:ident S? "=" S? v:expr S? { AlmostDictElement::Priv(k, v) }
+	= "local" S k:ident S? "=" S? v:expr { AlmostDictElement::Priv(k, v) }
 
 #[pub]
 list -> Almost
-	= "[" items:expr* "]" {
+	= "[" S? items:expr ** S S? "]" {
 		Almost::list(items)
+	}
+
+function -> Almost
+	= a:ident S? "->" S? b:expr {
+		Almost::function(a, b)
 	}
 
 #[pub]
@@ -241,9 +248,9 @@ string_contents -> StringPart
 	= [^"\\$]+ { /*"*/ StringPart::Lit(match_str.to_owned()) }
 	/ "$" r:reference { StringPart::Exp(r) }
 	/ "${" e:expr "}" { StringPart::Exp(e) }
-	/ "\\$" { StringPart::Esc("$") }
-	/ "\\t" { StringPart::Esc("\t")}
-	/ "\\n" { StringPart::Esc("\n")}
-	/ "\\0" { StringPart::Esc("\0")}
+	/ "\\$" { StringPart::Esc('$') }
+	/ "\\t" { StringPart::Esc('\t')}
+	/ "\\n" { StringPart::Esc('\n')}
+	/ "\\0" { StringPart::Esc('\0')}
 	/ "\\" [A-Z-a-z0-9] { panic!("Unknown escape sequence {:?} in string", match_str) }
-	/ "\\" . { StringPart::Lit(match_str.to_owned()) }
+	/ "\\" . { StringPart::Esc(match_str.chars().nth(1).unwrap()) }
