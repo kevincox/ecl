@@ -3,9 +3,10 @@ use std::fs;
 use std::io::Read;
 
 extern crate ecl;
+extern crate erased_serde;
 extern crate serde;
 
-use serde::Serialize;
+use erased_serde::Serialize;
 
 fn main() {
 	let args: Vec<String> = env::args().collect();
@@ -18,7 +19,7 @@ fn main() {
 		
 		let val = ecl::parse(&buf).unwrap();
 		println!("Parsing complete! {:?}", val);
-		val.serialize(&mut ecl::lines::Serializer::new(&mut buf)).unwrap();
+		val.erased_serialize(&mut ecl::lines::Serializer::new(&mut buf)).unwrap();
 		
 		println!("{}", buf);
 	}

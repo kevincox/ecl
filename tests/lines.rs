@@ -4,9 +4,9 @@ use std::io::Read;
 
 extern crate difference;
 extern crate ecl;
-extern crate serde;
+extern crate erased_serde;
 
-use serde::Serialize;
+use erased_serde::Serialize;
 
 #[test]
 fn test_lines() {
@@ -26,7 +26,7 @@ fn test_lines() {
 		ecl.read_to_string(&mut input).unwrap();
 		let mut output = String::new();
 		ecl::parse(&input).unwrap()
-			.serialize(&mut ecl::lines::Serializer::new(&mut output)).unwrap();
+			.erased_serialize(&mut ecl::lines::Serializer::new(&mut output)).unwrap();
 		
 		input.clear();
 		lines.read_to_string(&mut input).unwrap();

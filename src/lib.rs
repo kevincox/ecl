@@ -1,9 +1,12 @@
+#![feature(get_type_id)]
 #![feature(plugin)]
 #![feature(proc_macro)]
 // #![plugin(afl_plugin)]
 #![plugin(peg_syntax_ext)]
-peg_file! grammar("grammar.rustpeg");
+#![feature(reflect_marker)]
+#![feature(stmt_expr_attributes)]
 
+extern crate erased_serde;
 #[macro_use] extern crate gc;
 #[macro_use] extern crate gc_derive;
 #[macro_use] extern crate lazy_static;
@@ -11,6 +14,7 @@ extern crate regex;
 extern crate serde;
 
 use gc::{Gc, GcCell};
+use std::any;
 use std::cell::{RefCell};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -18,7 +22,10 @@ use std::fmt;
 use std::iter::Iterator;
 use std::mem;
 
+mod builtins;
 pub mod lines;
+
+peg_file! grammar("grammar.rustpeg");
 pub use grammar::ParseError;
 
 fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
@@ -29,7 +36,6 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 pub enum Value {
 	ADict(ADict),
 	Bool(bool),
-	Builtin(&'static Builtin),
 	Dict(Dict),
 	Func(Func),
 	List(List),
@@ -39,38 +45,27 @@ pub enum Value {
 	Thunk(Thunk),
 }
 
-#[derive(Clone,Debug,Trace)]
-pub struct Val(Gc<Value>);
+impl PartialEq for Value {
+	fn eq(&self, that: &Value) -> bool {
+		match (self, that) {
+			(&Value::Dict(ref l), &Value::Dict(ref r)) => l == r,
+			(&Value::Num(l), &Value::Num(r)) => l == r,
+			(_, _) => false,
+		}
+	}
+}
 
-impl Val {
-	fn new(v: Value) -> Val {
-		// println!("Allocating {:?}", v);
-		Val(Gc::new(v))
-	}
-	
-	fn get(&self) -> Val {
-		// println!("{:?} ({:?}).get()", self, self as *const Val);
-		let r = match **self {
-			Value::Thunk(ref t) => t.eval().clone(),
-			_ => return self.clone(),
-		};
-		// println!("{:?} ({:?}).get() -> {:?} ({:?})",
-			// self, self as *const Val, r, r as *const Val);
-		debug_assert!(&**self as *const Value != &*r as *const Value);
-		let r = r.get();
-		debug_assert!(&**self as *const Value != &*r as *const Value);
-		r
-	}
-	
-	fn get_str(&self) -> Option<&str> {
-		match *self.get() {
-			Value::Str(ref s) => Some(i_promise_this_will_stay_alive(s)),
-			_ => None,
+impl Valu for Value {
+	fn get(&self) -> Option<Val> {
+		if let Value::Thunk(ref t) =  *self {
+			Some(t.eval().clone())
+		} else {
+			None
 		}
 	}
 	
-	pub fn is_empty(&self) -> bool {
-		match *self.get() {
+	fn is_empty(&self) -> bool {
+		match *self {
 			Value::List(ref l) => l.data.is_empty(),
 			Value::Dict(ref d) => {
 				if d.source.is_empty() {
@@ -87,26 +82,17 @@ impl Val {
 		}
 	}
 	
-	pub fn index(&self, k: Val) -> Val {
-		match *k.get() {
-			Value::Num(n) => self.index_int(n as usize),
-			Value::Str(ref s) => self.index_str(s),
-			ref k => panic!("Can't index {:?} with {:?}", self, k),
-		}
-	}
-	
 	fn index_int(&self, k: usize) -> Val {
-		match &*self.get() {
-			&Value::List(ref l) => {
+		match *self {
+			Value::List(ref l) => {
 				l.data[k].clone()
 			},
-			this => panic!("Can't index {:?} with an int", this),
+			ref other => panic!("Can't index {:?} with an int", other),
 		}
 	}
 	
-	pub fn index_str(&self, key: &str) -> Val {
-		// println!("Index {:?} in {:?}", key, self);
-		match *self.get() {
+	fn index_str(&self, val: Val, key: &str) -> Val {
+		match *self {
 			Value::ADict(ref d) => {
 				if d.key == key {
 					d.val.clone()
@@ -115,7 +101,7 @@ impl Val {
 				}
 			},
 			Value::Dict(ref d) => {
-				match d.index(self.clone(), key) {
+				match d.index(val.clone(), key) {
 					Some(&DictVal::Pub(ref v)) => v.clone(),
 					Some(&DictVal::Priv(ref v)) => {
 						println!("WRN: Attempt to access private memeber {:?}", v);
@@ -128,9 +114,9 @@ impl Val {
 		}
 	}
 	
-	fn lookup(&self, key: &str) -> Val {
+	fn lookup(&self, val: Val, key: &str) -> Val {
 		// println!("Lookup {:?} in {:?}", key, self);
-		match *self.get() {
+		match *self {
 			Value::ADict(ref d) => {
 				if d.key == key {
 					d.val.clone()
@@ -139,16 +125,10 @@ impl Val {
 				}
 			},
 			Value::Nil => {
-				match key {
-					"nil" => Val::new(Value::Nil),
-					"true" => Val::new(Value::Bool(true)),
-					"false" => Val::new(Value::Bool(false)),
-					"reverse" => Val::new(Value::Builtin(&REVERSE)),
-					other => panic!("Undefined variable {:?}", other),
-				}
+				builtins::get(key)
 			},
 			Value::Dict(ref d) => {
-				match d.index(self.clone(), key) {
+				match d.index(val.clone(), key) {
 					Some(&DictVal::Pub(ref v)) => v.clone(),
 					Some(&DictVal::Priv(ref v)) => v.clone(),
 					None => d.parent.lookup(key),
@@ -159,133 +139,255 @@ impl Val {
 		}
 	}
 	
-	fn add(&self, that: Val) -> Val {
-		Val::new(match (&*self.get(), &*that.get()) {
-			(&Value::Num(l), &Value::Num(r)) => Value::Num(l + r),
-			(&Value::Str(ref l), &Value::Str(ref r)) => Value::Str(l.clone() + &r),
-			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
-		})
+	fn serialize(&self, val: Val, s: &mut erased_serde::Serializer)
+		-> Result<(),erased_serde::Error> {
+		match *self {
+			Value::ADict(ref d) => {
+				let mut state = try!(s.erased_serialize_map(Some(1)));
+				try!(s.erased_serialize_map_key(&mut state, &d.key));
+				try!(s.erased_serialize_map_value(&mut state, &d.val));
+				s.erased_serialize_map_end(state)
+			},
+			Value::Bool(b) => s.erased_serialize_bool(b),
+			Value::Dict(ref d) => {
+				let mut state = try!(s.erased_serialize_map(Some(d.source.len())));
+				d.eval(val.clone());
+				let prv = d.data.borrow();
+				for (k, i) in &prv.order {
+					if let DictVal::Pub(ref v) = prv.data[*i] {
+						try!(s.erased_serialize_map_key(&mut state, k));
+						try!(s.erased_serialize_map_value(&mut state, v));
+					}
+				}
+				s.erased_serialize_map_end(state)
+			},
+			Value::List(ref l) => {
+				let len = l.data.len();
+				let mut state = try!(s.erased_serialize_seq_fixed_size(len));
+				for e in &l.data {
+					try!(s.erased_serialize_seq_elt(&mut state, e));
+				}
+				s.erased_serialize_seq_end(state)
+			},
+			Value::Nil => s.erased_serialize_none(),
+			Value::Num(n) => s.erased_serialize_f64(n),
+			Value::Str(ref str) => { s.erased_serialize_str(str) },
+			ref other => panic!("Don't know how to serialize {:?}", other),
+		}
+	}
+	
+	fn get_str(&self) -> Option<&str> {
+		match *self {
+			Value::Str(ref s) => Some(i_promise_this_will_stay_alive(s)),
+			_ => None,
+		}
+	}
+	
+	fn get_num(&self) -> Option<f64> {
+		match *self {
+			Value::Num(n) => Some(n),
+			_ => None,
+		}
+	}
+	
+	fn to_string(&self) -> String {
+		match *self {
+			Value::Str(ref s) => s.clone(),
+			Value::Num(n) => n.to_string(),
+			ref other => panic!("Don't know how to turn {:?} into a string", other),
+		}
 	}
 	
 	fn call(&self, arg: Val) -> Val {
-		match *self.get() {
-			Value::Builtin(ref f) => {
-				f.1(arg)
-			},
+		match *self {
 			Value::Func(ref f) => {
-				let f = i_promise_this_will_stay_alive(f);
+				let body = i_promise_this_will_stay_alive(&f.body);
 				let scope = Val::new(Value::ADict(ADict {
 					parent: f.parent.clone(),
 					key: f.arg.to_owned(),
 					val: arg.clone(),
 				}));
 				Thunk::new(vec![scope, f.parent.clone()], move |r| {
-					f.body.complete(r[0].clone())
+					body.complete(r[0].clone())
 				})
 			},
 			ref other => panic!("Can't call {:?}", other),
 		}
 	}
 	
-	fn to_string(&self) -> String {
-		match *self.get() {
-			Value::Str(ref s) => s.clone(),
-			Value::Num(n) => n.to_string(),
-			ref other => panic!("Don't know how to turn {:?} into a string", other),
+	fn reverse(&self) -> Val {
+		match *self {
+			Value::List(ref l) => {
+				let mut data: Vec<_> = l.data.clone();
+				data.reverse();
+				Val::new(Value::List(List {
+					parent: l.parent.clone(),
+					data: data,
+				}))
+			}
+			ref other => panic!("Can't reverse {:?}", other)
 		}
 	}
 }
 
-static REVERSE: Builtin = Builtin("reverse", &|v| {
-						match *v.get() {
-							Value::List(ref l) => {
-								let mut data: Vec<_> = l.data.clone();
-								data.reverse();
-								Val::new(Value::List(List {
-									parent: l.parent.clone(),
-									data: data,
-								}))
-							}
-							ref other => panic!("Can't reverse {:?}", other)
-						}
-					});
+impl ValuAddImpl for Value {
+	fn add(&self, that: &Value) -> Val {
+		Val::new(match (self, that) {
+			(&Value::Num(l), &Value::Num(r)) => Value::Num(l + r),
+			(&Value::Str(ref l), &Value::Str(ref r)) => Value::Str(l.clone() + &r),
+			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
+		})
+	}
+}
 
-impl std::ops::Deref for Val {
-	type Target = Value;
+pub trait Valu: gc::Trace + fmt::Debug + any::Any + ValuAdd + ValuPartialEq {
+	fn get(&self) -> Option<Val> { None }
+	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
+	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
+	fn index_str(&self, _v: Val, _key: &str) -> Val { panic!("Can't index {:?} with string", self) }
+	fn lookup(&self, _v: Val, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
+	fn serialize(&self, _val: Val, _s: &mut erased_serde::Serializer)
+		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
+	fn get_str(&self) -> Option<&str> { None }
+	fn get_num(&self) -> Option<f64> { None }
+	fn to_string(&self) -> String { panic!("Can't turn {:?} into a string", self) }
+	fn call(&self, _arg: Val) -> Val { panic!("Can't call {:?}", self) }
+	fn reverse(&self) -> Val { panic!("Can't reverse {:?}", self) }
+}
+
+pub trait ValuPartialEq: fmt::Debug {
+	fn eq(&self, other: &Valu) -> bool { panic!("Can't compare {:?} and {:?}", self, other) }
+}
+
+impl<T: PartialEq + Valu + ?Sized> ValuPartialEq for T {
+	fn eq(&self, other: &Valu) -> bool {
+		if other.get_type_id() == any::TypeId::of::<Self>() {
+			self == unsafe { *mem::transmute::<&&Valu, &&Self>(&other) }
+		} else {
+			false
+		}
+	}
+}
+
+pub trait ValuAddImpl {
+	fn add(&self, that: &Self) -> Val;
+}
+
+pub trait ValuAdd: fmt::Debug {
+	fn add(&self, other: &Valu) -> Val { panic!("Can't add {:?} and {:?}", self, other) }
+}
+
+impl<T: ValuAddImpl + Valu> ValuAdd for T {
+	fn add(&self, other: &Valu) -> Val {
+		if other.get_type_id() == any::TypeId::of::<Self>() {
+			ValuAddImpl::add(self, unsafe { *mem::transmute::<&&Valu, &&T>(&other) })
+		} else {
+			panic!("Can't add {:?} and {:?}", self, other)
+		}
+	}
+}
+
+#[derive(Clone,Debug,Trace)]
+pub struct Val(Gc<Valu>);
+
+unsafe impl Sync for Val { }
+
+impl Val {
+	fn new<T: Valu + Sized>(v: T) -> Val {
+		// println!("Allocating {:?}", v);
+		Val(Gc::new(v))
+	}
 	
-	fn deref(&self) -> &Self::Target {
-		&*self.0
-	}
-}
-
-impl PartialEq for Value {
-	fn eq(&self, that: &Value) -> bool {
-		match (self, that) {
-			(&Value::Dict(ref l), &Value::Dict(ref r)) => l == r,
-			(&Value::Num(l), &Value::Num(r)) => l == r,
-			(_, _) => false,
+	fn get(&self) -> Val {
+		println!("getting {:?}", self);
+		match Valu::get(&*self.0) {
+			Some(ref v) => {
+				println!("decending {:?}", v);
+				v.get()
+			},
+			None => self.clone(),
 		}
+	}
+	
+	fn get_str(&self) -> Option<&str> {
+		self.get().0.get_str().map(|s| i_promise_this_will_stay_alive(s))
+	}
+	
+	fn get_num(&self) -> Option<f64> {
+		self.get().0.get_num()
+	}
+	
+	pub fn is_empty(&self) -> bool {
+		self.get().0.is_empty()
+	}
+	
+	pub fn index(&self, k: Val) -> Val {
+		if let Some(s) = k.get_str() {
+			self.index_str(s)
+		} else if let Some(n) = k.get_num() {
+			self.index_int(n as usize)
+		} else {
+			panic!("Can't index {:?} with {:?}", self, k)
+		}
+	}
+	
+	fn index_int(&self, k: usize) -> Val {
+		self.get().0.index_int(k)
+	}
+	
+	pub fn index_str(&self, key: &str) -> Val {
+		let v = self.get();
+		v.0.index_str(v.clone(), key)
+	}
+	
+	fn lookup(&self, key: &str) -> Val {
+		let v = self.get();
+		v.0.lookup(v.clone(), key)
+	}
+	
+	fn add(&self, that: Val) -> Val {
+		self.get().0.add(&*that.get().0)
+	}
+	
+	fn call(&self, arg: Val) -> Val {
+		self.get().0.call(arg)
+	}
+	
+	fn to_string(&self) -> String {
+		self.get().0.to_string()
+	}
+	
+	fn reverse(&self) -> Val {
+		self.get().0.reverse()
 	}
 }
 
 impl PartialEq<Value> for Val {
 	fn eq(&self, that: &Value) -> bool {
-		*self.get() == *that
+		self.get().0.eq(that)
 	}
 }
 
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
-		*self.get() == *that.get()
+		self.get().0.eq(&*that.get().0)
 	}
+}
+
+// impl ESerialize for Val {
+// 	fn erased_serialize(&self, s: &mut ESerializer) -> Result<(),erased_serde::Error> {
+// 		self.get().0.serialize(self.clone(), s)
+// 	}
+// }
+
+fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
+	use std::error::Error;
+	E::custom(e.description())
 }
 
 impl serde::Serialize for Val {
-	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
-		match *self.get() {
-			Value::ADict(ref d) => {
-				let mut state = try!(s.serialize_map(Some(1)));
-				try!(s.serialize_map_key(&mut state, &d.key));
-				try!(s.serialize_map_value(&mut state, &d.val));
-				s.serialize_map_end(state)
-			},
-			Value::Bool(b) => s.serialize_bool(b),
-			Value::Dict(ref d) => {
-				let mut state = try!(s.serialize_map(Some(d.source.len())));
-				d.eval(self.clone());
-				let prv = d.data.borrow();
-				for (k, i) in &prv.order {
-					if let DictVal::Pub(ref v) = prv.data[*i] {
-						try!(s.serialize_map_key(&mut state, k));
-						try!(s.serialize_map_value(&mut state, v));
-					}
-				}
-				s.serialize_map_end(state)
-			},
-			Value::List(ref l) => {
-				let len = l.data.len();
-				let mut state = try!(s.serialize_seq_fixed_size(len));
-				for e in &l.data {
-					try!(s.serialize_seq_elt(&mut state, e));
-				}
-				s.serialize_seq_end(state)
-			},
-			Value::Nil => s.serialize_none(),
-			Value::Num(n) => s.serialize_f64(n),
-			Value::Str(ref str) => { s.serialize_str(str) },
-			ref other => panic!("Don't know how to serialize {:?}", other),
-		}
-	}
-}
-
-pub struct Builtin(&'static str, &'static Fn(Val) -> Val);
-
-unsafe impl gc::Trace for Builtin { unsafe_empty_trace!(); }
-unsafe impl Sync for Builtin {  }
-
-impl fmt::Debug for Builtin {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<builtin {:?}>", self.0)
+	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
+		self.get().0.serialize(self.clone(), s).map_err(unerase)
 	}
 }
 
@@ -597,17 +699,11 @@ impl fmt::Debug for List {
 #[derive(Debug,PartialEq,Trace)]
 enum DictVal { Pub(Val), Priv(Val) }
 
+#[derive(Trace)]
 pub struct Dict {
 	parent: Val,
 	source: &'static [AlmostDictElement],
 	data: GcCell<DictData>,
-}
-
-unsafe impl gc::Trace for Dict {
-	custom_trace!(this, {
-		mark(&this.parent);
-		mark(&*this.data.borrow());
-	});
 }
 
 #[derive(PartialEq,Trace)]
@@ -716,6 +812,15 @@ pub struct ADict {
 	val: Val,
 }
 
+impl serde::Serialize for ADict {
+	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
+		let mut state = try!(s.serialize_map(Some(1)));
+		try!(s.serialize_map_key(&mut state, &self.key));
+		try!(s.serialize_map_value(&mut state, &self.val));
+		s.serialize_map_end(state)
+	}
+}
+
 impl fmt::Debug for ADict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "ADict{{ {} = {:?} }}", format_key(&self.key), self.val)
@@ -746,6 +851,7 @@ pub struct Thunk {
 unsafe impl gc::Trace for Thunk {
 	custom_trace!(this, {
 		mark(&this.refs);
+		#[allow(unused_unsafe)]
 		unsafe { mark(&*this.data.as_ptr()); }
 	});
 }
