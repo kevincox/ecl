@@ -1,13 +1,13 @@
-extern crate afl;
-
-use std::env;
-use std::fs;
-use std::io::Read;
-
-extern crate ecl;
-extern crate serde;
-
-use serde::Serialize;
+// extern crate afl;
+//
+// use std::env;
+// use std::fs;
+// use std::io::Read;
+//
+// extern crate ecl;
+// extern crate serde;
+//
+// use serde::Serialize;
 
 fn main() {
 	// afl::handle_str(|s| {

@@ -1,5 +1,12 @@
 	DICT	{
 false_	BOOL	false
 nil_	NIL	nil
+reverse_list	LIST	[
+reverse_list.1	NUM	3
+reverse_list.2	NUM	2
+reverse_list.3	NUM	1
+reverse_list	LIST	]
+reverse_list_empty	LIST	[
+reverse_list_empty	LIST	]
 true_	BOOL	true
 	DICT	}

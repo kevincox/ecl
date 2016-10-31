@@ -1,10 +1,16 @@
 #![feature(plugin)]
+#![feature(proc_macro)]
 // #![plugin(afl_plugin)]
 #![plugin(peg_syntax_ext)]
 peg_file! grammar("grammar.rustpeg");
 
+#[macro_use] extern crate gc;
+#[macro_use] extern crate gc_derive;
 #[macro_use] extern crate lazy_static;
+extern crate regex;
+extern crate serde;
 
+use gc::{Gc, GcCell};
 use std::cell::{RefCell};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -12,66 +18,61 @@ use std::fmt;
 use std::iter::Iterator;
 use std::mem;
 
-extern crate regex;
-extern crate serde;
-
 pub mod lines;
 pub use grammar::ParseError;
 
-fn i_promise_this_will_stay_alive<T>(v: &T) -> &'static T {
+fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
 }
 
-#[derive(Debug)]
-pub enum Val {
+#[derive(Debug,Trace)]
+pub enum Value {
 	ADict(ADict),
 	Bool(bool),
-	Builtin(Builtin),
+	Builtin(&'static Builtin),
 	Dict(Dict),
 	Func(Func),
 	List(List),
 	Num(f64),
 	Nil,
-	Ref(&'static Val),
 	Str(String),
 	Thunk(Thunk),
-	ThunkRef(ThunkRef),
 }
 
-static NIL: Val = Val::Nil;
-static TRUE: Val = Val::Bool(true);
-static FALSE: Val = Val::Bool(false);
-
-unsafe impl Sync for Val {  }
+#[derive(Clone,Debug,Trace)]
+pub struct Val(Gc<Value>);
 
 impl Val {
-	fn get(&self) -> &Val {
-		println!("{:?} ({:?}).get()", self, self as *const Val);
-		let r = match *self {
-			Val::Thunk(ref t) => t.eval(),
-			Val::ThunkRef(ref t) => t.eval(),
-			Val::Ref(r) => r,
-			ref other => return other,
+	fn new(v: Value) -> Val {
+		// println!("Allocating {:?}", v);
+		Val(Gc::new(v))
+	}
+	
+	fn get(&self) -> Val {
+		// println!("{:?} ({:?}).get()", self, self as *const Val);
+		let r = match **self {
+			Value::Thunk(ref t) => t.eval().clone(),
+			_ => return self.clone(),
 		};
 		// println!("{:?} ({:?}).get() -> {:?} ({:?})",
 			// self, self as *const Val, r, r as *const Val);
-		debug_assert!(self as *const Val != r as *const Val);
+		debug_assert!(&**self as *const Value != &*r as *const Value);
 		let r = r.get();
-		debug_assert!(self as *const Val != r as *const Val);
+		debug_assert!(&**self as *const Value != &*r as *const Value);
 		r
 	}
 	
 	fn get_str(&self) -> Option<&str> {
 		match *self.get() {
-			Val::Str(ref s) => Some(s),
+			Value::Str(ref s) => Some(i_promise_this_will_stay_alive(s)),
 			_ => None,
 		}
 	}
 	
 	pub fn is_empty(&self) -> bool {
 		match *self.get() {
-			Val::List(ref l) => l.data.is_empty(),
-			Val::Dict(ref d) => {
+			Value::List(ref l) => l.data.is_empty(),
+			Value::Dict(ref d) => {
 				if d.source.is_empty() {
 					true
 				} else {
@@ -86,101 +87,100 @@ impl Val {
 		}
 	}
 	
-	pub fn index(&self, k: &Val) -> &Val {
+	pub fn index(&self, k: Val) -> Val {
 		match *k.get() {
-			Val::Num(n) => self.index_int(n as usize),
-			Val::Str(ref s) => self.index_str(s),
+			Value::Num(n) => self.index_int(n as usize),
+			Value::Str(ref s) => self.index_str(s),
 			ref k => panic!("Can't index {:?} with {:?}", self, k),
 		}
 	}
 	
-	fn index_int(&self, k: usize) -> &Val {
+	fn index_int(&self, k: usize) -> Val {
 		match &*self.get() {
-			&Val::List(ref l) => {
-				&l.data[k]
+			&Value::List(ref l) => {
+				l.data[k].clone()
 			},
 			this => panic!("Can't index {:?} with an int", this),
 		}
 	}
 	
-	pub fn index_str(&self, key: &str) -> &Val {
-		println!("Index {:?} in {:?}", key, self);
+	pub fn index_str(&self, key: &str) -> Val {
+		// println!("Index {:?} in {:?}", key, self);
 		match *self.get() {
-			Val::ADict(ref d) => {
+			Value::ADict(ref d) => {
 				if d.key == key {
-					&*d.val
+					d.val.clone()
 				} else {
-					&NIL
+					Val::new(Value::Nil)
 				}
 			},
-			Val::Dict(ref d) => {
-				match d.index(i_promise_this_will_stay_alive(self), key) {
-					Some(&DictVal::Pub(ref v)) => v,
+			Value::Dict(ref d) => {
+				match d.index(self.clone(), key) {
+					Some(&DictVal::Pub(ref v)) => v.clone(),
 					Some(&DictVal::Priv(ref v)) => {
 						println!("WRN: Attempt to access private memeber {:?}", v);
-						&NIL
+						Val::new(Value::Nil)
 					},
-					None => &NIL,
+					None => Val::new(Value::Nil),
 				}
 			},
 			ref other => panic!("Can't index {:?} with a string", other),
 		}
 	}
 	
-	fn lookup(&self, key: &str) -> &Val {
-		println!("Lookup {:?} in {:?}", key, self);
+	fn lookup(&self, key: &str) -> Val {
+		// println!("Lookup {:?} in {:?}", key, self);
 		match *self.get() {
-			Val::ADict(ref d) => {
+			Value::ADict(ref d) => {
 				if d.key == key {
-					&*d.val
+					d.val.clone()
 				} else {
 					d.parent.lookup(key)
 				}
 			},
-			Val::Nil => {
+			Value::Nil => {
 				match key {
-					"nil" => &NIL,
-					"true" => &TRUE,
-					"false" => &FALSE,
-					"reverse" => &REVERSE,
+					"nil" => Val::new(Value::Nil),
+					"true" => Val::new(Value::Bool(true)),
+					"false" => Val::new(Value::Bool(false)),
+					"reverse" => Val::new(Value::Builtin(&REVERSE)),
 					other => panic!("Undefined variable {:?}", other),
 				}
 			},
-			Val::Dict(ref d) => {
-				match d.index(i_promise_this_will_stay_alive(self), key) {
-					Some(&DictVal::Pub(ref v)) => v,
-					Some(&DictVal::Priv(ref v)) => v,
+			Value::Dict(ref d) => {
+				match d.index(self.clone(), key) {
+					Some(&DictVal::Pub(ref v)) => v.clone(),
+					Some(&DictVal::Priv(ref v)) => v.clone(),
 					None => d.parent.lookup(key),
 				}
 			},
-			Val::List(ref l) => l.parent.lookup(key),
+			Value::List(ref l) => l.parent.lookup(key),
 			ref other => panic!("Lookup in non-container {:?}", other),
 		}
 	}
 	
 	fn add(&self, that: Val) -> Val {
-		match (self.get(), that.get()) {
-			(&Val::Num(l), &Val::Num(r)) => Val::Num(l + r),
-			(&Val::Str(ref l), &Val::Str(ref r)) => Val::Str(l.clone() + &r),
+		Val::new(match (&*self.get(), &*that.get()) {
+			(&Value::Num(l), &Value::Num(r)) => Value::Num(l + r),
+			(&Value::Str(ref l), &Value::Str(ref r)) => Value::Str(l.clone() + &r),
 			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
-		}
+		})
 	}
 	
 	fn call(&self, arg: Val) -> Val {
 		match *self.get() {
-			Val::Builtin(ref f) => {
+			Value::Builtin(ref f) => {
 				f.1(arg)
 			},
-			Val::Func(ref f) => {
+			Value::Func(ref f) => {
 				let f = i_promise_this_will_stay_alive(f);
-				let scope = Val::ADict(ADict {
-					parent: f.parent,
+				let scope = Val::new(Value::ADict(ADict {
+					parent: f.parent.clone(),
 					key: f.arg.to_owned(),
-					val: Box::new(arg),
-				});
-				Thunk::new(move || {
-					let scope = i_promise_this_will_stay_alive(&scope);
-					f.body.complete(scope)
+					val: arg.clone(),
+				}));
+				Thunk::new(vec![scope, f.parent.clone()], move |r| {
+					f.body.complete(r[0].clone())
 				})
 			},
 			ref other => panic!("Can't call {:?}", other),
@@ -189,37 +189,70 @@ impl Val {
 	
 	fn to_string(&self) -> String {
 		match *self.get() {
-			Val::Str(ref s) => s.clone(),
-			Val::Num(n) => n.to_string(),
+			Value::Str(ref s) => s.clone(),
+			Value::Num(n) => n.to_string(),
 			ref other => panic!("Don't know how to turn {:?} into a string", other),
 		}
 	}
 }
 
-impl PartialEq for Val {
-	fn eq(&self, that: &Val) -> bool {
-		match (self.get(), that.get()) {
-			(&Val::Dict(ref l), &Val::Dict(ref r)) => l == r,
-			(&Val::Num(l), &Val::Num(r)) => l == r,
+static REVERSE: Builtin = Builtin("reverse", &|v| {
+						match *v.get() {
+							Value::List(ref l) => {
+								let mut data: Vec<_> = l.data.clone();
+								data.reverse();
+								Val::new(Value::List(List {
+									parent: l.parent.clone(),
+									data: data,
+								}))
+							}
+							ref other => panic!("Can't reverse {:?}", other)
+						}
+					});
+
+impl std::ops::Deref for Val {
+	type Target = Value;
+	
+	fn deref(&self) -> &Self::Target {
+		&*self.0
+	}
+}
+
+impl PartialEq for Value {
+	fn eq(&self, that: &Value) -> bool {
+		match (self, that) {
+			(&Value::Dict(ref l), &Value::Dict(ref r)) => l == r,
+			(&Value::Num(l), &Value::Num(r)) => l == r,
 			(_, _) => false,
 		}
 	}
 }
 
+impl PartialEq<Value> for Val {
+	fn eq(&self, that: &Value) -> bool {
+		*self.get() == *that
+	}
+}
+
+impl PartialEq for Val {
+	fn eq(&self, that: &Val) -> bool {
+		*self.get() == *that.get()
+	}
+}
+
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
-		let this = i_promise_this_will_stay_alive(self);
-		match self.get() {
-			&Val::ADict(ref d) => {
+		match *self.get() {
+			Value::ADict(ref d) => {
 				let mut state = try!(s.serialize_map(Some(1)));
 				try!(s.serialize_map_key(&mut state, &d.key));
 				try!(s.serialize_map_value(&mut state, &d.val));
 				s.serialize_map_end(state)
 			},
-			&Val::Bool(b) => s.serialize_bool(b),
-			&Val::Dict(ref d) => {
+			Value::Bool(b) => s.serialize_bool(b),
+			Value::Dict(ref d) => {
 				let mut state = try!(s.serialize_map(Some(d.source.len())));
-				d.eval(this);
+				d.eval(self.clone());
 				let prv = d.data.borrow();
 				for (k, i) in &prv.order {
 					if let DictVal::Pub(ref v) = prv.data[*i] {
@@ -229,7 +262,7 @@ impl serde::Serialize for Val {
 				}
 				s.serialize_map_end(state)
 			},
-			&Val::List(ref l) => {
+			Value::List(ref l) => {
 				let len = l.data.len();
 				let mut state = try!(s.serialize_seq_fixed_size(len));
 				for e in &l.data {
@@ -237,15 +270,18 @@ impl serde::Serialize for Val {
 				}
 				s.serialize_seq_end(state)
 			},
-			&Val::Nil => s.serialize_none(),
-			&Val::Num(n) => s.serialize_f64(n),
-			&Val::Str(ref str) => { s.serialize_str(str) },
-			other => panic!("Don't know how to serialize {:?}", other),
+			Value::Nil => s.serialize_none(),
+			Value::Num(n) => s.serialize_f64(n),
+			Value::Str(ref str) => { s.serialize_str(str) },
+			ref other => panic!("Don't know how to serialize {:?}", other),
 		}
 	}
 }
 
 pub struct Builtin(&'static str, &'static Fn(Val) -> Val);
+
+unsafe impl gc::Trace for Builtin { unsafe_empty_trace!(); }
+unsafe impl Sync for Builtin {  }
 
 impl fmt::Debug for Builtin {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -253,26 +289,10 @@ impl fmt::Debug for Builtin {
 	}
 }
 
-static REVERSE: Val = Val::Builtin(Builtin("reverse", &|v| {
-	match *v.get() {
-		Val::List(ref l) => {
-			let l = i_promise_this_will_stay_alive(l); // TODO does it?
-			let mut data: Vec<_> = l.data.iter().map(|v| Val::Ref(v)).collect();
-			data.reverse();
-			let p = i_promise_this_will_stay_alive(l.parent); // TODO does it?
-			Val::List(List {
-				parent: l.parent,
-				data: data,
-			})
-		}
-		ref other => panic!("Can't reverse {:?}", other)
-	}
-}));
-
 pub enum Almost {
 	Dict(Vec<AlmostDictElement>),
 	Expr(Box<Almost>, Vec<Suffix>),
-	L(Box<Fn(&'static Val) -> Val>),
+	L(Box<Fn(Val) -> Val>),
 	Num(f64),
 	Ref(String),
 	Str(Vec<StringPart>),
@@ -280,7 +300,7 @@ pub enum Almost {
 }
 
 impl Almost {
-	fn val<F: Fn(&'static Val) -> Val + 'static>(f: F) -> Almost {
+	fn val<F: Fn(Val) -> Val + 'static>(f: F) -> Almost {
 		Almost::L(Box::new(f))
 	}
 	
@@ -292,7 +312,7 @@ impl Almost {
 		Almost::val(move |p| {
 			let arg = i_promise_this_will_stay_alive(&arg);
 			let body = i_promise_this_will_stay_alive(&body);
-			Val::Func(Func { parent: p, arg: arg, body: body })
+			Val::new(Value::Func(Func { parent: p, arg: arg, body: body }))
 		})
 	}
 	
@@ -315,48 +335,48 @@ impl Almost {
 		Almost::Expr(Box::new(subject), suffixes)
 	}
 	
-	fn complete(&self, p: &'static Val) -> Val {
+	fn complete(&self, p: Val) -> Val {
 		match *self {
 			Almost::Dict(ref items) => {
 				let items = i_promise_this_will_stay_alive(items);
-				Val::Dict(Dict {
+				Val::new(Value::Dict(Dict {
 					parent: p,
 					source: &items[..],
-					data: RefCell::new(DictData {
+					data: GcCell::new(DictData {
 						data: Vec::with_capacity(items.len()),
 						order: BTreeMap::new(),
 					})
-				})
+				}))
 			},
 			Almost::Expr(ref subject, ref suffixes) => {
 				let suffixes = i_promise_this_will_stay_alive(suffixes);
 				let subject = i_promise_this_will_stay_alive(subject);
-				Thunk::new(move || {
-					let subject = subject.complete(p);
+				Thunk::new(vec![p], move |r| {
+					let subject = subject.complete(r[0].clone());
 					suffixes.iter().fold(subject, |a, e| {
-						e.call(p, a)
+						e.call(r[0].clone(), a)
 					})
 				})
 			},
 			Almost::L(ref l) => l(p),
-			Almost::Num(n) => Val::Num(n),
+			Almost::Num(n) => Val::new(Value::Num(n)),
 			Almost::Ref(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
-				ThunkRef::new(move || p.lookup(id))
+				Thunk::new(vec![p], move |r| r[0].lookup(id))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
 				for part in c {
 					match part {
 						&StringPart::Esc(s) => r.push(s),
-						&StringPart::Exp(ref e) => r += &e.complete(p).to_string(),
+						&StringPart::Exp(ref e) => r += &e.complete(p.clone()).to_string(),
 						&StringPart::Lit(ref s) => r += &s,
 					}
 				}
-				Val::Str(r)
+				Val::new(Value::Str(r))
 			},
 			Almost::StrStatic(ref s) => {
-				Val::Str(s.clone())
+				Val::new(Value::Str(s.clone()))
 			},
 		}
 	}
@@ -409,7 +429,7 @@ pub enum AlmostDictElement {
 }
 
 impl AlmostDictElement {
-	fn complete(&self, p: &'static Val) -> (String, DictVal) {
+	fn complete(&self, p: Val) -> (String, DictVal) {
 		match self {
 			&AlmostDictElement::Auto(ref path, ref v) => {
 				debug_assert!(!path.is_empty());
@@ -420,7 +440,7 @@ impl AlmostDictElement {
 			},
 			&AlmostDictElement::Dyn(ref path, ref v) => {
 				debug_assert!(!path.is_empty());
-				let k = path[0].complete(p)
+				let k = path[0].complete(p.clone())
 					.get_str().expect("Dict index must be string")
 					.to_owned();
 				(
@@ -429,7 +449,7 @@ impl AlmostDictElement {
 				)
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
-				let k = k.complete(p);
+				let k = k.complete(p.clone());
 				let k = k
 					.get_str().expect("Dict index must be string")
 					.to_owned();
@@ -443,31 +463,31 @@ impl AlmostDictElement {
 		}
 	}
 	
-	fn make_auto(p: &'static Val, path: &[String], v: &Almost) -> Val {
+	fn make_auto(p: Val, path: &[String], v: &Almost) -> Val {
 		if path.is_empty() {
 			v.complete(p)
 		} else {
-			Val::ADict(ADict {
-				parent: p,
+			Val::new(Value::ADict(ADict {
+				parent: p.clone(),
 				key: path[0].to_owned(),
-				val: Box::new(Self::make_auto(p, &path[1..], v))
-			})
+				val: Self::make_auto(p, &path[1..], v)
+			}))
 		}
 	}
 	
-	fn make_auto_dyn(p: &'static Val, path: &[Almost], v: &Almost) -> Val {
+	fn make_auto_dyn(p: Val, path: &[Almost], v: &Almost) -> Val {
 		if path.is_empty() {
 			v.complete(p)
 		} else {
-			let k = path[0].complete(p);
+			let k = path[0].complete(p.clone());
 			let k = k
 				.get_str().expect("Dict index must be string")
 				.to_owned();
-			Val::ADict(ADict {
-				parent: p,
+			Val::new(Value::ADict(ADict {
+				parent: p.clone(),
 				key: k,
-				val: Box::new(Self::make_auto_dyn(p, &path[1..], v)),
-			})
+				val: Self::make_auto_dyn(p, &path[1..], v),
+			}))
 		}
 	}
 }
@@ -514,7 +534,7 @@ pub enum Suffix {
 }
 
 impl Suffix {
-	fn call(&self, parent: &'static Val, subject: Val) -> Val {
+	fn call(&self, parent: Val, subject: Val) -> Val {
 		match *self {
 			Suffix::Add(ref a) => {
 				let val = a.complete(parent);
@@ -526,14 +546,11 @@ impl Suffix {
 			},
 			Suffix::IndexExpr(ref key) => {
 				let k = key.complete(parent);
-				ThunkRef::new(move || {
-					let k = i_promise_this_will_stay_alive(&k);
-					i_promise_this_will_stay_alive(subject.index(k))
-				})
+				Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
 			},
 			Suffix::IndexIdent(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
-				ThunkRef::new(move || i_promise_this_will_stay_alive(subject.index_str(id)))
+				Thunk::new(vec![subject], move |r| r[0].index_str(id))
 			}
 		}
 	}
@@ -550,17 +567,18 @@ impl fmt::Debug for Suffix {
 	}
 }
 
+#[derive(Trace)]
 pub struct List {
-	parent: &'static Val,
+	parent: Val,
 	data: Vec<Val>,
 }
 
 impl List {
-	fn new(p: &'static Val, items: &'static [Almost]) -> Val {
-		Val::List(List {
-			parent: p,
-			data: items.iter().map(|a| a.complete(p)).collect(),
-		})
+	fn new(p: Val, items: &'static [Almost]) -> Val {
+		Val::new(Value::List(List {
+			parent: p.clone(),
+			data: items.iter().map(|a| a.complete(p.clone())).collect(),
+		}))
 	}
 }
 
@@ -576,29 +594,35 @@ impl fmt::Debug for List {
 	}
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Trace)]
 enum DictVal { Pub(Val), Priv(Val) }
 
 pub struct Dict {
-	parent: &'static Val,
+	parent: Val,
 	source: &'static [AlmostDictElement],
-	data: RefCell<DictData>,
+	data: GcCell<DictData>,
 }
 
-#[derive(PartialEq)]
+unsafe impl gc::Trace for Dict {
+	custom_trace!(this, {
+		mark(&this.parent);
+		mark(&*this.data.borrow());
+	});
+}
+
+#[derive(PartialEq,Trace)]
 struct DictData {
+	#[unsafe_ignore_trace]
 	order: BTreeMap<String,usize>,
 	data: Vec<DictVal>,
 }
 
 impl Dict {
-	fn index(&self, value: &'static Val, key: &str) -> Option<&DictVal> {
+	fn index(&self, value: Val, key: &str) -> Option<&DictVal> {
 		{
 			let prv = self.data.borrow();
 			if let Some(v) = prv.order.get(key) {
-				// I promise I won't modify/delete this value as long as I live.
-				let r = &prv.data[*v] as *const DictVal;
-				return Some(unsafe { &*r })
+				return Some(i_promise_this_will_stay_alive(&prv.data[*v]))
 			}
 		}
 		
@@ -610,7 +634,7 @@ impl Dict {
 				None => return None,
 			};
 			
-			let (k, v) = source.complete(value);
+			let (k, v) = source.complete(value.clone());
 			
 			let mut prv = self.data.borrow_mut();
 			prv.data.push(v);
@@ -634,7 +658,7 @@ impl Dict {
 		}
 	}
 	
-	fn eval(&self, value: &'static Val) {
+	fn eval(&self, value: Val) {
 		loop {
 			let next = self.data.borrow().data.len();
 			
@@ -643,7 +667,7 @@ impl Dict {
 				None => return,
 			};
 			
-			let (k, v) = source.complete(value);
+			let (k, v) = source.complete(value.clone());
 			
 			let mut prv = self.data.borrow_mut();
 			prv.data.push(v);
@@ -685,10 +709,11 @@ impl fmt::Debug for Dict {
 	}
 }
 
+#[derive(Trace)]
 pub struct ADict {
-	parent: &'static Val,
+	parent: Val,
 	key: String,
-	val: Box<Val>,
+	val: Val,
 }
 
 impl fmt::Debug for ADict {
@@ -697,8 +722,9 @@ impl fmt::Debug for ADict {
 	}
 }
 
+#[derive(Trace)]
 pub struct Func {
-	parent: &'static Val,
+	parent: Val,
 	arg: &'static str,
 	body: &'static Almost,
 }
@@ -709,24 +735,37 @@ impl fmt::Debug for Func {
 	}
 }
 
+// #[derive(Trace)]
 pub struct Thunk {
-	code: Box<Fn() -> Val>,
-	data: RefCell<Option<Box<Val>>>,
+	// #[unsafe_ignore_trace]
+	code: Box<Fn(&Vec<Val>) -> Val>,
+	refs: Vec<Val>,
+	data: RefCell<Option<Val>>,
+}
+
+unsafe impl gc::Trace for Thunk {
+	custom_trace!(this, {
+		mark(&this.refs);
+		unsafe { mark(&*this.data.as_ptr()); }
+	});
 }
 
 impl Thunk {
-	fn new<F: Fn() -> Val + 'static>(code: F) -> Val {
-		Val::Thunk(Thunk{ code: Box::new(code), data: RefCell::new(None) })
+	fn new<F: Fn(&Vec<Val>) -> Val + 'static>(refs: Vec<Val>, code: F) -> Val {
+		Val::new(Value::Thunk(Thunk{ code: Box::new(code), refs: refs, data: RefCell::new(None) }))
 	}
 	
-	fn eval(&self) -> &Val {
+	fn eval(&self) -> Val {
 		let mut data = self.data.borrow_mut();
 		if data.is_none() {
-			*data = Some(Box::new((self.code)()))
+			let new = (self.code)(&self.refs);
+			unsafe { gc::Trace::unroot(&new.0) };
+			*data = Some(new);
 		}
-		i_promise_this_will_stay_alive(data.as_ref().unwrap())
+		data.as_ref().unwrap().clone()
 	}
 }
+
 impl PartialEq for Thunk {
 	fn eq(&self, _that: &Self) -> bool {
 		false
@@ -735,44 +774,10 @@ impl PartialEq for Thunk {
 
 impl fmt::Debug for Thunk {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self.data.try_borrow() {
-			Ok(data) => match *data {
-				Some(ref v) => v.fmt(f),
-				None => write!(f, "<code>"),
-			},
-			Err(_) => write!(f, "<evaling>"),
-		}
-	}
-}
-
-
-pub struct ThunkRef {
-	code: Box<Fn() -> &'static Val>,
-	data: RefCell<Option<&'static Val>>,
-}
-
-impl ThunkRef {
-	fn new<F: Fn() -> &'static Val + 'static>(code: F) -> Val {
-		Val::ThunkRef(ThunkRef{ code: Box::new(code), data: RefCell::new(None) })
-	}
-	
-	fn eval(&self) -> &Val {
-		let mut data = self.data.borrow_mut();
-		if data.is_none() {
-			*data = Some((self.code)())
-		}
-		
-		i_promise_this_will_stay_alive(data.unwrap())
-	}
-}
-impl PartialEq for ThunkRef {
-	fn eq(&self, _that: &Self) -> bool {
-		false
-	}
-}
-
-impl fmt::Debug for ThunkRef {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		// match *self.data.borrow() {
+		// 	Some(ref v) => v.fmt(f),
+		// 	None => write!(f, "<code>"),
+		// }
 		match self.data.try_borrow() {
 			Ok(data) => match *data {
 				Some(ref v) => v.fmt(f),
@@ -785,7 +790,7 @@ impl fmt::Debug for ThunkRef {
 
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
 	let almost = try!(grammar::document(doc));
-	Ok(Thunk::new(move || almost.complete(&NIL)))
+	Ok(Thunk::new(vec![], move |_| almost.complete(Val::new(Value::Nil))))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
@@ -853,20 +858,20 @@ mod tests {
 	fn dict() {
 		assert!(parse("{}").unwrap().is_empty());
 		let v = parse("{a=4 b = 0}").unwrap();
-		assert_eq!(*v.index_str("a"), Val::Num(4.0));
-		assert_eq!(*v.index_str("b"), Val::Num(0.0));
+		assert_eq!(v.index_str("a"), Value::Num(4.0));
+		assert_eq!(v.index_str("b"), Value::Num(0.0));
 		
 		let v = parse("{a=4 b=a}").unwrap();
-		assert_eq!(*v.index_str("a"), Val::Num(4.0));
-		assert_eq!(*v.index_str("b"), Val::Num(4.0));
+		assert_eq!(v.index_str("a"), Value::Num(4.0));
+		assert_eq!(v.index_str("b"), Value::Num(4.0));
 	}
 	
 	#[test]
 	fn list() {
 		assert!(parse("[]").unwrap().is_empty());
 		let v = parse("[0d29 0b1.1]").unwrap();
-		assert_eq!(*v.index_int(0), Val::Num(29.0));
-		assert_eq!(*v.index_int(1), Val::Num(1.5));
+		assert_eq!(v.index_int(0), Value::Num(29.0));
+		assert_eq!(v.index_int(1), Value::Num(1.5));
 	}
 	
 	#[test]
@@ -901,6 +906,6 @@ mod tests {
 	
 	#[test]
 	fn ident() {
-		// assert_eq!(parse("{b = 4}.b").unwrap(), Val::Num(4.0));
+		// assert_eq!(parse("{b = 4}.b").unwrap(), Value::Num(4.0));
 	}
 }

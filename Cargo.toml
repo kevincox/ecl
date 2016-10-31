@@ -6,6 +6,8 @@ authors = ["Kevin Cox <kevincox@kevincox.ca>"]
 [dependencies]
 afl = "0.1"
 afl-plugin = "0.1"
+gc = "0.2"
+gc_derive = "0.2"
 lazy_static = "0.2"
 peg = "0.3"
 ramp = "0.3"
