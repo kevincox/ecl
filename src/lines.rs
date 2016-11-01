@@ -2,6 +2,7 @@ extern crate serde;
 
 use std::error;
 use std::fmt;
+use std::io;
 use std::result;
 
 pub type Result<T> = result::Result<T,Error>;
@@ -9,7 +10,7 @@ pub type Result<T> = result::Result<T,Error>;
 #[derive(Debug)]
 pub enum Error {
 	Custom(String),
-	Io(fmt::Error),
+	Io(io::Error),
 	// InvalidKey(String),
 	NonStringKey(String),
 	NotImplemented(&'static str),
@@ -34,13 +35,13 @@ impl serde::ser::Error for Error {
 	}
 }
 
-pub struct Serializer<W: fmt::Write> {
+pub struct Serializer<W: io::Write> {
 	out: W,
 	path: String,
 	path_seperators: Vec<usize>,
 }
 
-impl<W: fmt::Write> Serializer<W> {
+impl<W: io::Write> Serializer<W> {
 	pub fn new(out: W) -> Self {
 		Serializer { out: out, path: String::new(), path_seperators: Vec::new() }
 	}
@@ -63,7 +64,7 @@ impl<W: fmt::Write> Serializer<W> {
 	}
 }
 
-impl<W: fmt::Write> serde::Serializer for Serializer<W> {
+impl<W: io::Write> serde::Serializer for Serializer<W> {
 	type Error = Error;
 	
 	type SeqState = usize;
@@ -339,9 +340,9 @@ impl<W: fmt::Write> serde::Serializer for Serializer<W> {
 	}
 }
 
-struct KeySerializer<'a, W: fmt::Write + 'a> { parent: &'a mut Serializer<W> }
+struct KeySerializer<'a, W: io::Write + 'a> { parent: &'a mut Serializer<W> }
 
-impl<'a, W: fmt::Write> serde::Serializer for KeySerializer<'a, W> {
+impl<'a, W: io::Write> serde::Serializer for KeySerializer<'a, W> {
 	type Error = Error;
 	
 	type SeqState = ();

@@ -25,6 +25,8 @@ impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Valu for Func<F> {
 	fn call(&self, arg: ::Val) -> ::Val {
 		self.1(arg)
 	}
+	
+	fn type_str(&self) -> &'static str { "builtin" }
 }
 
 impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> PartialEq for Func<F> {

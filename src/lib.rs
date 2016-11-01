@@ -64,6 +64,20 @@ impl Valu for Value {
 		}
 	}
 	
+	fn type_str(&self) -> &'static str {
+		match *self {
+			Value::ADict(_) => "adict",
+			Value::Bool(_) => "bool",
+			Value::Dict(_) => "dict",
+			Value::Func(_) => "func",
+			Value::List(_) => "list",
+			Value::Nil => "nil",
+			Value::Num(_) => "num",
+			Value::Str(_) => "str",
+			Value::Thunk(_) => "thunk",
+		}
+	}
+	
 	fn is_empty(&self) -> bool {
 		match *self {
 			Value::List(ref l) => l.data.is_empty(),
@@ -115,7 +129,6 @@ impl Valu for Value {
 	}
 	
 	fn lookup(&self, val: Val, key: &str) -> Val {
-		// println!("Lookup {:?} in {:?}", key, self);
 		match *self {
 			Value::ADict(ref d) => {
 				if d.key == key {
@@ -139,24 +152,24 @@ impl Valu for Value {
 		}
 	}
 	
-	fn serialize(&self, val: Val, s: &mut erased_serde::Serializer)
+	fn serialize(&self, val: Val, visited: &mut Vec<*const Valu>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		match *self {
 			Value::ADict(ref d) => {
 				let mut state = try!(s.erased_serialize_map(Some(1)));
 				try!(s.erased_serialize_map_key(&mut state, &d.key));
-				try!(s.erased_serialize_map_value(&mut state, &d.val));
+				try!(s.erased_serialize_map_value(&mut state, &d.val.rec_ser(visited)));
 				s.erased_serialize_map_end(state)
 			},
 			Value::Bool(b) => s.erased_serialize_bool(b),
 			Value::Dict(ref d) => {
 				let mut state = try!(s.erased_serialize_map(Some(d.source.len())));
-				d.eval(val.clone());
+				d.eval(val);
 				let prv = d.data.borrow();
 				for (k, i) in &prv.order {
 					if let DictVal::Pub(ref v) = prv.data[*i] {
 						try!(s.erased_serialize_map_key(&mut state, k));
-						try!(s.erased_serialize_map_value(&mut state, v));
+						try!(s.erased_serialize_map_value(&mut state, &v.rec_ser(visited)));
 					}
 				}
 				s.erased_serialize_map_end(state)
@@ -165,7 +178,7 @@ impl Valu for Value {
 				let len = l.data.len();
 				let mut state = try!(s.erased_serialize_seq_fixed_size(len));
 				for e in &l.data {
-					try!(s.erased_serialize_seq_elt(&mut state, e));
+					try!(s.erased_serialize_seq_elt(&mut state, &e.rec_ser(visited)));
 				}
 				s.erased_serialize_seq_end(state)
 			},
@@ -242,11 +255,12 @@ impl ValuAddImpl for Value {
 
 pub trait Valu: gc::Trace + fmt::Debug + any::Any + ValuAdd + ValuPartialEq {
 	fn get(&self) -> Option<Val> { None }
+	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
-	fn index_str(&self, _v: Val, _key: &str) -> Val { panic!("Can't index {:?} with string", self) }
+	fn index_str(&self, _v: Val, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
 	fn lookup(&self, _v: Val, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
-	fn serialize(&self, _val: Val, _s: &mut erased_serde::Serializer)
+	fn serialize(&self, _val: Val, _v: &mut Vec<*const Valu>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
@@ -299,14 +313,20 @@ impl Val {
 	}
 	
 	fn get(&self) -> Val {
-		println!("getting {:?}", self);
-		match Valu::get(&*self.0) {
-			Some(ref v) => {
-				println!("decending {:?}", v);
-				v.get()
-			},
-			None => self.clone(),
+		// println!("getting {:?}", self.0.type_str());
+		let mut v = self.clone();
+		while let Some(ref vn) = Valu::get(&*v.0) {
+			if &*vn.0 as *const Valu == &*self.0 as *const Valu {
+				panic!("Dependency cycle detected.");
+			}
+			v = vn.clone();
 		}
+		// println!("got {:?}", v.0.type_str());
+		v
+	}
+	
+	pub fn type_str(&self) -> &'static str {
+		self.get().0.type_str()
 	}
 	
 	fn get_str(&self) -> Option<&str> {
@@ -341,6 +361,7 @@ impl Val {
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
+		// println!("Lookup {:?} in {:?}", key, self);
 		let v = self.get();
 		v.0.lookup(v.clone(), key)
 	}
@@ -360,6 +381,15 @@ impl Val {
 	fn reverse(&self) -> Val {
 		self.get().0.reverse()
 	}
+	
+	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Valu>) -> SerializeVal<'a> {
+		let selfr = self.get();
+		let selfp = &*selfr.0 as *const Valu;
+		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
+		visited.push(selfp);
+		
+		SerializeVal { val: selfr, visited: RefCell::new(visited) }
+	}
 }
 
 impl PartialEq<Value> for Val {
@@ -374,11 +404,22 @@ impl PartialEq for Val {
 	}
 }
 
-// impl ESerialize for Val {
-// 	fn erased_serialize(&self, s: &mut ESerializer) -> Result<(),erased_serde::Error> {
-// 		self.get().0.serialize(self.clone(), s)
-// 	}
-// }
+struct SerializeVal<'a> {
+	val: Val,
+	visited: RefCell<&'a mut Vec<*const Valu>>,
+}
+
+impl<'a> Drop for SerializeVal<'a> {
+	fn drop(&mut self) {
+		self.visited.get_mut().pop();
+	}
+}
+
+impl<'a> serde::Serialize for SerializeVal<'a> {
+	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
+		self.val.0.serialize(self.val.clone(), &mut*self.visited.borrow_mut(), s).map_err(unerase)
+	}
+}
 
 fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
 	use std::error::Error;
@@ -387,7 +428,8 @@ fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
 
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
-		self.get().0.serialize(self.clone(), s).map_err(unerase)
+		let mut v: Vec<*const Valu> = vec![];
+		self.rec_ser(unsafe{ mem::transmute(&mut v) }).serialize(s)
 	}
 }
 
@@ -730,10 +772,14 @@ impl Dict {
 				None => return None,
 			};
 			
+			// Insert a dummy value so that reentrance won't try to eval
+			// this entry again.
+			self.data.borrow_mut().data.push(DictVal::Priv(Val::new((Value::Nil))));
+			
 			let (k, v) = source.complete(value.clone());
 			
 			let mut prv = self.data.borrow_mut();
-			prv.data.push(v);
+			prv.data[next] = v;
 			
 			match prv.order.entry(k) {
 				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
@@ -748,9 +794,7 @@ impl Dict {
 				}
 			}
 			
-			// I promise I won't modify/delete this value as long as I live.
-			let r = &prv.data[next] as *const DictVal;
-			return Some(unsafe { &*r })
+			return Some(i_promise_this_will_stay_alive(&prv.data[next]))
 		}
 	}
 	
@@ -973,6 +1017,11 @@ mod tests {
 	}
 	
 	#[test]
+	fn dict_recurse_key() {
+		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a").unwrap(), Value::Num(5.0));
+	}
+	
+	#[test]
 	fn list() {
 		assert!(parse("[]").unwrap().is_empty());
 		let v = parse("[0d29 0b1.1]").unwrap();
@@ -1012,6 +1061,12 @@ mod tests {
 	
 	#[test]
 	fn ident() {
-		// assert_eq!(parse("{b = 4}.b").unwrap(), Value::Num(4.0));
+		assert_eq!(parse("{b = 4}.b").unwrap(), Value::Num(4.0));
+	}
+	
+	#[test]
+	#[should_panic(expected="Dependency cycle detected.")]
+	fn recursion() {
+		parse("{b = b}").unwrap().index_str("b").get_num();
 	}
 }

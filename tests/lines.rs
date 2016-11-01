@@ -24,18 +24,21 @@ fn test_lines() {
 		
 		let mut input = String::new();
 		ecl.read_to_string(&mut input).unwrap();
-		let mut output = String::new();
+		let mut output = Vec::new();
 		ecl::parse(&input).unwrap()
 			.erased_serialize(&mut ecl::lines::Serializer::new(&mut output)).unwrap();
 		
-		input.clear();
-		lines.read_to_string(&mut input).unwrap();
+		let mut reference = Vec::new();
+		lines.read_to_end(&mut reference).unwrap();
 		
-		if input == output {
+		if output == reference {
 			good += 1;
 		} else {
 			bad += 1;
-			difference::print_diff(&input, &output, "\n");
+			difference::print_diff(
+				&String::from_utf8(reference).unwrap(),
+				&String::from_utf8(output).unwrap(),
+			"\n");
 			println!("ERROR: Above difference found in {:?}", path);
 		}
 	}

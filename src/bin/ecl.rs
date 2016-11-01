@@ -19,7 +19,7 @@ fn main() {
 		
 		let val = ecl::parse(&buf).unwrap();
 		println!("Parsing complete! {:?}", val);
-		val.erased_serialize(&mut ecl::lines::Serializer::new(&mut buf)).unwrap();
+		val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout())).unwrap();
 		
 		println!("{}", buf);
 	}
