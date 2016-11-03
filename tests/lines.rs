@@ -25,6 +25,7 @@ fn test_lines() {
 		let mut input = String::new();
 		ecl.read_to_string(&mut input).unwrap();
 		let mut output = Vec::new();
+		// ecl::dump_ast(&input);
 		ecl::parse(&input).unwrap()
 			.erased_serialize(&mut ecl::lines::Serializer::new(&mut output)).unwrap();
 		

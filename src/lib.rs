@@ -13,17 +13,17 @@ extern crate erased_serde;
 extern crate regex;
 extern crate serde;
 
-use gc::{Gc, GcCell};
 use std::any;
 use std::cell::{RefCell};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 use std::fmt;
 use std::iter::Iterator;
 use std::mem;
+use std::rc;
 
 mod builtins;
+mod dict;
 pub mod lines;
+mod list;
 
 peg_file! grammar("grammar.rustpeg");
 pub use grammar::ParseError;
@@ -34,11 +34,8 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 
 #[derive(Debug,Trace)]
 pub enum Value {
-	ADict(ADict),
 	Bool(bool),
-	Dict(Dict),
 	Func(Func),
-	List(List),
 	Num(f64),
 	Nil,
 	Str(String),
@@ -48,7 +45,6 @@ pub enum Value {
 impl PartialEq for Value {
 	fn eq(&self, that: &Value) -> bool {
 		match (self, that) {
-			(&Value::Dict(ref l), &Value::Dict(ref r)) => l == r,
 			(&Value::Num(l), &Value::Num(r)) => l == r,
 			(_, _) => false,
 		}
@@ -66,11 +62,8 @@ impl Valu for Value {
 	
 	fn type_str(&self) -> &'static str {
 		match *self {
-			Value::ADict(_) => "adict",
 			Value::Bool(_) => "bool",
-			Value::Dict(_) => "dict",
 			Value::Func(_) => "func",
-			Value::List(_) => "list",
 			Value::Nil => "nil",
 			Value::Num(_) => "num",
 			Value::Str(_) => "str",
@@ -78,110 +71,10 @@ impl Valu for Value {
 		}
 	}
 	
-	fn is_empty(&self) -> bool {
-		match *self {
-			Value::List(ref l) => l.data.is_empty(),
-			Value::Dict(ref d) => {
-				if d.source.is_empty() {
-					true
-				} else {
-					// Check if any of our un-evaluated elements are "public"
-					d.source.iter().all(|e| match e {
-						&AlmostDictElement::Priv(_,_) => true,
-						_ => false,
-					})
-				}
-			},
-			_ => panic!("Don't know if {:?} is empty", self),
-		}
-	}
-	
-	fn index_int(&self, k: usize) -> Val {
-		match *self {
-			Value::List(ref l) => {
-				l.data[k].clone()
-			},
-			ref other => panic!("Can't index {:?} with an int", other),
-		}
-	}
-	
-	fn index_str(&self, val: Val, key: &str) -> Val {
-		match *self {
-			Value::ADict(ref d) => {
-				if d.key == key {
-					d.val.clone()
-				} else {
-					Val::new(Value::Nil)
-				}
-			},
-			Value::Dict(ref d) => {
-				match d.index(val.clone(), key) {
-					Some(&DictVal::Pub(ref v)) => v.clone(),
-					Some(&DictVal::Priv(ref v)) => {
-						println!("WRN: Attempt to access private memeber {:?}", v);
-						Val::new(Value::Nil)
-					},
-					None => Val::new(Value::Nil),
-				}
-			},
-			ref other => panic!("Can't index {:?} with a string", other),
-		}
-	}
-	
-	fn lookup(&self, val: Val, key: &str) -> Val {
-		match *self {
-			Value::ADict(ref d) => {
-				if d.key == key {
-					d.val.clone()
-				} else {
-					d.parent.lookup(key)
-				}
-			},
-			Value::Nil => {
-				builtins::get(key)
-			},
-			Value::Dict(ref d) => {
-				match d.index(val.clone(), key) {
-					Some(&DictVal::Pub(ref v)) => v.clone(),
-					Some(&DictVal::Priv(ref v)) => v.clone(),
-					None => d.parent.lookup(key),
-				}
-			},
-			Value::List(ref l) => l.parent.lookup(key),
-			ref other => panic!("Lookup in non-container {:?}", other),
-		}
-	}
-	
-	fn serialize(&self, val: Val, visited: &mut Vec<*const Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const Valu>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		match *self {
-			Value::ADict(ref d) => {
-				let mut state = try!(s.erased_serialize_map(Some(1)));
-				try!(s.erased_serialize_map_key(&mut state, &d.key));
-				try!(s.erased_serialize_map_value(&mut state, &d.val.rec_ser(visited)));
-				s.erased_serialize_map_end(state)
-			},
 			Value::Bool(b) => s.erased_serialize_bool(b),
-			Value::Dict(ref d) => {
-				let mut state = try!(s.erased_serialize_map(Some(d.source.len())));
-				d.eval(val);
-				let prv = d.data.borrow();
-				for (k, i) in &prv.order {
-					if let DictVal::Pub(ref v) = prv.data[*i] {
-						try!(s.erased_serialize_map_key(&mut state, k));
-						try!(s.erased_serialize_map_value(&mut state, &v.rec_ser(visited)));
-					}
-				}
-				s.erased_serialize_map_end(state)
-			},
-			Value::List(ref l) => {
-				let len = l.data.len();
-				let mut state = try!(s.erased_serialize_seq_fixed_size(len));
-				for e in &l.data {
-					try!(s.erased_serialize_seq_elt(&mut state, &e.rec_ser(visited)));
-				}
-				s.erased_serialize_seq_end(state)
-			},
 			Value::Nil => s.erased_serialize_none(),
 			Value::Num(n) => s.erased_serialize_f64(n),
 			Value::Str(ref str) => { s.erased_serialize_str(str) },
@@ -211,34 +104,23 @@ impl Valu for Value {
 		}
 	}
 	
+	fn lookup(&self, key: &str) -> Val {
+		match *self {
+			Value::Nil => builtins::get(key),
+			ref other => panic!("Lookup in non-container {:?}", other),
+		}
+	}
+	
 	fn call(&self, arg: Val) -> Val {
 		match *self {
 			Value::Func(ref f) => {
 				let body = i_promise_this_will_stay_alive(&f.body);
-				let scope = Val::new(Value::ADict(ADict {
-					parent: f.parent.clone(),
-					key: f.arg.to_owned(),
-					val: arg.clone(),
-				}));
+				let scope = dict::ADict::new(f.parent.clone(), f.arg.to_owned(), arg);
 				Thunk::new(vec![scope, f.parent.clone()], move |r| {
 					body.complete(r[0].clone())
 				})
 			},
 			ref other => panic!("Can't call {:?}", other),
-		}
-	}
-	
-	fn reverse(&self) -> Val {
-		match *self {
-			Value::List(ref l) => {
-				let mut data: Vec<_> = l.data.clone();
-				data.reverse();
-				Val::new(Value::List(List {
-					parent: l.parent.clone(),
-					data: data,
-				}))
-			}
-			ref other => panic!("Can't reverse {:?}", other)
 		}
 	}
 }
@@ -255,12 +137,13 @@ impl ValuAddImpl for Value {
 
 pub trait Valu: gc::Trace + fmt::Debug + any::Any + ValuAdd + ValuPartialEq {
 	fn get(&self) -> Option<Val> { None }
+	fn _set_self(&self, ::Val) { }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
-	fn index_str(&self, _v: Val, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
-	fn lookup(&self, _v: Val, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
-	fn serialize(&self, _val: Val, _v: &mut Vec<*const Valu>, _s: &mut erased_serde::Serializer)
+	fn index_str(&self, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
+	fn lookup(&self, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
+	fn serialize(&self, _v: &mut Vec<*const Valu>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
@@ -302,27 +185,41 @@ impl<T: ValuAddImpl + Valu> ValuAdd for T {
 }
 
 #[derive(Clone,Debug,Trace)]
-pub struct Val(Gc<Valu>);
+pub struct Val(gc::Gc<Valu>);
 
 unsafe impl Sync for Val { }
 
 impl Val {
 	fn new<T: Valu + Sized>(v: T) -> Val {
 		// println!("Allocating {:?}", v);
-		Val(Gc::new(v))
+		Val(gc::Gc::new(v))
 	}
 	
 	fn get(&self) -> Val {
 		// println!("getting {:?}", self.0.type_str());
 		let mut v = self.clone();
+		
+		let mut iterations = 0; // Delay cycle checking for performance.
+		let mut visited = Vec::new(); // Track visited items.
+		
 		while let Some(ref vn) = Valu::get(&*v.0) {
-			if &*vn.0 as *const Valu == &*self.0 as *const Valu {
-				panic!("Dependency cycle detected.");
+			iterations += 1;
+			if iterations > 100 {
+				let vn_ptr = &*vn.0 as *const Valu;
+				if visited.contains(&vn_ptr) {
+					panic!("Dependency cycle detected.");
+				}
+				visited.push(vn_ptr);
 			}
+			
 			v = vn.clone();
 		}
 		// println!("got {:?}", v.0.type_str());
 		v
+	}
+	
+	pub fn _set_self(&self, this: Val) {
+		(self.get().0)._set_self(this)
 	}
 	
 	pub fn type_str(&self) -> &'static str {
@@ -357,13 +254,13 @@ impl Val {
 	
 	pub fn index_str(&self, key: &str) -> Val {
 		let v = self.get();
-		v.0.index_str(v.clone(), key)
+		v.0.index_str(key)
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
 		// println!("Lookup {:?} in {:?}", key, self);
 		let v = self.get();
-		v.0.lookup(v.clone(), key)
+		v.0.lookup(key)
 	}
 	
 	fn add(&self, that: Val) -> Val {
@@ -417,7 +314,7 @@ impl<'a> Drop for SerializeVal<'a> {
 
 impl<'a> serde::Serialize for SerializeVal<'a> {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
-		self.val.0.serialize(self.val.clone(), &mut*self.visited.borrow_mut(), s).map_err(unerase)
+		self.val.0.serialize(&mut*self.visited.borrow_mut(), s).map_err(unerase)
 	}
 }
 
@@ -434,7 +331,7 @@ impl serde::Serialize for Val {
 }
 
 pub enum Almost {
-	Dict(Vec<AlmostDictElement>),
+	Dict(rc::Rc<Vec<dict::AlmostDictElement>>),
 	Expr(Box<Almost>, Vec<Suffix>),
 	L(Box<Fn(Val) -> Val>),
 	Num(f64),
@@ -448,8 +345,8 @@ impl Almost {
 		Almost::L(Box::new(f))
 	}
 	
-	fn dict(items: Vec<AlmostDictElement>) -> Almost {
-		Almost::Dict(items)
+	fn dict(items: Vec<dict::AlmostDictElement>) -> Almost {
+		Almost::Dict(rc::Rc::new(items))
 	}
 	
 	fn function(arg: String, body: Almost) -> Almost {
@@ -462,8 +359,7 @@ impl Almost {
 	
 	fn list(items: Vec<Almost>) -> Almost {
 		Almost::val(move |p| {
-			let items = i_promise_this_will_stay_alive(&items);
-			List::new(p, items)
+			list::List::new(p, &items)
 		})
 	}
 	
@@ -482,24 +378,12 @@ impl Almost {
 	fn complete(&self, p: Val) -> Val {
 		match *self {
 			Almost::Dict(ref items) => {
-				let items = i_promise_this_will_stay_alive(items);
-				Val::new(Value::Dict(Dict {
-					parent: p,
-					source: &items[..],
-					data: GcCell::new(DictData {
-						data: Vec::with_capacity(items.len()),
-						order: BTreeMap::new(),
-					})
-				}))
+				dict::Dict::new(p, items.clone())
 			},
 			Almost::Expr(ref subject, ref suffixes) => {
-				let suffixes = i_promise_this_will_stay_alive(suffixes);
-				let subject = i_promise_this_will_stay_alive(subject);
-				Thunk::new(vec![p], move |r| {
-					let subject = subject.complete(r[0].clone());
-					suffixes.iter().fold(subject, |a, e| {
-						e.call(r[0].clone(), a)
-					})
+				let subject = subject.complete(p.clone());
+				suffixes.iter().fold(subject, |a, e| {
+					e.call(p.clone(), a)
 				})
 			},
 			Almost::L(ref l) => l(p),
@@ -531,7 +415,7 @@ impl fmt::Debug for Almost {
 		match *self {
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "Dict({{"));
-				for i in items {
+				for i in &**items {
 					try!(writeln!(f, "\t{:?}", i));
 				}
 				write!(f, "}})")
@@ -559,112 +443,6 @@ impl fmt::Debug for Almost {
 			},
 			Almost::StrStatic(ref s) => {
 				write!(f, "{}", escape_string(&s))
-			},
-		}
-	}
-}
-
-pub enum AlmostDictElement {
-	Auto(Vec<String>,Almost),
-	Dyn(Vec<Almost>,Almost),
-	Unknown(Almost,Almost),
-	Known(String,Almost),
-	Priv(String,Almost),
-}
-
-impl AlmostDictElement {
-	fn complete(&self, p: Val) -> (String, DictVal) {
-		match self {
-			&AlmostDictElement::Auto(ref path, ref v) => {
-				debug_assert!(!path.is_empty());
-				(
-					path[0].to_owned(),
-					DictVal::Pub(Self::make_auto(p, &path[1..], v))
-				)
-			},
-			&AlmostDictElement::Dyn(ref path, ref v) => {
-				debug_assert!(!path.is_empty());
-				let k = path[0].complete(p.clone())
-					.get_str().expect("Dict index must be string")
-					.to_owned();
-				(
-					k,
-					DictVal::Pub(Self::make_auto_dyn(p, &path[1..], v))
-				)
-			},
-			&AlmostDictElement::Unknown(ref k, ref v) => {
-				let k = k.complete(p.clone());
-				let k = k
-					.get_str().expect("Dict index must be string")
-					.to_owned();
-				let v = v.complete(p);
-				(k, DictVal::Pub(v))
-			},
-			&AlmostDictElement::Known(ref k, ref v) => {
-				(k.to_owned(), DictVal::Pub(v.complete(p)))
-			},
-			&AlmostDictElement::Priv(ref k, ref v) => (k.to_owned(), DictVal::Priv(v.complete(p))),
-		}
-	}
-	
-	fn make_auto(p: Val, path: &[String], v: &Almost) -> Val {
-		if path.is_empty() {
-			v.complete(p)
-		} else {
-			Val::new(Value::ADict(ADict {
-				parent: p.clone(),
-				key: path[0].to_owned(),
-				val: Self::make_auto(p, &path[1..], v)
-			}))
-		}
-	}
-	
-	fn make_auto_dyn(p: Val, path: &[Almost], v: &Almost) -> Val {
-		if path.is_empty() {
-			v.complete(p)
-		} else {
-			let k = path[0].complete(p.clone());
-			let k = k
-				.get_str().expect("Dict index must be string")
-				.to_owned();
-			Val::new(Value::ADict(ADict {
-				parent: p.clone(),
-				key: k,
-				val: Self::make_auto_dyn(p, &path[1..], v),
-			}))
-		}
-	}
-}
-
-impl fmt::Debug for AlmostDictElement {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			&AlmostDictElement::Auto(ref path, ref v) => {
-				let mut sep = ' ';
-				try!(write!(f, "pub  "));
-				for e in path {
-					try!(write!(f, "{}{}", sep, format_key(e)));
-					sep = '.';
-				}
-				write!(f, " = {:?}", v)
-			},
-			&AlmostDictElement::Dyn(ref path, ref v) => {
-				let mut sep = ' ';
-				try!(write!(f, "pub  "));
-				for e in path {
-					try!(write!(f, "{}{:?}", sep, e));
-					sep = '.';
-				}
-				write!(f, " = {:?}", v)
-			},
-			&AlmostDictElement::Unknown(ref k, ref v) => {
-				write!(f, "pub   {:?} = {:?}", k, v)
-			},
-			&AlmostDictElement::Known(ref k, ref v) => {
-				write!(f, "pub   {} = {:?}", format_key(k), v)
-			},
-			&AlmostDictElement::Priv(ref k, ref v) => {
-				write!(f, "local {} = {:?}", format_key(k), v)
 			},
 		}
 	}
@@ -708,166 +486,6 @@ impl fmt::Debug for Suffix {
 			Suffix::IndexExpr(ref a) => write!(f, ".{:?}", a),
 			Suffix::IndexIdent(ref s) => write!(f, ".{}", format_key(s)),
 		}
-	}
-}
-
-#[derive(Trace)]
-pub struct List {
-	parent: Val,
-	data: Vec<Val>,
-}
-
-impl List {
-	fn new(p: Val, items: &'static [Almost]) -> Val {
-		Val::new(Value::List(List {
-			parent: p.clone(),
-			data: items.iter().map(|a| a.complete(p.clone())).collect(),
-		}))
-	}
-}
-
-impl PartialEq for List {
-	fn eq(&self, that: &List) -> bool {
-		return self.data == that.data
-	}
-}
-
-impl fmt::Debug for List {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		self.data.fmt(f)
-	}
-}
-
-#[derive(Debug,PartialEq,Trace)]
-enum DictVal { Pub(Val), Priv(Val) }
-
-#[derive(Trace)]
-pub struct Dict {
-	parent: Val,
-	source: &'static [AlmostDictElement],
-	data: GcCell<DictData>,
-}
-
-#[derive(PartialEq,Trace)]
-struct DictData {
-	#[unsafe_ignore_trace]
-	order: BTreeMap<String,usize>,
-	data: Vec<DictVal>,
-}
-
-impl Dict {
-	fn index(&self, value: Val, key: &str) -> Option<&DictVal> {
-		{
-			let prv = self.data.borrow();
-			if let Some(v) = prv.order.get(key) {
-				return Some(i_promise_this_will_stay_alive(&prv.data[*v]))
-			}
-		}
-		
-		loop {
-			let next = self.data.borrow().data.len();
-			
-			let source = match self.source.get(next) {
-				Some(s) => s,
-				None => return None,
-			};
-			
-			// Insert a dummy value so that reentrance won't try to eval
-			// this entry again.
-			self.data.borrow_mut().data.push(DictVal::Priv(Val::new((Value::Nil))));
-			
-			let (k, v) = source.complete(value.clone());
-			
-			let mut prv = self.data.borrow_mut();
-			prv.data[next] = v;
-			
-			match prv.order.entry(k) {
-				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-				Entry::Vacant(e) => {
-					let found = e.key() == key;
-					
-					e.insert(next);
-					
-					if !found {
-						continue
-					}
-				}
-			}
-			
-			return Some(i_promise_this_will_stay_alive(&prv.data[next]))
-		}
-	}
-	
-	fn eval(&self, value: Val) {
-		loop {
-			let next = self.data.borrow().data.len();
-			
-			let source = match self.source.get(next) {
-				Some(s) => s,
-				None => return,
-			};
-			
-			let (k, v) = source.complete(value.clone());
-			
-			let mut prv = self.data.borrow_mut();
-			prv.data.push(v);
-			
-			match prv.order.entry(k) {
-				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-				Entry::Vacant(e) => e.insert(next),
-			};
-		}
-	}
-}
-
-impl PartialEq for Dict {
-	fn eq(&self, _that: &Dict) -> bool {
-		false
-	}
-}
-
-impl fmt::Debug for Dict {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		if self.source.is_empty() {
-			return write!(f, "{{}}")
-		}
-		
-		let prv = self.data.borrow();
-		
-		try!(writeln!(f, "{{"));
-		for (k, v) in &prv.order {
-			match prv.data[*v] {
-				DictVal::Pub(ref v) => try!(writeln!(f, "\t{:?}: {:?}", k, v)),
-				_ => {},
-			}
-		}
-		if !self.source.is_empty() {
-			try!(writeln!(f, "\t<{} unevaluated>", self.source.len() - prv.data.len()))
-		}
-		try!(write!(f, "}}"));
-		Ok(())
-	}
-}
-
-#[derive(Trace)]
-pub struct ADict {
-	parent: Val,
-	key: String,
-	val: Val,
-}
-
-impl serde::Serialize for ADict {
-	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
-		let mut state = try!(s.serialize_map(Some(1)));
-		try!(s.serialize_map_key(&mut state, &self.key));
-		try!(s.serialize_map_value(&mut state, &self.val));
-		s.serialize_map_end(state)
-	}
-}
-
-impl fmt::Debug for ADict {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "ADict{{ {} = {:?} }}", format_key(&self.key), self.val)
 	}
 }
 
@@ -995,32 +613,6 @@ mod tests {
 	use super::*;
 	use super::grammar;
 	
-	macro_rules! with {
-		( $p:pat = $x:expr, $b:block ) => {
-			match $x {
-				$p => $b,
-				other => panic!("Expected {} got {:?}", stringify!($p), other),
-			}
-		}
-	}
-	
-	#[test]
-	fn dict() {
-		assert!(parse("{}").unwrap().is_empty());
-		let v = parse("{a=4 b = 0}").unwrap();
-		assert_eq!(v.index_str("a"), Value::Num(4.0));
-		assert_eq!(v.index_str("b"), Value::Num(0.0));
-		
-		let v = parse("{a=4 b=a}").unwrap();
-		assert_eq!(v.index_str("a"), Value::Num(4.0));
-		assert_eq!(v.index_str("b"), Value::Num(4.0));
-	}
-	
-	#[test]
-	fn dict_recurse_key() {
-		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a").unwrap(), Value::Num(5.0));
-	}
-	
 	#[test]
 	fn list() {
 		assert!(parse("[]").unwrap().is_empty());
@@ -1068,5 +660,16 @@ mod tests {
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion() {
 		parse("{b = b}").unwrap().index_str("b").get_num();
+	}
+	
+	#[test]
+	#[should_panic(expected="Dependency cycle detected.")]
+	fn recursion_multi_step() {
+		parse("{
+			a = b
+			b = c
+			c = d
+			d = b
+		}").unwrap().index_str("a").get_num();
 	}
 }

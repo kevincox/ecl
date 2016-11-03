@@ -1,5 +1,6 @@
 use std::mem;
 use super::*;
+use super::dict;
 
 S = whitespace_element+
 
@@ -46,33 +47,33 @@ dict -> Almost
 		Almost::dict(items)
 	}
 
-dict_item -> AlmostDictElement
+dict_item -> dict::AlmostDictElement
 	= i:dict_known { i }
 	/ i:dict_auto { i }
 	/ i:dict_full { i }
 	/ i:dict_local { i }
 
-dict_known -> AlmostDictElement
+dict_known -> dict::AlmostDictElement
 	= k:ident S? "=" S? v:expr {
-		AlmostDictElement::Known(k, v)
+		dict::AlmostDictElement::Known(k, v)
 	}
 
-dict_auto -> AlmostDictElement
+dict_auto -> dict::AlmostDictElement
 	= path:ident ++ "." S? "=" S? v:expr {
-		AlmostDictElement::Auto(path, v)
+		dict::AlmostDictElement::Auto(path, v)
 	}
 
-dict_full -> AlmostDictElement
+dict_full -> dict::AlmostDictElement
 	= path:dict_path_element ++ "." S? "=" S? v:expr {
-		AlmostDictElement::Dyn(path, v)
+		dict::AlmostDictElement::Dyn(path, v)
 	}
 
 dict_path_element -> Almost
 	= i:ident { Almost::str_static(i) }
 	/ s:string { s }
 
-dict_local -> AlmostDictElement
-	= "local" S k:ident S? "=" S? v:expr { AlmostDictElement::Priv(k, v) }
+dict_local -> dict::AlmostDictElement
+	= "local" S k:ident S? "=" S? v:expr { dict::AlmostDictElement::Priv(k, v) }
 
 #[pub]
 list -> Almost
