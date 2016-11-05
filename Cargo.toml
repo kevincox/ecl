@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Kevin Cox <kevincox@kevincox.ca>"]
 
 [dependencies]
-afl = "0.1"
-afl-plugin = "0.1"
 erased-serde = "0.1"
 gc = "0.2"
 gc_derive = "0.2"
