@@ -47,7 +47,7 @@ impl ::Valu for Thunk {
 	fn type_str(&self) -> &'static str { "thunk" }
 }
 
-impl ::ValuAdd for Thunk { }
+impl ::SameOps for Thunk { }
 
 impl PartialEq for Thunk {
 	fn eq(&self, _that: &Self) -> bool {

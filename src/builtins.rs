@@ -19,7 +19,12 @@ pub fn get(key: &str) -> ::Val {
 
 pub struct Func<F: Fn(::Val) -> ::Val + 'static + marker::Reflect>(&'static str, F);
 unsafe impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> gc::Trace for Func<F> { unsafe_empty_trace!(); }
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::ValuAdd for Func<F> { }
+
+impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::SameOps for Func<F> {
+	fn eq(&self, that: &Self) -> bool {
+		self.0 as *const str == that.0 as *const str
+	}
+}
 
 impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Valu for Func<F> {
 	fn call(&self, arg: ::Val) -> ::Val {
@@ -27,12 +32,6 @@ impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Valu for Func<F> {
 	}
 	
 	fn type_str(&self) -> &'static str { "builtin" }
-}
-
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> PartialEq for Func<F> {
-	fn eq(&self, that: &Self) -> bool {
-		self.0 == that.0
-	}
 }
 
 impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> fmt::Debug for Func<F> {

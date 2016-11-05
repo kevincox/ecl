@@ -1,4 +1,3 @@
-#![feature(get_type_id)]
 #![feature(plugin)]
 #![feature(proc_macro)]
 // #![plugin(afl_plugin)]
@@ -13,7 +12,6 @@ extern crate erased_serde;
 extern crate regex;
 extern crate serde;
 
-use std::any;
 use std::cell::{RefCell};
 use std::fmt;
 use std::iter::Iterator;
@@ -40,15 +38,6 @@ pub enum Value {
 	Num(f64),
 	Nil,
 	Str(String),
-}
-
-impl PartialEq for Value {
-	fn eq(&self, that: &Value) -> bool {
-		match (self, that) {
-			(&Value::Num(l), &Value::Num(r)) => l == r,
-			(_, _) => false,
-		}
-	}
 }
 
 impl Valu for Value {
@@ -116,17 +105,24 @@ impl Valu for Value {
 	}
 }
 
-impl ValuAddImpl for Value {
-	fn add(&self, that: &Value) -> Val {
+impl SameOps for Value {
+	fn add(&self, that: &Self) -> Val {
 		Val::new(match (self, that) {
 			(&Value::Num(l), &Value::Num(r)) => Value::Num(l + r),
 			(&Value::Str(ref l), &Value::Str(ref r)) => Value::Str(l.clone() + &r),
 			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
 		})
 	}
+	
+	fn eq(&self, that: &Self) -> bool {
+		match (self, that) {
+			(&Value::Num(l), &Value::Num(r)) => l == r,
+			(_, _) => false,
+		}
+	}
 }
 
-pub trait Valu: gc::Trace + fmt::Debug + any::Any + ValuAdd + ValuPartialEq {
+pub trait Valu: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
 	fn get(&self) -> Option<Val> { None }
 	fn _set_self(&self, ::Val) { }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
@@ -143,34 +139,30 @@ pub trait Valu: gc::Trace + fmt::Debug + any::Any + ValuAdd + ValuPartialEq {
 	fn reverse(&self) -> Val { panic!("Can't reverse {:?}", self) }
 }
 
-pub trait ValuPartialEq: fmt::Debug {
-	fn eq(&self, other: &Valu) -> bool { panic!("Can't compare {:?} and {:?}", self, other) }
+pub trait SameOps: fmt::Debug {
+	fn add(&self, that: &Self) -> Val { panic!("Can't add {:?} and {:?}", self, that) }
+	fn eq(&self, that: &Self) -> bool { panic!("Can't compare {:?} and {:?}", self, that) }
 }
 
-impl<T: PartialEq + Valu + ?Sized> ValuPartialEq for T {
-	fn eq(&self, other: &Valu) -> bool {
-		if other.get_type_id() == any::TypeId::of::<Self>() {
-			self == unsafe { *mem::transmute::<&&Valu, &&Self>(&other) }
+pub trait SameOpsTrait {
+	fn add(&self, that: &Valu) -> Val;
+	fn eq(&self, that: &Valu) -> bool;
+}
+
+impl<T: SameOps + Valu> SameOpsTrait for T {
+	fn add(&self, that: &Valu) -> Val {
+		if that.type_str() as *const str == that.type_str() as *const str {
+			SameOps::add(self, unsafe { *mem::transmute::<&&Valu, &&T>(&that) })
 		} else {
-			false
+			panic!("Can't add {:?} and {:?}", self, that)
 		}
 	}
-}
-
-pub trait ValuAddImpl {
-	fn add(&self, that: &Self) -> Val;
-}
-
-pub trait ValuAdd: fmt::Debug {
-	fn add(&self, other: &Valu) -> Val { panic!("Can't add {:?} and {:?}", self, other) }
-}
-
-impl<T: ValuAddImpl + Valu> ValuAdd for T {
-	fn add(&self, other: &Valu) -> Val {
-		if other.get_type_id() == any::TypeId::of::<Self>() {
-			ValuAddImpl::add(self, unsafe { *mem::transmute::<&&Valu, &&T>(&other) })
+	
+	fn eq(&self, that: &Valu) -> bool {
+		if that.type_str() as *const str == that.type_str() as *const str {
+			SameOps::eq(self, unsafe { *mem::transmute::<&&Valu, &&Self>(&that) })
 		} else {
-			panic!("Can't add {:?} and {:?}", self, other)
+			false
 		}
 	}
 }

@@ -95,12 +95,6 @@ impl Dict {
 	}
 }
 
-impl PartialEq for Dict {
-	fn eq(&self, _that: &Dict) -> bool {
-		false
-	}
-}
-
 impl fmt::Debug for Dict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		if self.source.is_empty() {
@@ -179,7 +173,7 @@ impl ::Valu for Dict {
 	}
 }
 
-impl ::ValuAdd for Dict { }
+impl ::SameOps for Dict { }
 
 pub enum AlmostDictElement {
 	Auto(Vec<String>,::Almost),
@@ -348,13 +342,7 @@ impl ::Valu for ADict {
 	}
 }
 
-impl PartialEq for ADict {
-	fn eq(&self, _that: &Self) -> bool {
-		false
-	}
-}
-
-impl ::ValuAdd for ADict { }
+impl ::SameOps for ADict { }
 
 #[cfg(test)]
 mod tests {

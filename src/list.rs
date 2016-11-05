@@ -44,7 +44,7 @@ impl ::Valu for List {
 	}
 }
 
-impl ::ValuAdd for List { }
+impl ::SameOps for List { }
 
 impl PartialEq for List {
 	fn eq(&self, that: &List) -> bool {
