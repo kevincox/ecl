@@ -24,6 +24,7 @@ mod builtins;
 mod dict;
 pub mod lines;
 mod list;
+mod thunk;
 
 peg_file! grammar("grammar.rustpeg");
 pub use grammar::ParseError;
@@ -39,7 +40,6 @@ pub enum Value {
 	Num(f64),
 	Nil,
 	Str(String),
-	Thunk(Thunk),
 }
 
 impl PartialEq for Value {
@@ -52,14 +52,6 @@ impl PartialEq for Value {
 }
 
 impl Valu for Value {
-	fn get(&self) -> Option<Val> {
-		if let Value::Thunk(ref t) =  *self {
-			Some(t.eval().clone())
-		} else {
-			None
-		}
-	}
-	
 	fn type_str(&self) -> &'static str {
 		match *self {
 			Value::Bool(_) => "bool",
@@ -67,7 +59,6 @@ impl Valu for Value {
 			Value::Nil => "nil",
 			Value::Num(_) => "num",
 			Value::Str(_) => "str",
-			Value::Thunk(_) => "thunk",
 		}
 	}
 	
@@ -116,7 +107,7 @@ impl Valu for Value {
 			Value::Func(ref f) => {
 				let body = i_promise_this_will_stay_alive(&f.body);
 				let scope = dict::ADict::new(f.parent.clone(), f.arg.to_owned(), arg);
-				Thunk::new(vec![scope, f.parent.clone()], move |r| {
+				thunk::Thunk::new(vec![scope, f.parent.clone()], move |r| {
 					body.complete(r[0].clone())
 				})
 			},
@@ -390,7 +381,7 @@ impl Almost {
 			Almost::Num(n) => Val::new(Value::Num(n)),
 			Almost::Ref(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
-				Thunk::new(vec![p], move |r| r[0].lookup(id))
+				thunk::Thunk::new(vec![p], move |r| r[0].lookup(id))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -468,11 +459,11 @@ impl Suffix {
 			},
 			Suffix::IndexExpr(ref key) => {
 				let k = key.complete(parent);
-				Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
+				thunk::Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
 			},
 			Suffix::IndexIdent(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
-				Thunk::new(vec![subject], move |r| r[0].index_str(id))
+				thunk::Thunk::new(vec![subject], move |r| r[0].index_str(id))
 			}
 		}
 	}
@@ -502,63 +493,9 @@ impl fmt::Debug for Func {
 	}
 }
 
-// #[derive(Trace)]
-pub struct Thunk {
-	// #[unsafe_ignore_trace]
-	code: Box<Fn(&Vec<Val>) -> Val>,
-	refs: Vec<Val>,
-	data: RefCell<Option<Val>>,
-}
-
-unsafe impl gc::Trace for Thunk {
-	custom_trace!(this, {
-		mark(&this.refs);
-		#[allow(unused_unsafe)]
-		unsafe { mark(&*this.data.as_ptr()); }
-	});
-}
-
-impl Thunk {
-	fn new<F: Fn(&Vec<Val>) -> Val + 'static>(refs: Vec<Val>, code: F) -> Val {
-		Val::new(Value::Thunk(Thunk{ code: Box::new(code), refs: refs, data: RefCell::new(None) }))
-	}
-	
-	fn eval(&self) -> Val {
-		let mut data = self.data.borrow_mut();
-		if data.is_none() {
-			let new = (self.code)(&self.refs);
-			unsafe { gc::Trace::unroot(&new.0) };
-			*data = Some(new);
-		}
-		data.as_ref().unwrap().clone()
-	}
-}
-
-impl PartialEq for Thunk {
-	fn eq(&self, _that: &Self) -> bool {
-		false
-	}
-}
-
-impl fmt::Debug for Thunk {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		// match *self.data.borrow() {
-		// 	Some(ref v) => v.fmt(f),
-		// 	None => write!(f, "<code>"),
-		// }
-		match self.data.try_borrow() {
-			Ok(data) => match *data {
-				Some(ref v) => v.fmt(f),
-				None => write!(f, "<code>"),
-			},
-			Err(_) => write!(f, "<evaling>"),
-		}
-	}
-}
-
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
 	let almost = try!(grammar::document(doc));
-	Ok(Thunk::new(vec![], move |_| almost.complete(Val::new(Value::Nil))))
+	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(Val::new(Value::Nil))))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
