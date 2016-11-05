@@ -7,6 +7,8 @@ use std::collections::btree_map::Entry;
 use std::fmt;
 use std::rc;
 
+use nil;
+
 #[derive(Trace)]
 pub struct Dict {
 	parent: ::Val,
@@ -33,7 +35,7 @@ impl Dict {
 			parent: parent,
 			source: items,
 			data: gc::GcCell::new(DictData {
-				this: ::Val::new(::Value::Nil),
+				this: ::Val::new(nil::Nil),
 				data: Vec::with_capacity(len),
 				order: BTreeMap::new(),
 			})
@@ -144,9 +146,9 @@ impl ::Valu for Dict {
 			Some(&DictVal::Pub(ref v)) => v.clone(),
 			Some(&DictVal::Priv(ref v)) => {
 				println!("WRN: Attempt to access private memeber {:?}", v);
-				::Val::new(::Value::Nil)
+				::Val::new(nil::Nil)
 			},
-			None => ::Val::new(::Value::Nil),
+			None => ::Val::new(nil::Nil),
 		}
 	}
 	
@@ -321,7 +323,7 @@ impl ::Valu for ADict {
 		if self.key == key {
 			self.val.clone()
 		} else {
-			::Val::new(::Value::Nil)
+			::Val::new(nil::Nil)
 		}
 	}
 	
@@ -352,16 +354,16 @@ mod tests {
 	fn dict() {
 		assert!(parse("{}").unwrap().is_empty());
 		let v = parse("{a=4 b = 0}").unwrap();
-		assert_eq!(v.index_str("a"), Value::Num(4.0));
-		assert_eq!(v.index_str("b"), Value::Num(0.0));
+		assert_eq!(v.index_str("a"), ::Val::new(4.0));
+		assert_eq!(v.index_str("b"), ::Val::new(0.0));
 		
 		let v = parse("{a=4 b=a}").unwrap();
-		assert_eq!(v.index_str("a"), Value::Num(4.0));
-		assert_eq!(v.index_str("b"), Value::Num(4.0));
+		assert_eq!(v.index_str("a"), ::Val::new(4.0));
+		assert_eq!(v.index_str("b"), ::Val::new(4.0));
 	}
 	
 	#[test]
 	fn dict_recurse_key() {
-		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a").unwrap(), Value::Num(5.0));
+		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a").unwrap(), ::Val::new(5.0));
 	}
 }

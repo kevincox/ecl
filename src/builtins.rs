@@ -7,11 +7,13 @@ extern crate serde;
 use std::fmt;
 use std::marker;
 
+use nil;
+
 pub fn get(key: &str) -> ::Val {
 	match key {
-		"nil" => ::Val::new(::Value::Nil),
-		"true" => ::Val::new(::Value::Bool(true)),
-		"false" => ::Val::new(::Value::Bool(false)),
+		"nil" => ::Val::new(nil::Nil),
+		"true" => ::Val::new(true),
+		"false" => ::Val::new(false),
 		"reverse" => ::Val::new(Func("reverse", |v| v.reverse())),
 		other => panic!("Undefined variable {:?}", other),
 	}

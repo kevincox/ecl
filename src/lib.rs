@@ -19,9 +19,14 @@ use std::mem;
 use std::rc;
 
 mod builtins;
+mod bool;
 mod dict;
+mod func;
 pub mod lines;
 mod list;
+mod nil;
+mod num;
+mod str;
 mod thunk;
 
 peg_file! grammar("grammar.rustpeg");
@@ -29,97 +34,6 @@ pub use grammar::ParseError;
 
 fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
-}
-
-#[derive(Debug,Trace)]
-pub enum Value {
-	Bool(bool),
-	Func(Func),
-	Num(f64),
-	Nil,
-	Str(String),
-}
-
-impl Valu for Value {
-	fn type_str(&self) -> &'static str {
-		match *self {
-			Value::Bool(_) => "bool",
-			Value::Func(_) => "func",
-			Value::Nil => "nil",
-			Value::Num(_) => "num",
-			Value::Str(_) => "str",
-		}
-	}
-	
-	fn serialize(&self,  _: &mut Vec<*const Valu>, s: &mut erased_serde::Serializer)
-		-> Result<(),erased_serde::Error> {
-		match *self {
-			Value::Bool(b) => s.erased_serialize_bool(b),
-			Value::Nil => s.erased_serialize_none(),
-			Value::Num(n) => s.erased_serialize_f64(n),
-			Value::Str(ref str) => { s.erased_serialize_str(str) },
-			ref other => panic!("Don't know how to serialize {:?}", other),
-		}
-	}
-	
-	fn get_str(&self) -> Option<&str> {
-		match *self {
-			Value::Str(ref s) => Some(i_promise_this_will_stay_alive(s)),
-			_ => None,
-		}
-	}
-	
-	fn get_num(&self) -> Option<f64> {
-		match *self {
-			Value::Num(n) => Some(n),
-			_ => None,
-		}
-	}
-	
-	fn to_string(&self) -> String {
-		match *self {
-			Value::Str(ref s) => s.clone(),
-			Value::Num(n) => n.to_string(),
-			ref other => panic!("Don't know how to turn {:?} into a string", other),
-		}
-	}
-	
-	fn lookup(&self, key: &str) -> Val {
-		match *self {
-			Value::Nil => builtins::get(key),
-			ref other => panic!("Lookup in non-container {:?}", other),
-		}
-	}
-	
-	fn call(&self, arg: Val) -> Val {
-		match *self {
-			Value::Func(ref f) => {
-				let body = i_promise_this_will_stay_alive(&f.body);
-				let scope = dict::ADict::new(f.parent.clone(), f.arg.to_owned(), arg);
-				thunk::Thunk::new(vec![scope, f.parent.clone()], move |r| {
-					body.complete(r[0].clone())
-				})
-			},
-			ref other => panic!("Can't call {:?}", other),
-		}
-	}
-}
-
-impl SameOps for Value {
-	fn add(&self, that: &Self) -> Val {
-		Val::new(match (self, that) {
-			(&Value::Num(l), &Value::Num(r)) => Value::Num(l + r),
-			(&Value::Str(ref l), &Value::Str(ref r)) => Value::Str(l.clone() + &r),
-			(l, r) => panic!("Don't know how to add {:?} and {:?}", l, r),
-		})
-	}
-	
-	fn eq(&self, that: &Self) -> bool {
-		match (self, that) {
-			(&Value::Num(l), &Value::Num(r)) => l == r,
-			(_, _) => false,
-		}
-	}
 }
 
 pub trait Valu: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
@@ -272,12 +186,6 @@ impl Val {
 	}
 }
 
-impl PartialEq<Value> for Val {
-	fn eq(&self, that: &Value) -> bool {
-		self.get().0.eq(that)
-	}
-}
-
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
 		self.get().0.eq(&*that.get().0)
@@ -333,10 +241,9 @@ impl Almost {
 	}
 	
 	fn function(arg: String, body: Almost) -> Almost {
+		let body = rc::Rc::new(body);
 		Almost::val(move |p| {
-			let arg = i_promise_this_will_stay_alive(&arg);
-			let body = i_promise_this_will_stay_alive(&body);
-			Val::new(Value::Func(Func { parent: p, arg: arg, body: body }))
+			func::Func::new(p.clone(), arg.clone(), body.clone())
 		})
 	}
 	
@@ -370,7 +277,7 @@ impl Almost {
 				})
 			},
 			Almost::L(ref l) => l(p),
-			Almost::Num(n) => Val::new(Value::Num(n)),
+			Almost::Num(n) => Val::new(n),
 			Almost::Ref(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
 				thunk::Thunk::new(vec![p], move |r| r[0].lookup(id))
@@ -384,10 +291,10 @@ impl Almost {
 						&StringPart::Lit(ref s) => r += &s,
 					}
 				}
-				Val::new(Value::Str(r))
+				Val::new(r)
 			},
 			Almost::StrStatic(ref s) => {
-				Val::new(Value::Str(s.clone()))
+				Val::new(s.clone())
 			},
 		}
 	}
@@ -472,22 +379,9 @@ impl fmt::Debug for Suffix {
 	}
 }
 
-#[derive(Trace)]
-pub struct Func {
-	parent: Val,
-	arg: &'static str,
-	body: &'static Almost,
-}
-
-impl fmt::Debug for Func {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{} -> <body>", self.arg)
-	}
-}
-
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
 	let almost = try!(grammar::document(doc));
-	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(Val::new(Value::Nil))))
+	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(Val::new(nil::Nil))))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
@@ -540,49 +434,18 @@ pub fn format_key(s: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use super::grammar;
 	
 	#[test]
 	fn list() {
 		assert!(parse("[]").unwrap().is_empty());
 		let v = parse("[0d29 0b1.1]").unwrap();
-		assert_eq!(v.index_int(0), Value::Num(29.0));
-		assert_eq!(v.index_int(1), Value::Num(1.5));
-	}
-	
-	#[test]
-	fn num_decimal() {
-		assert_eq!(grammar::number("10"), Ok(10.0));
-		assert_eq!(grammar::number("0d10"), Ok(10.0));
-		assert_eq!(grammar::number("10.4"), Ok(10.4));
-		assert_eq!(grammar::number("10.4e6"), Ok(10400000.0));
-		assert_eq!(grammar::number("10.4e+6"), Ok(10400000.0));
-		assert_eq!(grammar::number("10.4e-6"), Ok(0.0000104));
-		assert_eq!(grammar::number("104_000__000_e-6_"), Ok(104.0));
-		assert_eq!(grammar::number("1M"), Ok(1_000_000.0));
-		assert_eq!(grammar::number("1ki"), Ok(1024.0));
-		assert_eq!(grammar::number("4u"), Ok(0.000_004));
-	}
-	
-	#[test]
-	fn num_binary() {
-		assert_eq!(grammar::number("0b10"), Ok(2.0));
-		assert_eq!(grammar::number("0b10.1"), Ok(2.5));
-		assert_eq!(grammar::number("0b10.1e6"), Ok(160.0));
-		assert_eq!(grammar::number("0b1M"), Ok(1_000_000.0));
-		assert_eq!(grammar::number("0b1u"), Ok(0.000_001));
-	}
-	
-	#[test]
-	fn num_hex() {
-		assert_eq!(grammar::number("0x10"), Ok(16.0));
-		assert_eq!(grammar::number("0x8.8"), Ok(8.5));
-		assert_eq!(grammar::number("0x00.1"), Ok(0.0625));
+		assert_eq!(v.index_int(0), Val::new(29.0));
+		assert_eq!(v.index_int(1), Val::new(1.5));
 	}
 	
 	#[test]
 	fn ident() {
-		assert_eq!(parse("{b = 4}.b").unwrap(), Value::Num(4.0));
+		assert_eq!(parse("{b = 4}.b").unwrap(), Val::new(4.0));
 	}
 	
 	#[test]
