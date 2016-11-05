@@ -1,13 +1,13 @@
 extern crate erased_serde;
 
-impl ::Valu for String {
+impl ::Value for String {
 	fn type_str(&self) -> &'static str { "string" }
 	
 	fn get_str(&self) -> Option<&str> {
 		Some(self)
 	}
 	
-	fn serialize(&self,  _: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self)
 	}

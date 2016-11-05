@@ -1,9 +1,9 @@
 extern crate erased_serde;
 
-impl ::Valu for f64 {
+impl ::Value for f64 {
 	fn type_str(&self) -> &'static str { "num" }
 	
-	fn serialize(&self,  _: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_f64(*self)
 	}

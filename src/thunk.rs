@@ -39,7 +39,7 @@ impl Thunk {
 	}
 }
 
-impl ::Valu for Thunk {
+impl ::Value for Thunk {
 	fn get(&self) -> Option<::Val> {
 		Some(self.eval().clone())
 	}

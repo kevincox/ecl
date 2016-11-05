@@ -18,7 +18,7 @@ impl Func {
 	}
 }
 
-impl ::Valu for Func {
+impl ::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
 	
 	fn call(&self, arg: ::Val) -> ::Val {

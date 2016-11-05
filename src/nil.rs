@@ -5,10 +5,10 @@ use builtins;
 #[derive(Debug,Trace)]
 pub struct Nil;
 
-impl ::Valu for Nil {
+impl ::Value for Nil {
 	fn type_str(&self) -> &'static str { "nil" }
 	
-	fn serialize(&self,  _: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_none()
 	}

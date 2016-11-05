@@ -28,7 +28,7 @@ impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::SameOps for Func<F> {
 	}
 }
 
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Valu for Func<F> {
+impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Value for Func<F> {
 	fn call(&self, arg: ::Val) -> ::Val {
 		self.1(arg)
 	}

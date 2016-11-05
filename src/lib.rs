@@ -36,7 +36,7 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
 }
 
-pub trait Valu: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
+pub trait Value: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
 	fn get(&self) -> Option<Val> { None }
 	fn _set_self(&self, ::Val) { }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
@@ -44,7 +44,7 @@ pub trait Valu: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
 	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
 	fn index_str(&self, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
 	fn lookup(&self, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
-	fn serialize(&self, _v: &mut Vec<*const Valu>, _s: &mut erased_serde::Serializer)
+	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
@@ -59,22 +59,22 @@ pub trait SameOps: fmt::Debug {
 }
 
 pub trait SameOpsTrait {
-	fn add(&self, that: &Valu) -> Val;
-	fn eq(&self, that: &Valu) -> bool;
+	fn add(&self, that: &Value) -> Val;
+	fn eq(&self, that: &Value) -> bool;
 }
 
-impl<T: SameOps + Valu> SameOpsTrait for T {
-	fn add(&self, that: &Valu) -> Val {
+impl<T: SameOps + Value> SameOpsTrait for T {
+	fn add(&self, that: &Value) -> Val {
 		if that.type_str() as *const str == that.type_str() as *const str {
-			SameOps::add(self, unsafe { *mem::transmute::<&&Valu, &&T>(&that) })
+			SameOps::add(self, unsafe { *mem::transmute::<&&Value, &&T>(&that) })
 		} else {
 			panic!("Can't add {:?} and {:?}", self, that)
 		}
 	}
 	
-	fn eq(&self, that: &Valu) -> bool {
+	fn eq(&self, that: &Value) -> bool {
 		if that.type_str() as *const str == that.type_str() as *const str {
-			SameOps::eq(self, unsafe { *mem::transmute::<&&Valu, &&Self>(&that) })
+			SameOps::eq(self, unsafe { *mem::transmute::<&&Value, &&Self>(&that) })
 		} else {
 			false
 		}
@@ -82,12 +82,12 @@ impl<T: SameOps + Valu> SameOpsTrait for T {
 }
 
 #[derive(Clone,Debug,Trace)]
-pub struct Val(gc::Gc<Valu>);
+pub struct Val(gc::Gc<Value>);
 
 unsafe impl Sync for Val { }
 
 impl Val {
-	fn new<T: Valu + Sized>(v: T) -> Val {
+	fn new<T: Value + Sized>(v: T) -> Val {
 		// println!("Allocating {:?}", v);
 		Val(gc::Gc::new(v))
 	}
@@ -99,10 +99,10 @@ impl Val {
 		let mut iterations = 0; // Delay cycle checking for performance.
 		let mut visited = Vec::new(); // Track visited items.
 		
-		while let Some(ref vn) = Valu::get(&*v.0) {
+		while let Some(ref vn) = Value::get(&*v.0) {
 			iterations += 1;
 			if iterations > 100 {
-				let vn_ptr = &*vn.0 as *const Valu;
+				let vn_ptr = &*vn.0 as *const Value;
 				if visited.contains(&vn_ptr) {
 					panic!("Dependency cycle detected.");
 				}
@@ -176,9 +176,9 @@ impl Val {
 		self.get().0.reverse()
 	}
 	
-	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Valu>) -> SerializeVal<'a> {
+	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
 		let selfr = self.get();
-		let selfp = &*selfr.0 as *const Valu;
+		let selfp = &*selfr.0 as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 		
@@ -194,7 +194,7 @@ impl PartialEq for Val {
 
 struct SerializeVal<'a> {
 	val: Val,
-	visited: RefCell<&'a mut Vec<*const Valu>>,
+	visited: RefCell<&'a mut Vec<*const Value>>,
 }
 
 impl<'a> Drop for SerializeVal<'a> {
@@ -216,7 +216,7 @@ fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
 
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
-		let mut v: Vec<*const Valu> = vec![];
+		let mut v: Vec<*const Value> = vec![];
 		self.rec_ser(unsafe{ mem::transmute(&mut v) }).serialize(s)
 	}
 }

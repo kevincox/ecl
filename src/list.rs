@@ -17,7 +17,7 @@ impl List {
 	}
 }
 
-impl ::Valu for List {
+impl ::Value for List {
 	fn type_str(&self) -> &'static str { "list" }
 	fn is_empty(&self) -> bool { self.data.is_empty() }
 	
@@ -25,7 +25,7 @@ impl ::Valu for List {
 		self.data[k].clone()
 	}
 	
-	fn serialize(&self, visited: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let len = self.data.len();
 		let mut state = try!(s.erased_serialize_seq_fixed_size(len));

@@ -1,9 +1,9 @@
 extern crate erased_serde;
 
-impl ::Valu for bool {
+impl ::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }
 	
-	fn serialize(&self,  _: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_bool(*self)
 	}

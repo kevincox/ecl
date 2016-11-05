@@ -122,7 +122,7 @@ impl fmt::Debug for Dict {
 	}
 }
 
-impl ::Valu for Dict {
+impl ::Value for Dict {
 	fn _set_self(&self, this: ::Val) {
 		self.data.borrow_mut().this = this;
 	}
@@ -160,7 +160,7 @@ impl ::Valu for Dict {
 		}
 	}
 	
-	fn serialize(&self, visited: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let mut state = try!(s.erased_serialize_map(Some(self.source.len())));
 		self.eval();
@@ -315,7 +315,7 @@ impl fmt::Debug for ADict {
 	}
 }
 
-impl ::Valu for ADict {
+impl ::Value for ADict {
 	fn type_str(&self) -> &'static str { "adict" }
 	fn is_empty(&self) -> bool { false }
 	
@@ -335,7 +335,7 @@ impl ::Valu for ADict {
 		}
 	}
 	
-	fn serialize(&self, visited: &mut Vec<*const ::Valu>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let mut state = try!(s.erased_serialize_map(Some(1)));
 		try!(s.erased_serialize_map_key(&mut state, &self.key));
