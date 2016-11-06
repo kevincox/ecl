@@ -41,6 +41,7 @@ pub trait Value: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
 	fn _set_self(&self, ::Val) { }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
+	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
 	fn index_str(&self, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
 	fn lookup(&self, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
@@ -81,7 +82,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 	}
 }
 
-#[derive(Clone,Debug,Trace)]
+#[derive(Clone,Trace)]
 pub struct Val(gc::Gc<Value>);
 
 unsafe impl Sync for Val { }
@@ -133,6 +134,10 @@ impl Val {
 	
 	pub fn is_empty(&self) -> bool {
 		self.get().0.is_empty()
+	}
+	
+	pub fn len(&self) -> usize {
+		self.get().0.len()
 	}
 	
 	pub fn index(&self, k: Val) -> Val {
@@ -189,6 +194,12 @@ impl Val {
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
 		self.get().0.eq(&*that.get().0)
+	}
+}
+
+impl fmt::Debug for Val {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		self.0.fmt(f)
 	}
 }
 
@@ -341,8 +352,10 @@ impl fmt::Debug for Almost {
 pub enum Suffix {
 	Add(Almost),
 	Call(Almost),
+	Eq(Almost),
 	IndexExpr(Almost),
 	IndexIdent(String),
+	Neq(Almost),
 }
 
 impl Suffix {
@@ -356,6 +369,10 @@ impl Suffix {
 				let val = a.complete(parent);
 				subject.call(val)
 			},
+			Suffix::Eq(ref a) => {
+				let val = a.complete(parent);
+				Val::new(subject == val)
+			},
 			Suffix::IndexExpr(ref key) => {
 				let k = key.complete(parent);
 				thunk::Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
@@ -364,6 +381,10 @@ impl Suffix {
 				let id = i_promise_this_will_stay_alive(id);
 				thunk::Thunk::new(vec![subject], move |r| r[0].index_str(id))
 			}
+			Suffix::Neq(ref a) => {
+				let val = a.complete(parent);
+				Val::new(subject != val)
+			},
 		}
 	}
 }
@@ -373,8 +394,10 @@ impl fmt::Debug for Suffix {
 		match *self {
 			Suffix::Add(ref a) => write!(f, " + {:?}", a),
 			Suffix::Call(ref a) => write!(f, ": {:?}", a),
+			Suffix::Eq(ref a) => write!(f, "== {:?}", a),
 			Suffix::IndexExpr(ref a) => write!(f, ".{:?}", a),
 			Suffix::IndexIdent(ref s) => write!(f, ".{}", format_key(s)),
+			Suffix::Neq(ref a) => write!(f, "!= {:?}", a),
 		}
 	}
 }

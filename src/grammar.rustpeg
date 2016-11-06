@@ -35,6 +35,8 @@ expr_subject -> Almost
 expr_suffix -> Suffix
 	= S? "." S? k:ident { Suffix::IndexIdent(k) }
 	/ S? "." S? k:string { Suffix::IndexExpr(k) }
+	/ S? "==" S? rhs:expr { Suffix::Eq(rhs) }
+	/ S? "!=" S? rhs:expr { Suffix::Neq(rhs) }
 	/ S? "+" S? rhs:expr { Suffix::Add(rhs) }
 	/ S? ":" S? rhs:expr { Suffix::Call(rhs) }
 

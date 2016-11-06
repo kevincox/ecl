@@ -1,5 +1,7 @@
 	DICT	{
 false_	BOOL	false
+if_false	NUM	2
+if_true	NUM	49
 nil_	NIL	nil
 reverse_list	LIST	[
 reverse_list.1	NUM	3

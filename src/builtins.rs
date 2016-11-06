@@ -14,6 +14,20 @@ pub fn get(key: &str) -> ::Val {
 		"nil" => ::Val::new(nil::Nil),
 		"true" => ::Val::new(true),
 		"false" => ::Val::new(false),
+		"if" => ::Val::new(Func("if", |v| {
+			let len = v.len();
+			assert!(2 <= len && len <= 3);
+			let c = v.index_int(0);
+			if c == ::Val::new(nil::Nil) || c == ::Val::new(false) {
+				if len == 3 {
+					v.index_int(2)
+				} else {
+					::Val::new(nil::Nil)
+				}
+			} else {
+				v.index_int(1)
+			}
+		})),
 		"reverse" => ::Val::new(Func("reverse", |v| v.reverse())),
 		other => panic!("Undefined variable {:?}", other),
 	}
