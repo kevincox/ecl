@@ -2,13 +2,16 @@
 name = "ecl"
 version = "0.1.0"
 authors = ["Kevin Cox <kevincox@kevincox.ca>"]
+build = "build.rs"
+
+[build-dependencies]
+peg = "0.5"
 
 [dependencies]
 erased-serde = "0.1"
 gc = "0.2"
 gc_derive = "0.2"
 lazy_static = "0.2"
-peg = "0.3"
 ramp = "0.3"
 regex = "0.1"
 serde = "0.8"

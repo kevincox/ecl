@@ -1,8 +1,6 @@
 #![feature(plugin)]
 #![feature(proc_macro)]
 // #![plugin(afl_plugin)]
-#![plugin(peg_syntax_ext)]
-#![feature(reflect_marker)]
 #![feature(stmt_expr_attributes)]
 
 extern crate erased_serde;
@@ -29,7 +27,7 @@ mod num;
 mod str;
 mod thunk;
 
-peg_file! grammar("grammar.rustpeg");
+mod grammar { include!(concat!(env!("OUT_DIR"), "/grammar.rs")); }
 pub use grammar::ParseError;
 
 fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
@@ -235,7 +233,8 @@ impl serde::Serialize for Val {
 pub enum Almost {
 	Dict(rc::Rc<Vec<dict::AlmostDictElement>>),
 	Expr(Box<Almost>, Vec<Suffix>),
-	L(Box<Fn(Val) -> Val>),
+	Lazy(Box<Fn(Val) -> Val>),
+	Nil,
 	Num(f64),
 	Ref(String),
 	Str(Vec<StringPart>),
@@ -244,14 +243,14 @@ pub enum Almost {
 
 impl Almost {
 	fn val<F: Fn(Val) -> Val + 'static>(f: F) -> Almost {
-		Almost::L(Box::new(f))
+		Almost::Lazy(Box::new(f))
 	}
 	
 	fn dict(items: Vec<dict::AlmostDictElement>) -> Almost {
 		Almost::Dict(rc::Rc::new(items))
 	}
 	
-	fn function(arg: String, body: Almost) -> Almost {
+	fn function(arg: func::Arg, body: Almost) -> Almost {
 		let body = rc::Rc::new(body);
 		Almost::val(move |p| {
 			func::Func::new(p.clone(), arg.clone(), body.clone())
@@ -287,7 +286,8 @@ impl Almost {
 					e.call(p.clone(), a)
 				})
 			},
-			Almost::L(ref l) => l(p),
+			Almost::Lazy(ref l) => l(p),
+			Almost::Nil => Val::new(nil::Nil),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(ref id) => {
 				let id = i_promise_this_will_stay_alive(id);
@@ -328,7 +328,8 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, ")")
 			},
-			Almost::L(_) => write!(f, "<opaque>"),
+			Almost::Lazy(_) => write!(f, "<opaque>"),
+			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(ref id) => write!(f, "Ref({})", format_key(id)),
 			Almost::Str(ref parts) => {

@@ -29,9 +29,9 @@ pub struct DictData {
 }
 
 impl Dict {
-	pub fn new(parent: ::Val, items: rc::Rc<Vec<AlmostDictElement>>) -> ::Val {
+	pub fn new_raw(parent: ::Val, items: rc::Rc<Vec<AlmostDictElement>>) -> Dict {
 		let len = items.len();
-		let r = ::Val::new(Dict {
+		Dict {
 			parent: parent,
 			source: items,
 			data: gc::GcCell::new(DictData {
@@ -39,9 +39,24 @@ impl Dict {
 				data: Vec::with_capacity(len),
 				order: BTreeMap::new(),
 			})
-		});
+		}
+	}
+	
+	pub fn to_val(self) -> ::Val {
+		let r = ::Val::new(self);
 		r._set_self(r.clone());
 		r
+	}
+	
+	pub fn new(parent: ::Val, items: rc::Rc<Vec<AlmostDictElement>>) -> ::Val {
+		Self::new_raw(parent, items).to_val()
+	}
+	
+	pub fn _set_val(&mut self, key: String, val: ::Val) {
+		self.index(&key);
+		let mut data = self.data.borrow_mut();
+		let i = if let Some(v) = data.order.get(&key) { *v } else { unreachable!() };
+		data.data[i] = DictVal::Pub(val);
 	}
 	
 	fn eval_next(&self) -> Option<(&str,&DictVal)> {

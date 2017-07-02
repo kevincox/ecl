@@ -5,7 +5,6 @@ extern crate regex;
 extern crate serde;
 
 use std::fmt;
-use std::marker;
 
 use nil;
 
@@ -33,16 +32,16 @@ pub fn get(key: &str) -> ::Val {
 	}
 }
 
-pub struct Func<F: Fn(::Val) -> ::Val + 'static + marker::Reflect>(&'static str, F);
-unsafe impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> gc::Trace for Func<F> { unsafe_empty_trace!(); }
+pub struct Func<F: Fn(::Val) -> ::Val + 'static>(&'static str, F);
+unsafe impl<F: Fn(::Val) -> ::Val + 'static> gc::Trace for Func<F> { unsafe_empty_trace!(); }
 
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::SameOps for Func<F> {
+impl<F: Fn(::Val) -> ::Val + 'static> ::SameOps for Func<F> {
 	fn eq(&self, that: &Self) -> bool {
 		self.0 as *const str == that.0 as *const str
 	}
 }
 
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Value for Func<F> {
+impl<F: Fn(::Val) -> ::Val + 'static> ::Value for Func<F> {
 	fn call(&self, arg: ::Val) -> ::Val {
 		self.1(arg)
 	}
@@ -50,7 +49,7 @@ impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> ::Value for Func<F> {
 	fn type_str(&self) -> &'static str { "builtin" }
 }
 
-impl<F: Fn(::Val) -> ::Val + 'static + marker::Reflect> fmt::Debug for Func<F> {
+impl<F: Fn(::Val) -> ::Val + 'static> fmt::Debug for Func<F> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "<builtin {:?}>", self.0)
 	}

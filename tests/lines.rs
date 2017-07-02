@@ -47,6 +47,6 @@ fn test_lines() {
 	println!("RESULT: {}/{} differ from the expected value.", bad, bad + good);
 	
 	env::remove_var("RUST_BACKTRACE");
-	assert_eq!(bad, 0);
-	assert!(good > 0);
+	assert_eq!(bad, 0, "Test failures encountered.");
+	assert!(good > 0, "No tests passed");
 }
