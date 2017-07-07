@@ -10,6 +10,7 @@ extern crate erased_serde;
 extern crate regex;
 extern crate serde;
 
+use std::any;
 use std::cell::{RefCell};
 use std::fmt;
 use std::iter::Iterator;
@@ -34,9 +35,8 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
 }
 
-pub trait Value: gc::Trace + fmt::Debug + SameOpsTrait + 'static {
+pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn get(&self) -> Option<Val> { None }
-	fn _set_self(&self, ::Val) { }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
@@ -58,11 +58,15 @@ pub trait SameOps: fmt::Debug {
 }
 
 pub trait SameOpsTrait {
+	fn as_any(&self) -> &any::Any;
+	
 	fn add(&self, that: &Value) -> Val;
 	fn eq(&self, that: &Value) -> bool;
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
+	fn as_any(&self) -> &any::Any { self }
+	
 	fn add(&self, that: &Value) -> Val {
 		if that.type_str() as *const str == that.type_str() as *const str {
 			SameOps::add(self, unsafe { *mem::transmute::<&&Value, &&T>(&that) })
@@ -92,7 +96,7 @@ impl Val {
 	}
 	
 	fn get(&self) -> Val {
-		// println!("getting {:?}", self.0.type_str());
+		println!("getting {:?}", self.0.type_str());
 		let mut v = self.clone();
 		
 		let mut iterations = 0; // Delay cycle checking for performance.
@@ -110,12 +114,12 @@ impl Val {
 			
 			v = vn.clone();
 		}
-		// println!("got {:?}", v.0.type_str());
+		println!("got {:?}", v);
 		v
 	}
 	
-	pub fn _set_self(&self, this: Val) {
-		(self.get().0)._set_self(this)
+	fn downcast_ref<T: 'static>(&self) -> &T {
+		self.0.as_any().downcast_ref::<T>().unwrap()
 	}
 	
 	pub fn type_str(&self) -> &'static str {
@@ -158,7 +162,7 @@ impl Val {
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
-		// println!("Lookup {:?} in {:?}", key, self);
+		println!("Lookup {:?} in {:?}", key, self);
 		let v = self.get();
 		v.0.lookup(key)
 	}
@@ -231,7 +235,7 @@ impl serde::Serialize for Val {
 }
 
 pub enum Almost {
-	Dict(rc::Rc<Vec<dict::AlmostDictElement>>),
+	Dict(Vec<dict::AlmostDictElement>),
 	Expr(Box<Almost>, Vec<Suffix>),
 	Lazy(Box<Fn(Val) -> Val>),
 	Nil,
@@ -247,7 +251,7 @@ impl Almost {
 	}
 	
 	fn dict(items: Vec<dict::AlmostDictElement>) -> Almost {
-		Almost::Dict(rc::Rc::new(items))
+		Almost::Dict(items)
 	}
 	
 	fn function(arg: func::Arg, body: Almost) -> Almost {
@@ -278,7 +282,7 @@ impl Almost {
 	fn complete(&self, p: Val) -> Val {
 		match *self {
 			Almost::Dict(ref items) => {
-				dict::Dict::new(p, items.clone())
+				dict::Dict::new(p, &items)
 			},
 			Almost::Expr(ref subject, ref suffixes) => {
 				let subject = subject.complete(p.clone());
@@ -477,7 +481,7 @@ mod tests {
 	fn recursion() {
 		parse("{b = b}").unwrap().index_str("b").get_num();
 	}
-	
+
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion_multi_step() {

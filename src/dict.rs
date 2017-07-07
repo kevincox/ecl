@@ -5,96 +5,96 @@ extern crate serde;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt;
-use std::rc;
 
 use nil;
+use thunk;
 
 #[derive(Trace)]
 pub struct Dict {
 	parent: ::Val,
-	#[unsafe_ignore_trace]
-	source: rc::Rc<Vec<AlmostDictElement>>,
-	data: gc::GcCell<DictData>,
+	prv: gc::GcCell<DictData>,
 }
 
-#[derive(Debug,PartialEq,Trace)]
-enum DictVal { Pub(::Val), Priv(::Val) }
+#[derive(Clone,Debug,PartialEq,Trace)]
+pub enum DictVal { Pub(::Val), Priv(::Val) }
 
-#[derive(PartialEq,Trace)]
+#[derive(Debug,PartialEq,Trace)]
+struct DictUneval(::Val,DictVal);
+
+#[derive(PartialEq)]
 pub struct DictData {
-	this: ::Val,
-	#[unsafe_ignore_trace]
-	order: BTreeMap<String,usize>,
-	data: Vec<DictVal>,
+	data: BTreeMap<String,DictVal>,
+	unevaluated: Vec<(DictUneval)>,
+}
+
+unsafe impl gc::Trace for DictData {
+	gc::custom_trace!(this, {
+		for (_, v) in &this.data {
+			mark(v);
+		}
+		mark(&this.unevaluated);
+	});
 }
 
 impl Dict {
-	pub fn new_raw(parent: ::Val, items: rc::Rc<Vec<AlmostDictElement>>) -> Dict {
-		let len = items.len();
-		Dict {
+	pub fn new(parent: ::Val, items: &[AlmostDictElement]) -> ::Val {
+		let this = ::Val::new(Dict{
 			parent: parent,
-			source: items,
-			data: gc::GcCell::new(DictData {
-				this: ::Val::new(nil::Nil),
-				data: Vec::with_capacity(len),
-				order: BTreeMap::new(),
-			})
+			prv: gc::GcCell::new(DictData {
+				data: BTreeMap::new(),
+				unevaluated: Vec::new(),
+			},
+		)});
+		{
+			let self_ref = this.clone();
+			let dict = this.downcast_ref::<Dict>();
+			for item in items {
+				match item.complete(self_ref.clone()) {
+					DictPair::Known(k, v) => {
+						dict.prv.borrow_mut().data.insert(k, v);
+					},
+					DictPair::Unknown(k, v) => {
+						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));
+					},
+				}
+			}
 		}
+		this
 	}
 	
-	pub fn to_val(self) -> ::Val {
-		let r = ::Val::new(self);
-		r._set_self(r.clone());
-		r
+	pub fn _set_val(&self, key: String, val: DictVal) {
+		self.prv.borrow_mut().data.insert(key, val);
 	}
 	
-	pub fn new(parent: ::Val, items: rc::Rc<Vec<AlmostDictElement>>) -> ::Val {
-		Self::new_raw(parent, items).to_val()
-	}
-	
-	pub fn _set_val(&mut self, key: String, val: ::Val) {
-		self.index(&key);
-		let mut data = self.data.borrow_mut();
-		let i = if let Some(v) = data.order.get(&key) { *v } else { unreachable!() };
-		data.data[i] = DictVal::Pub(val);
-	}
-	
-	fn eval_next(&self) -> Option<(&str,&DictVal)> {
-		let next = self.data.borrow().data.len();
-		
-		let source = match self.source.get(next) {
-			Some(s) => s,
+	fn eval_next(&self) -> Option<(String,DictVal)> {
+		let DictUneval(ref k, ref v) = match self.prv.borrow_mut().unevaluated.pop() {
+			Some(t) => t,
 			None => return None,
 		};
 		
-		let this = self.data.borrow().this.clone();
-		
-		// Insert a dummy value so that reentrance won't try to eval
-		// this entry again.
-		self.data.borrow_mut().data.push(DictVal::Priv(this.clone()));
-		
-		let (k, v) = source.complete(this);
-		
-		let mut prv = self.data.borrow_mut();
-		prv.data[next] = v;
-		
-		let kref = match prv.order.entry(k.clone()) {
+		let strkey = k.to_string();
+		let mut prv = self.prv.borrow_mut();
+		match prv.data.entry(strkey) {
 			Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-			Entry::Vacant(e) => {
-				let kref = ::i_promise_this_will_stay_alive(e.key());
-				e.insert(next);
-				kref
-			}
+			Entry::Vacant(e) => { e.insert(v.clone()); },
 		};
 		
-		Some((kref, ::i_promise_this_will_stay_alive(&prv.data[next])))
+		Some((k.to_string(), v.clone()))
 	}
 	
-	fn index(&self, key: &str) -> Option<&DictVal> {
+	fn eval(&self) {
+		while let Some(_) = self.eval_next() { }
+	}
+	
+	fn index(&self, key: &str) -> Option<DictVal> {
 		{
-			let prv = self.data.borrow();
-			if let Some(v) = prv.order.get(key) {
-				return Some(::i_promise_this_will_stay_alive(&prv.data[*v]))
+			let prv = self.prv.borrow();
+			if let Some(v) = prv.data.get(key) {
+				return Some(v.clone())
+			}
+			
+			if prv.unevaluated.is_empty() {
+				return None
 			}
 		}
 		
@@ -106,29 +106,25 @@ impl Dict {
 		
 		None
 	}
-	
-	fn eval(&self) {
-		while let Some(_) = self.eval_next() { }
-	}
 }
 
 impl fmt::Debug for Dict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		if self.source.is_empty() {
+		let prv = self.prv.borrow();
+		
+		if prv.data.is_empty() && prv.unevaluated.is_empty() {
 			return write!(f, "{{}}")
 		}
 		
-		let prv = self.data.borrow();
-		
 		try!(writeln!(f, "{{"));
-		for (k, v) in &prv.order {
-			match prv.data[*v] {
+		for (k, v) in &prv.data {
+			match *v {
 				DictVal::Pub(ref v) => try!(writeln!(f, "\t{:?}: {:?}", k, v)),
 				_ => {},
 			}
 		}
 		
-		let unevaluated = self.source.len() - prv.order.len();
+		let unevaluated = prv.unevaluated.len();
 		if unevaluated > 0 {
 			try!(writeln!(f, "\t<{} unevaluated>", unevaluated))
 		}
@@ -138,29 +134,25 @@ impl fmt::Debug for Dict {
 }
 
 impl ::Value for Dict {
-	fn _set_self(&self, this: ::Val) {
-		self.data.borrow_mut().this = this;
-	}
-	
 	fn type_str(&self) -> &'static str { "dict" }
 	
 	fn is_empty(&self) -> bool {
-		if self.source.is_empty() {
-			true
-		} else {
-			// Check if any of our un-evaluated elements are "public"
-			self.source.iter().all(|e| match e {
-				&AlmostDictElement::Priv(_,_) => true,
-				_ => false,
-			})
-		}
+		// Check if any of our un-evaluated elements are "public"
+		let prv = self.prv.borrow();
+		prv.data.values().all(|e| match e {
+			&DictVal::Priv(_) => true,
+			_ => false,
+		}) && prv.unevaluated.iter().all(|e| match e.1 {
+			DictVal::Priv(_) => true,
+			_ => false,
+		})
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
 		match self.index(key) {
-			Some(&DictVal::Pub(ref v)) => v.clone(),
-			Some(&DictVal::Priv(ref v)) => {
-				println!("WRN: Attempt to access private memeber {:?}", v);
+			Some(DictVal::Pub(ref v)) => v.clone(),
+			Some(DictVal::Priv(_)) => {
+				println!("WRN: Attempt to access private memeber {:?}", key);
 				::Val::new(nil::Nil)
 			},
 			None => ::Val::new(nil::Nil),
@@ -169,19 +161,22 @@ impl ::Value for Dict {
 	
 	fn lookup(&self, key: &str) -> ::Val {
 		match self.index(key) {
-			Some(&DictVal::Pub(ref v)) => v.clone(),
-			Some(&DictVal::Priv(ref v)) => v.clone(),
+			Some(DictVal::Pub(ref v)) => v.clone(),
+			Some(DictVal::Priv(ref v)) => v.clone(),
 			None => self.parent.lookup(key),
 		}
 	}
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
-		let mut state = try!(s.erased_serialize_map(Some(self.source.len())));
 		self.eval();
-		let prv = self.data.borrow();
-		for (k, i) in &prv.order {
-			if let DictVal::Pub(ref v) = prv.data[*i] {
+		
+		let prv = self.prv.borrow();
+		assert_eq!(prv.unevaluated.len(), 0);
+		
+		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
+		for (k, i) in &prv.data {
+			if let DictVal::Pub(ref v) = *i {
 				try!(s.erased_serialize_map_key(&mut state, k));
 				try!(s.erased_serialize_map_value(&mut state, &v.rec_ser(visited)));
 			}
@@ -200,38 +195,39 @@ pub enum AlmostDictElement {
 	Priv(String,::Almost),
 }
 
+enum DictPair {
+	Known(String,DictVal),
+	Unknown(::Val,DictVal),
+}
+
 impl AlmostDictElement {
-	fn complete(&self, p: ::Val) -> (String, DictVal) {
+	fn complete(&self, p: ::Val) -> DictPair {
 		match self {
 			&AlmostDictElement::Auto(ref path, ref v) => {
 				debug_assert!(!path.is_empty());
-				(
+				DictPair::Known(
 					path[0].to_owned(),
-					DictVal::Pub(Self::make_auto(p, &path[1..], v))
-				)
+					DictVal::Pub(Self::make_auto(p, &path[1..], v)))
 			},
 			&AlmostDictElement::Dyn(ref path, ref v) => {
 				debug_assert!(!path.is_empty());
-				let k = path[0].complete(p.clone())
-					.get_str().expect("Dict index must be string")
-					.to_owned();
-				(
-					k,
-					DictVal::Pub(Self::make_auto_dyn(p, &path[1..], v))
-				)
+				let path = ::i_promise_this_will_stay_alive(path);
+				DictPair::Unknown(
+					thunk::Thunk::new(vec![p.clone()], move |r| {
+						path[0].complete(r[0].clone())
+					}),
+					DictVal::Pub(Self::make_auto_dyn(p, &path[1..], v)))
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				let k = k.complete(p.clone());
-				let k = k
-					.get_str().expect("Dict index must be string")
-					.to_owned();
-				let v = v.complete(p);
-				(k, DictVal::Pub(v))
+				DictPair::Unknown(k, DictVal::Pub(v.complete(p)))
 			},
 			&AlmostDictElement::Known(ref k, ref v) => {
-				(k.to_owned(), DictVal::Pub(v.complete(p)))
+				DictPair::Known(k.to_owned(), DictVal::Pub(v.complete(p)))
 			},
-			&AlmostDictElement::Priv(ref k, ref v) => (k.to_owned(), DictVal::Priv(v.complete(p))),
+			&AlmostDictElement::Priv(ref k, ref v) => {
+				DictPair::Known(k.to_owned(), DictVal::Priv(v.complete(p)))
+			},
 		}
 	}
 	
@@ -248,19 +244,23 @@ impl AlmostDictElement {
 	}
 	
 	fn make_auto_dyn(p: ::Val, path: &[::Almost], v: &::Almost) -> ::Val {
-		if path.is_empty() {
-			v.complete(p)
-		} else {
-			let k = path[0].complete(p.clone());
-			let k = k
-				.get_str().expect("Dict index must be string")
-				.to_owned();
-			::Val::new(ADict {
-				parent: p.clone(),
-				key: k,
-				val: Self::make_auto_dyn(p, &path[1..], v),
-			})
-		}
+		let path = ::i_promise_this_will_stay_alive(path);
+		let v = ::i_promise_this_will_stay_alive(v);
+		thunk::Thunk::new(vec![p], move |r| {
+			if path.is_empty() {
+				v.complete(r[0].clone())
+			} else {
+					let k = path[0].complete(r[0].clone());
+					let k = k
+						.get_str().expect("Dict index must be string")
+						.to_owned();
+					::Val::new(ADict {
+						parent: r[0].clone(),
+						key: k,
+						val: Self::make_auto_dyn(r[0].clone(), &path[1..], v),
+					})
+			}
+		})
 	}
 }
 

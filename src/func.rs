@@ -33,18 +33,21 @@ impl ::Value for Func {
 		let scope = match self.arg {
 			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
 			Arg::Dict(ref keys, ref members) => {
-				let mut dict = ::dict::Dict::new_raw(self.parent.clone(), members.clone());
+				let val = ::dict::Dict::new(self.parent.clone(), &*members);
 				
-				for &(ref k, required) in keys {
-					let passed = arg.index_str(&k);
-					if passed != ::Val::new(::nil::Nil) {
-						dict._set_val(k.clone(), passed);
-					} else if required {
-						panic!("Error: required argument {:?} not found.", k);
+				{
+					let dict = val.downcast_ref::<::dict::Dict>();
+					for &(ref k, required) in keys {
+						let passed = arg.index_str(&k);
+						if passed != ::Val::new(::nil::Nil) {
+							dict._set_val(k.clone(), ::dict::DictVal::Priv(passed));
+						} else if required {
+							panic!("Error: required argument {:?} not found.", k);
+						}
 					}
 				}
 				
-				dict.to_val()
+				val
 			},
 		};
 		thunk::Thunk::new(vec![scope, self.parent.clone()], move |r| {
