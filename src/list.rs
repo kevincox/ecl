@@ -24,6 +24,10 @@ impl ::Value for List {
 		self.data[k].clone()
 	}
 	
+	fn to_slice(&self) -> &[::Val] {
+		&self.data
+	}
+	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let len = self.data.len();

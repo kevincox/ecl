@@ -52,7 +52,10 @@ impl Dict {
 			for item in items {
 				match item.complete(self_ref.clone()) {
 					DictPair::Known(k, v) => {
-						dict.prv.borrow_mut().data.insert(k, v);
+						match dict.prv.borrow_mut().data.entry(k) {
+							Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
+							Entry::Vacant(e) => e.insert(v),
+						};
 					},
 					DictPair::Unknown(k, v) => {
 						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));

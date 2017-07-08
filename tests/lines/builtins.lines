@@ -1,7 +1,14 @@
 	DICT	{
-false_	BOOL	false
-if_false	NUM	2
-if_true	NUM	49
+bool	DICT	{
+bool.false_	BOOL	false
+bool.true_	BOOL	true
+bool	DICT	}
+cond	DICT	{
+cond.multi_default	STR	"else"
+cond.multi_found	STR	"result"
+cond.simple_false	NUM	2
+cond.simple_true	NUM	49
+cond	DICT	}
 nil_	NIL	nil
 reverse_list	LIST	[
 reverse_list.1	NUM	3
@@ -10,5 +17,4 @@ reverse_list.3	NUM	1
 reverse_list	LIST	]
 reverse_list_empty	LIST	[
 reverse_list_empty	LIST	]
-true_	BOOL	true
 	DICT	}

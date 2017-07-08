@@ -1,7 +1,7 @@
 #![feature(fnbox)]
 #![feature(plugin)]
 #![feature(proc_macro)]
-// #![plugin(afl_plugin)]
+#![feature(slice_patterns)]
 #![feature(stmt_expr_attributes)]
 
 extern crate erased_serde;
@@ -48,6 +48,7 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
+	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> String { panic!("Can't turn {:?} into a string", self) }
 	fn call(&self, _arg: Val) -> Val { panic!("Can't call {:?}", self) }
 	fn reverse(&self) -> Val { panic!("Can't reverse {:?}", self) }
@@ -174,6 +175,10 @@ impl Val {
 	
 	fn call(&self, arg: Val) -> Val {
 		self.get().0.call(arg)
+	}
+	
+	fn to_slice(&self) -> &[Val] {
+		i_promise_this_will_stay_alive(self.get().0.to_slice())
 	}
 	
 	fn to_string(&self) -> String {
