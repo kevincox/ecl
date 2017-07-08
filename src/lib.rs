@@ -1,3 +1,4 @@
+#![feature(fnbox)]
 #![feature(plugin)]
 #![feature(proc_macro)]
 // #![plugin(afl_plugin)]
@@ -96,7 +97,7 @@ impl Val {
 	}
 	
 	fn get(&self) -> Val {
-		println!("getting {:?}", self.0.type_str());
+		// println!("getting {:?}", self.0.type_str());
 		let mut v = self.clone();
 		
 		let mut iterations = 0; // Delay cycle checking for performance.
@@ -294,8 +295,8 @@ impl Almost {
 			Almost::Nil => Val::new(nil::Nil),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(ref id) => {
-				let id = i_promise_this_will_stay_alive(id);
-				thunk::Thunk::new(vec![p], move |r| r[0].lookup(id))
+				let id = id.clone();
+				thunk::Thunk::new(vec![p], move |r| r[0].lookup(&id))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -383,8 +384,8 @@ impl Suffix {
 				thunk::Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
 			},
 			Suffix::IndexIdent(ref id) => {
-				let id = i_promise_this_will_stay_alive(id);
-				thunk::Thunk::new(vec![subject], move |r| r[0].index_str(id))
+				let id = id.clone();
+				thunk::Thunk::new(vec![subject], move |r| r[0].index_str(&id))
 			}
 			Suffix::Neq(ref a) => {
 				let val = a.complete(parent);

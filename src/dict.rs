@@ -5,6 +5,7 @@ extern crate serde;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt;
+use std::rc;
 
 use nil;
 use thunk;
@@ -189,8 +190,8 @@ impl ::SameOps for Dict { }
 
 pub enum AlmostDictElement {
 	Auto(Vec<String>,::Almost),
-	Dyn(Vec<::Almost>,::Almost),
-	Unknown(::Almost,::Almost),
+	Dyn(rc::Rc<(Vec<::Almost>,::Almost)>),
+	Unknown(rc::Rc<::Almost>,::Almost),
 	Known(String,::Almost),
 	Priv(String,::Almost),
 }
@@ -209,14 +210,16 @@ impl AlmostDictElement {
 					path[0].to_owned(),
 					DictVal::Pub(Self::make_auto(p, &path[1..], v)))
 			},
-			&AlmostDictElement::Dyn(ref path, ref v) => {
-				debug_assert!(!path.is_empty());
-				let path = ::i_promise_this_will_stay_alive(path);
+			&AlmostDictElement::Dyn(ref data) => {
+				let kdata = data.clone();
+				let vdata = data.clone();
 				DictPair::Unknown(
 					thunk::Thunk::new(vec![p.clone()], move |r| {
-						path[0].complete(r[0].clone())
+						kdata.0[0].complete(r[0].clone())
 					}),
-					DictVal::Pub(Self::make_auto_dyn(p, &path[1..], v)))
+					DictVal::Pub(thunk::Thunk::new(vec![p.clone()], move |r| {
+						Self::make_auto_dyn(r[0].clone(), &vdata.0[1..], &vdata.1)
+					})))
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				let k = k.complete(p.clone());
@@ -236,7 +239,6 @@ impl AlmostDictElement {
 			v.complete(p)
 		} else {
 			::Val::new(ADict {
-				parent: p.clone(),
 				key: path[0].to_owned(),
 				val: Self::make_auto(p, &path[1..], v)
 			})
@@ -244,23 +246,12 @@ impl AlmostDictElement {
 	}
 	
 	fn make_auto_dyn(p: ::Val, path: &[::Almost], v: &::Almost) -> ::Val {
-		let path = ::i_promise_this_will_stay_alive(path);
-		let v = ::i_promise_this_will_stay_alive(v);
-		thunk::Thunk::new(vec![p], move |r| {
-			if path.is_empty() {
-				v.complete(r[0].clone())
-			} else {
-					let k = path[0].complete(r[0].clone());
-					let k = k
-						.get_str().expect("Dict index must be string")
-						.to_owned();
-					::Val::new(ADict {
-						parent: r[0].clone(),
-						key: k,
-						val: Self::make_auto_dyn(r[0].clone(), &path[1..], v),
-					})
-			}
-		})
+		if path.is_empty() {
+			v.complete(p)
+		} else {
+			let key = path[0].complete(p.clone()).to_string();
+			ADict::new(key, Self::make_auto_dyn(p, &path[1..], v))
+		}
 	}
 }
 
@@ -276,14 +267,14 @@ impl fmt::Debug for AlmostDictElement {
 				}
 				write!(f, " = {:?}", v)
 			},
-			&AlmostDictElement::Dyn(ref path, ref v) => {
+			&AlmostDictElement::Dyn(ref data) => {
 				let mut sep = ' ';
 				try!(write!(f, "pub  "));
-				for e in path {
+				for e in &data.0 {
 					try!(write!(f, "{}{:?}", sep, e));
 					sep = '.';
 				}
-				write!(f, " = {:?}", v)
+				write!(f, " = {:?}", data.1)
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				write!(f, "pub   {:?} = {:?}", k, v)
@@ -300,15 +291,13 @@ impl fmt::Debug for AlmostDictElement {
 
 #[derive(Trace)]
 pub struct ADict {
-	parent: ::Val,
 	key: String,
 	val: ::Val,
 }
 
 impl ADict {
-	pub fn new(parent: ::Val, key: String, val: ::Val) -> ::Val {
+	pub fn new(key: String, val: ::Val) -> ::Val {
 		::Val::new(ADict {
-			parent: parent,
 			key: key,
 			val: val,
 		})
@@ -346,7 +335,7 @@ impl ::Value for ADict {
 		if self.key == key {
 			self.val.clone()
 		} else {
-			self.parent.lookup(key)
+			panic!("No key {:?} in {:?}", key, self);
 		}
 	}
 	

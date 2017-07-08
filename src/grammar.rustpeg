@@ -67,7 +67,7 @@ dict_auto -> dict::AlmostDictElement
 
 dict_full -> dict::AlmostDictElement
 	= path:dict_path_element ++ "." S? "=" S? v:expr {
-		dict::AlmostDictElement::Dyn(path, v)
+		dict::AlmostDictElement::Dyn(rc::Rc::new((path, v)))
 	}
 
 dict_path_element -> Almost

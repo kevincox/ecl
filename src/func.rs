@@ -31,7 +31,7 @@ impl ::Value for Func {
 	fn call(&self, arg: ::Val) -> ::Val {
 		let body = self.body.clone();
 		let scope = match self.arg {
-			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
+			Arg::One(ref s) => dict::ADict::new(s.clone(), arg),
 			Arg::Dict(ref keys, ref members) => {
 				let val = ::dict::Dict::new(self.parent.clone(), &*members);
 				
