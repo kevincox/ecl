@@ -1,51 +1,49 @@
 use super::*;
 use super::dict;
 
-S = whitespace_element+
-
-whitespace_element
+S
 	= [ \t\n]
 	/ "#" [^\n]* "\n"
 
 ident -> String
-	= i:$([_a-zA-Z-]+) { i.to_owned() }
+	= S* i:$([_a-zA-Z-]+) { i.to_owned() }
 
 #[pub]
 document -> Almost
-	= S? items:dict_item ++ S S? { Almost::dict(items) }
-	/ S? e:expr S? { e }
+	= items:dict_item+ S* { Almost::dict(items) }
+	/ e:expr S* { e }
 
 #[pub]
 expr -> Almost
-	= S? e:expr_content { e }
+	= e:expr_content { e }
 
 expr_content -> Almost = sub:expr_subject suf:expr_suffix* {
 	Almost::expr(sub, suf)
 }
 
 expr_subject -> Almost
-	= "(" e:expr ")" { e }
+	= S* "(" e:expr ")" { e }
 	/ n:number { Almost::Num(n) }
 	/ s:string { s }
+	/ f:function { f }
 	/ l:list { l }
 	/ d:dict { d }
-	/ f:function { f }
 	/ r:reference { r }
 
 expr_suffix -> Suffix
-	= S? "." S? k:ident { Suffix::IndexIdent(k) }
-	/ S? "." S? k:string { Suffix::IndexExpr(k) }
-	/ S? "==" S? rhs:expr { Suffix::Eq(rhs) }
-	/ S? "!=" S? rhs:expr { Suffix::Neq(rhs) }
-	/ S? "+" S? rhs:expr { Suffix::Add(rhs) }
-	/ S? ":" S? rhs:expr { Suffix::Call(rhs) }
+	= S* "." S* k:ident { Suffix::IndexIdent(k) }
+	/ S* "." S* k:string { Suffix::IndexExpr(k) }
+	/ S* "==" S* rhs:expr { Suffix::Eq(rhs) }
+	/ S* "!=" S* rhs:expr { Suffix::Neq(rhs) }
+	/ S* "+" S* rhs:expr { Suffix::Add(rhs) }
+	/ S* ":" S* rhs:expr { Suffix::Call(rhs) }
 
 reference -> Almost
 	= n:ident { Almost::Ref(n) }
 
 #[pub]
 dict -> Almost
-	= "{" S? items:dict_item ** S S? "}" {
+	= S* "{" items:dict_item* S* "}" {
 		Almost::dict(items)
 	}
 
@@ -56,17 +54,17 @@ dict_item -> dict::AlmostDictElement
 	/ i:dict_local { i }
 
 dict_known -> dict::AlmostDictElement
-	= k:ident S? "=" S? v:expr {
+	= k:ident S* "=" v:expr {
 		dict::AlmostDictElement::Known(k, v)
 	}
 
 dict_auto -> dict::AlmostDictElement
-	= path:ident ++ "." S? "=" S? v:expr {
+	= path:ident ++ (S* ".") S* "=" v:expr {
 		dict::AlmostDictElement::Auto(path, v)
 	}
 
 dict_full -> dict::AlmostDictElement
-	= path:dict_path_element ++ "." S? "=" S? v:expr {
+	= path:dict_path_element ++ (S* ".") S* "=" v:expr {
 		dict::AlmostDictElement::Dyn(rc::Rc::new((path, v)))
 	}
 
@@ -75,16 +73,16 @@ dict_path_element -> Almost
 	/ s:string { s }
 
 dict_local -> dict::AlmostDictElement
-	= "local" S k:ident S? "=" S? v:expr { dict::AlmostDictElement::Priv(k, v) }
+	= S* "local" S k:ident S* "=" v:expr { dict::AlmostDictElement::Priv(k, v) }
 
 #[pub]
 list -> Almost
-	= "[" S? items:expr ** S S? "]" {
+	= S* "[" items:expr* S* "]" {
 		Almost::list(items)
 	}
 
 function -> Almost
-	= a:args S? "->" S? b:expr {
+	= a:args S* "->" b:expr {
 		Almost::function(a, b)
 	}
 
@@ -93,20 +91,20 @@ args -> func::Arg
 	/ d:destructure_dict { d }
 
 destructure_dict -> func::Arg
-	= "{" S? m:descructure_dict_member+ S? "}" {
+	= S* "{" m:descructure_dict_member+ S* "}" {
 		let (k, v) = m.into_iter().unzip();
 		func::Arg::Dict(k, rc::Rc::new(v))
 	}
 
 descructure_dict_member -> ((String,bool), dict::AlmostDictElement)
-	= i:ident e:destructure_dict_default? S? {
+	= i:ident e:destructure_dict_default? {
 		let required = e.is_none();
 		let default = e.unwrap_or(Almost::Nil);
 		((i.clone(), required), dict::AlmostDictElement::Known(i, default))
 	}
 
 destructure_dict_default -> Almost
-	= S? "=" S? e:expr { e }
+	= S* "=" e:expr { e }
 
 #[pub]
 number -> f64
@@ -123,7 +121,7 @@ number_binary -> f64
 	}
 
 number_binary_float -> f64
-	= "0b" w:number_binary_whole f:number_binary_fraction {
+	= S* "0b" w:number_binary_whole f:number_binary_fraction {
 		w + f
 	}
 
@@ -163,7 +161,7 @@ number_binary_fraction -> f64
 	/ "" { 0.0 }
 
 number_hex -> f64
-	= "0x" w:number_hex_whole f:number_hex_fraction {
+	= S* "0x" w:number_hex_whole f:number_hex_fraction {
 		w + f
 	}
 
@@ -220,10 +218,10 @@ number_decimal -> f64
 	}
 
 number_decimal_float -> f64
-	= "0d" n:$([0-9_]* ("." [0-9_]+)?) {
+	= S* "0d" n:$([0-9_]* ("." [0-9_]+)?) {
 		n.replace("_", "").parse().unwrap()
 	}
-	/ n:$([0-9][0-9_]* ("." [0-9_]+)?) {
+	/ S* n:$([0-9][0-9_]* ("." [0-9_]+)?) {
 		n.replace("_", "").parse().unwrap()
 	}
 
@@ -265,7 +263,7 @@ si_prefix -> f64
 	/ ""  { 1.0 }
 
 string -> Almost
-	= '"' c:string_contents* '"' { Almost::str(c) }
+	= S* '"' c:string_contents* '"' { Almost::str(c) }
 
 string_contents -> StringPart
 	= l:$([^"\\$]+) { /*"*/ StringPart::Lit(l.to_owned()) }

@@ -2,7 +2,7 @@ extern crate erased_serde;
 
 use std::fmt;
 
-#[derive(Trace)]
+#[derive(Trace,PartialEq)]
 pub struct List {
 	data: Vec<::Val>,
 }
@@ -43,12 +43,6 @@ impl ::Value for List {
 }
 
 impl ::SameOps for List { }
-
-impl PartialEq for List {
-	fn eq(&self, that: &List) -> bool {
-		return self.data == that.data
-	}
-}
 
 impl fmt::Debug for List {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -115,7 +115,7 @@ impl Val {
 			
 			v = vn.clone();
 		}
-		println!("got {:?}", v);
+		// println!("got {:?}", v);
 		v
 	}
 	
@@ -163,7 +163,7 @@ impl Val {
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
-		println!("Lookup {:?} in {:?}", key, self);
+		// println!("Lookup {:?} in {:?}", key, self);
 		let v = self.get();
 		v.0.lookup(key)
 	}

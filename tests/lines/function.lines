@@ -1,6 +1,7 @@
 	DICT	{
 add-two	NUM	7
 destructure-dict	NUM	3
+destructure-dict-closure	NUM	7
 destructure-dict-default	NUM	6
 destructure-dict-default-nil	NUM	3
 destructure-dict-override	NUM	9
