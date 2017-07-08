@@ -4,14 +4,12 @@ use std::fmt;
 
 #[derive(Trace)]
 pub struct List {
-	parent: ::Val,
 	data: Vec<::Val>,
 }
 
 impl List {
 	pub fn new(p: ::Val, items: &[::Almost]) -> ::Val {
 		::Val::new(List {
-			parent: p.clone(),
 			data: items.iter().map(|a| a.complete(p.clone())).collect(),
 		})
 	}
@@ -39,7 +37,6 @@ impl ::Value for List {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();
 		::Val::new(List {
-			parent: self.parent.clone(),
 			data: data,
 		})
 	}
