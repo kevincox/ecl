@@ -360,6 +360,7 @@ mod tests {
 	#[test]
 	fn dict() {
 		assert!(parse("{}").unwrap().is_empty());
+		
 		let v = parse("{a=4 b = 0}").unwrap();
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(0.0));
@@ -371,6 +372,6 @@ mod tests {
 	
 	#[test]
 	fn dict_recurse_key() {
-		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a").unwrap(), ::Val::new(5.0));
+		assert_eq!(parse("{\"${b}\"=5 b=\"a\"}.a"), Ok(::Val::new(5.0)));
 	}
 }

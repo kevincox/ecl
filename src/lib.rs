@@ -22,15 +22,13 @@ mod builtins;
 mod bool;
 mod dict;
 mod func;
+mod grammar;
 pub mod lines;
 mod list;
 mod nil;
 mod num;
 mod str;
 mod thunk;
-
-mod grammar { include!(concat!(env!("OUT_DIR"), "/grammar.rs")); }
-pub use grammar::ParseError;
 
 fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
@@ -78,8 +76,8 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 	}
 	
 	fn eq(&self, that: &Value) -> bool {
-		if that.type_str() as *const str == that.type_str() as *const str {
-			SameOps::eq(self, unsafe { *mem::transmute::<&&Value, &&Self>(&that) })
+		if self.type_str() as *const str == that.type_str() as *const str {
+			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
 			false
 		}
@@ -414,12 +412,12 @@ impl fmt::Debug for Suffix {
 }
 
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
-	let almost = try!(grammar::document(doc));
+	let almost = grammar::parse(doc.chars())?;
 	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(Val::new(nil::Nil))))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
-	let almost = try!(grammar::document(doc));
+	let almost = try!(grammar::parse(doc.chars()));
 	println!("{:?}", almost);
 	Ok(())
 }
@@ -487,7 +485,7 @@ mod tests {
 	fn recursion() {
 		parse("{b = b}").unwrap().index_str("b").get_num();
 	}
-
+	
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion_multi_step() {

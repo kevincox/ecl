@@ -2,7 +2,7 @@ bool = {
 	false_ = false
 	true_ = true
 }
-cond = {
+cond_ = {
 	multi_found = cond:[ false "skip" false "ignore" true "result" "else" ]
 	multi_default = cond:[ false "skip" false "ignore" "else" ]
 	simple_true = cond:[ 1 == 1 49 28 ]
