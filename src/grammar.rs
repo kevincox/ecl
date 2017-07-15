@@ -7,13 +7,13 @@ use func;
 use rc::Rc;
 
 #[derive(Clone,Copy,Debug,PartialEq)]
-struct Loc {
+pub struct Loc {
 	line: usize,
 	col: usize,
 }
 
 #[derive(Clone,Debug,PartialEq)]
-enum Token {
+pub enum Token {
 	Add,
 	Assign,
 	Call,
@@ -33,7 +33,6 @@ enum Token {
 	StrClose,
 	Unexpected(char),
 	Unfinished,
-	Invalid(String),
 }
 
 #[derive(Debug,PartialEq)]
@@ -143,11 +142,6 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			self.current = self.raw_next();
 		}
 		self.current
-	}
-	
-	fn pop(&mut self) {
-		let r = self.next();
-		debug_assert!(r.is_some());
 	}
 	
 	fn consume(&mut self, c: char) -> bool {
@@ -569,8 +563,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		expect_next!{self: "parsing function argument",
 			Token::Ident(name) => Ok(func::Arg::One(name)),
 			Token::DictOpen => {
-				let mut keys = Vec::new();
-				let mut vals = Vec::new();
+				let mut args = Vec::new();
 				
 				while !self.consume(Token::DictClose) {
 					let k = expect_next!{self: "destructure dict key",
@@ -578,15 +571,13 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 					};
 					
 					if self.consume(Token::Assign) {
-						keys.push((k.clone(), false));
-						vals.push(dict::AlmostDictElement::Known(k, self.expr()?));
+						args.push((k.clone(), false, self.expr()?));
 					} else {
-						keys.push((k.clone(), true));
-						vals.push(dict::AlmostDictElement::Known(k.clone(), ::Almost::Nil));
+						args.push((k.clone(), true, ::Almost::Nil));
 					}
 				}
 				
-				Ok(func::Arg::Dict(keys, Rc::new(vals)))
+				Ok(func::Arg::Dict(args))
 			},
 		}
 	}
@@ -630,8 +621,8 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 }
 
 pub fn parse<Input: Iterator<Item=char>>(input: Input) -> ParseResult {
-	let mut lexer = Lexer::new(input);
-	// let mut lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	let lexer = Lexer::new(input);
+	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
 	Parser{input: lexer, current: None}.document()
 }
 

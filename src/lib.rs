@@ -22,7 +22,7 @@ mod builtins;
 mod bool;
 mod dict;
 mod func;
-mod grammar;
+pub mod grammar;
 pub mod lines;
 mod list;
 mod nil;
@@ -254,14 +254,10 @@ impl Almost {
 		Almost::Lazy(Box::new(f))
 	}
 	
-	fn dict(items: Vec<dict::AlmostDictElement>) -> Almost {
-		Almost::Dict(items)
-	}
-	
 	fn function(arg: func::Arg, body: Almost) -> Almost {
-		let body = rc::Rc::new(body);
+		let data = rc::Rc::new(func::FuncData{arg: arg, body: body});
 		Almost::val(move |p| {
-			func::Func::new(p.clone(), arg.clone(), body.clone())
+			func::Func::new(p.clone(), data.clone())
 		})
 	}
 	
@@ -269,14 +265,6 @@ impl Almost {
 		Almost::val(move |p| {
 			list::List::new(p, &items)
 		})
-	}
-	
-	fn str(c: Vec<StringPart>) -> Almost {
-		Almost::Str(c)
-	}
-	
-	fn str_static(s: String) -> Almost {
-		Almost::StrStatic(s)
 	}
 	
 	fn expr(subject: Almost, suffixes: Vec<Suffix>) -> Almost {

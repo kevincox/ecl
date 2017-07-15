@@ -140,6 +140,12 @@ impl fmt::Debug for Dict {
 impl ::Value for Dict {
 	fn type_str(&self) -> &'static str { "dict" }
 	
+	fn len(&self) -> usize {
+		let prv = self.prv.borrow();
+		// Note that all public values are in data.
+		prv.data.len()
+	}
+	
 	fn is_empty(&self) -> bool {
 		// Check if any of our un-evaluated elements are "public"
 		let prv = self.prv.borrow();

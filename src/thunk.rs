@@ -67,7 +67,7 @@ impl fmt::Debug for Thunk {
 		match *self.0.borrow() {
 			State::Code(_,_) => write!(f, "<code>"),
 			State::Working => write!(f, "<evaling>"),
-			State::Val(ref v) => v.fmt(f),
+			State::Val(ref v) => write!(f, "Thunk({:?})", v),
 		}
 	}
 }
