@@ -142,8 +142,7 @@ impl ::Value for Dict {
 	
 	fn len(&self) -> usize {
 		let prv = self.prv.borrow();
-		// Note that all public values are in data.
-		prv.data.len()
+		prv.data.len() + prv.unevaluated.len()
 	}
 	
 	fn is_empty(&self) -> bool {
@@ -198,10 +197,8 @@ impl ::Value for Dict {
 impl ::SameOps for Dict { }
 
 pub enum AlmostDictElement {
-	Auto(Vec<String>,::Almost),
 	Dyn(rc::Rc<(Vec<::Almost>,::Almost)>),
 	Unknown(rc::Rc<::Almost>,::Almost),
-	Known(String,::Almost),
 	Priv(String,::Almost),
 }
 
@@ -213,12 +210,6 @@ enum DictPair {
 impl AlmostDictElement {
 	fn complete(&self, p: ::Val) -> DictPair {
 		match self {
-			&AlmostDictElement::Auto(ref path, ref v) => {
-				debug_assert!(!path.is_empty());
-				DictPair::Known(
-					path[0].to_owned(),
-					DictVal::Pub(Self::make_auto(p, &path[1..], v)))
-			},
 			&AlmostDictElement::Dyn(ref data) => {
 				let kdata = data.clone();
 				let vdata = data.clone();
@@ -234,23 +225,9 @@ impl AlmostDictElement {
 				let k = k.complete(p.clone());
 				DictPair::Unknown(k, DictVal::Pub(v.complete(p)))
 			},
-			&AlmostDictElement::Known(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Pub(v.complete(p)))
-			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
 				DictPair::Known(k.to_owned(), DictVal::Priv(v.complete(p)))
 			},
-		}
-	}
-	
-	fn make_auto(p: ::Val, path: &[String], v: &::Almost) -> ::Val {
-		if path.is_empty() {
-			v.complete(p)
-		} else {
-			::Val::new(ADict {
-				key: path[0].to_owned(),
-				val: Self::make_auto(p, &path[1..], v)
-			})
 		}
 	}
 	
@@ -267,15 +244,6 @@ impl AlmostDictElement {
 impl fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			&AlmostDictElement::Auto(ref path, ref v) => {
-				let mut sep = ' ';
-				try!(write!(f, "pub  "));
-				for e in path {
-					try!(write!(f, "{}{}", sep, ::format_key(e)));
-					sep = '.';
-				}
-				write!(f, " = {:?}", v)
-			},
 			&AlmostDictElement::Dyn(ref data) => {
 				let mut sep = ' ';
 				try!(write!(f, "pub  "));
@@ -287,9 +255,6 @@ impl fmt::Debug for AlmostDictElement {
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				write!(f, "pub   {:?} = {:?}", k, v)
-			},
-			&AlmostDictElement::Known(ref k, ref v) => {
-				write!(f, "pub   {} = {:?}", ::format_key(k), v)
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
 				write!(f, "local {} = {:?}", ::format_key(k), v)
