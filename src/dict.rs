@@ -197,8 +197,8 @@ impl ::Value for Dict {
 impl ::SameOps for Dict { }
 
 pub enum AlmostDictElement {
-	Dyn(Rc<(Vec<::Almost>, ::Almost)>),
 	Unknown(Rc<::Almost>, Rc<::Almost>),
+	Known(String, Rc<::Almost>),
 	Priv(String, Rc<::Almost>),
 }
 
@@ -210,34 +210,17 @@ enum DictPair {
 impl AlmostDictElement {
 	fn complete(&self, p: ::Val) -> DictPair {
 		match self {
-			&AlmostDictElement::Dyn(ref data) => {
-				let kdata = data.clone();
-				let vdata = data.clone();
-				DictPair::Unknown(
-					Thunk::new(vec![p.clone()], move |r| {
-						kdata.0[0].complete(r[0].clone())
-					}),
-					DictVal::Pub(Thunk::new(vec![p.clone()], move |r| {
-						Self::make_auto_dyn(r[0].clone(), &vdata.0[1..], &vdata.1)
-					})))
-			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				DictPair::Unknown(
 					Thunk::lazy(p.clone(), k.clone()),
 					DictVal::Pub(Thunk::lazy(p, v.clone())))
 			},
+			&AlmostDictElement::Known(ref k, ref v) => {
+				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(p, v.clone())))
+			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
 				DictPair::Known(k.to_owned(), DictVal::Priv(Thunk::lazy(p, v.clone())))
 			},
-		}
-	}
-	
-	fn make_auto_dyn(p: ::Val, path: &[::Almost], v: &::Almost) -> ::Val {
-		if path.is_empty() {
-			v.complete(p)
-		} else {
-			let key = path[0].complete(p.clone()).to_string();
-			ADict::new(key, Self::make_auto_dyn(p, &path[1..], v))
 		}
 	}
 }
@@ -245,17 +228,11 @@ impl AlmostDictElement {
 impl fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			&AlmostDictElement::Dyn(ref data) => {
-				let mut sep = ' ';
-				try!(write!(f, "pub  "));
-				for e in &data.0 {
-					try!(write!(f, "{}{:?}", sep, e));
-					sep = '.';
-				}
-				write!(f, " = {:?}", data.1)
-			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				write!(f, "pub   {:?} = {:?}", k, v)
+			},
+			&AlmostDictElement::Known(ref k, ref v) => {
+				write!(f, "pub   {} = {:?}", k, v)
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
 				write!(f, "local {} = {:?}", ::format_key(k), v)

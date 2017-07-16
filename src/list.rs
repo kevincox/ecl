@@ -1,6 +1,9 @@
 extern crate erased_serde;
 
 use std::fmt;
+use std::rc::Rc;
+
+use thunk::Thunk;
 
 #[derive(Trace,PartialEq)]
 pub struct List {
@@ -8,9 +11,9 @@ pub struct List {
 }
 
 impl List {
-	pub fn new(p: ::Val, items: &[::Almost]) -> ::Val {
+	pub fn new(p: ::Val, items: &[Rc<::Almost>]) -> ::Val {
 		::Val::new(List {
-			data: items.iter().map(|a| a.complete(p.clone())).collect(),
+			data: items.iter().map(|a| Thunk::lazy(p.clone(), a.clone())).collect(),
 		})
 	}
 }
@@ -37,6 +40,7 @@ impl ::Value for List {
 		}
 		s.erased_serialize_seq_end(state)
 	}
+	
 	fn reverse(&self) -> ::Val {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();

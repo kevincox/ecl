@@ -244,7 +244,7 @@ pub enum Almost {
 	Eq(Box<Almost>, Box<Almost>),
 	Func(rc::Rc<func::FuncData>),
 	Index(Box<Almost>, Box<Almost>),
-	List(Vec<Almost>),
+	List(Vec<rc::Rc<Almost>>),
 	Nil,
 	Num(f64),
 	Ref(String),
@@ -264,7 +264,7 @@ impl Almost {
 			Almost::List(ref items) => list::List::new(p, items),
 			Almost::Nil => Val::new(nil::Nil),
 			Almost::Num(n) => Val::new(n),
-			Almost::Ref(ref id) => p.lookup(id),
+			Almost::Ref(ref id) => thunk::Thunk::evaluated(p.lookup(id)),
 			Almost::Str(ref c) => {
 				let mut r = String::new();
 				for part in c {
@@ -277,6 +277,15 @@ impl Almost {
 				Val::new(r)
 			},
 			Almost::StrStatic(ref s) => Val::new(s.clone()),
+		}
+	}
+	
+	fn is_cheep(&self) -> bool {
+		match *self {
+			Almost::Nil |
+			Almost::Num(_) |
+			Almost::StrStatic(_) => true,
+			_ => false,
 		}
 	}
 }

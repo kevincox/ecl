@@ -30,11 +30,19 @@ impl Thunk {
 	}
 	
 	pub fn lazy(p: ::Val, almost: Rc<::Almost>) -> ::Val {
-		Self::new(vec![p], move |refs| almost.complete(refs[0].clone()))
+		if almost.is_cheep() {
+			almost.complete(p)
+		} else {
+			Self::new(vec![p], move |refs| almost.complete(refs[0].clone()))
+		}
+	}
+	
+	pub fn evaluated(v: ::Val) -> ::Val {
+		::Val::new(Thunk(gc::GcCell::new(State::Val(v))))
 	}
 	
 	fn eval(&self) -> ::Val {
-		match *self.0.borrow() {
+		match *self.0.borrow_mut() {
 			State::Val(ref v) => return v.clone(),
 			_ => {},
 		}
@@ -69,7 +77,7 @@ impl PartialEq for Thunk {
 
 impl fmt::Debug for Thunk {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self.0.borrow() {
+		match *self.0.borrow_mut() {
 			State::Code(_,_) => write!(f, "<code>"),
 			State::Working => write!(f, "<evaling>"),
 			State::Val(ref v) => write!(f, "Thunk({:?})", v),

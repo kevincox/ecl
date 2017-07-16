@@ -454,38 +454,42 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	}
 	
 	fn dict_item(&mut self) -> Result<dict::AlmostDictElement,ParseError> {
-		let mut path = vec![];
-		
-		expect_next!{self: "parsing dict element",
-			Token::Ident(s) => match s.as_str() {
-				"local" => match self.next() {
-					Some((Token::Ident(s),_)) => {
-						expect_next!{self: "parsing local var", Token::Assign => {}};
-						return Ok(dict::AlmostDictElement::Priv(s, Rc::new(self.expr()?)))
+		let ade = expect_next!{self: "parsing dict element",
+			Token::Ident(s) => {
+				if s == "local" {
+					match self.next() {
+						Some((Token::Ident(s),_)) => {
+							expect_next!{self: "parsing local var", Token::Assign => {}};
+							return Ok(dict::AlmostDictElement::Priv(s, Rc::new(self.expr()?)))
+						},
+						Some(t) => self.unget(t),
+						None => {},
 					}
-					Some(t) => self.unget(t),
-					None => {},
-				},
-				_ => path.push(::Almost::StrStatic(s)),
+				}
+				
+				let val = expect_next!{self: "parsing dict key",
+					Token::Dot => ::Almost::Dict(vec![self.dict_item()?]),
+					Token::Assign => self.expr()?,
+				};
+				dict::AlmostDictElement::Known(s, Rc::new(val))
 			},
-			Token::StrOpen => path.push(self.string()?),
+			Token::StrOpen => {
+				let key = self.string()?;
+				let val = expect_next!{self: "parsing dict key",
+					Token::Dot => ::Almost::Dict(vec![self.dict_item()?]),
+					Token::Assign => self.expr()?,
+				};
+				dict::AlmostDictElement::Unknown(Rc::new(key), Rc::new(val))
+			},
 		};
 		
-		while self.consume(Token::Dot) {
-			expect_next!{self: "parsing dict",
-				Token::Ident(s) => path.push(::Almost::StrStatic(s)),
-				Token::StrOpen => path.push(self.string()?),
-			}
-		}
-		
-		expect_next!{self: "parsing dict eq", Token::Assign => {}};
-		Ok(dict::AlmostDictElement::Dyn(Rc::new((path, self.expr()?))))
+		Ok(ade)
 	}
 	
 	fn list_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
 		while !self.consume(Token::ListClose) {
-			items.push(self.expr()?);
+			items.push(Rc::new(self.expr()?));
 		}
 		Ok(::Almost::List(items))
 	}
