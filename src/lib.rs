@@ -14,7 +14,6 @@ extern crate serde;
 use std::any;
 use std::cell::{RefCell};
 use std::fmt;
-use std::iter::Iterator;
 use std::mem;
 use std::rc;
 
@@ -240,7 +239,10 @@ impl serde::Serialize for Val {
 
 pub enum Almost {
 	Dict(Vec<dict::AlmostDictElement>),
-	Expr(Box<Almost>, Vec<Suffix>),
+	Add(Box<Almost>, Box<Almost>),
+	Call(Box<Almost>, Box<Almost>),
+	Eq(Box<Almost>, Box<Almost>),
+	Index(Box<Almost>, Box<Almost>),
 	Lazy(Box<Fn(Val) -> Val>),
 	Nil,
 	Num(f64),
@@ -267,21 +269,15 @@ impl Almost {
 		})
 	}
 	
-	fn expr(subject: Almost, suffixes: Vec<Suffix>) -> Almost {
-		Almost::Expr(Box::new(subject), suffixes)
-	}
-	
 	fn complete(&self, p: Val) -> Val {
 		match *self {
+			Almost::Add(ref l, ref r) => l.complete(p.clone()).add(r.complete(p)),
 			Almost::Dict(ref items) => {
 				dict::Dict::new(p, &items)
 			},
-			Almost::Expr(ref subject, ref suffixes) => {
-				let subject = subject.complete(p.clone());
-				suffixes.iter().fold(subject, |a, e| {
-					e.call(p.clone(), a)
-				})
-			},
+			Almost::Call(ref f, ref a) => f.complete(p.clone()).call(a.complete(p)),
+			Almost::Eq(ref l, ref r) => Val::new(l.complete(p.clone()) == r.complete(p)),
+			Almost::Index(ref o, ref k) => o.complete(p.clone()).index(k.complete(p)),
 			Almost::Lazy(ref l) => l(p),
 			Almost::Nil => Val::new(nil::Nil),
 			Almost::Num(n) => Val::new(n),
@@ -310,6 +306,7 @@ impl Almost {
 impl fmt::Debug for Almost {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
+			Almost::Add(ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "Dict({{"));
 				for i in &**items {
@@ -317,13 +314,9 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, "}})")
 			},
-			Almost::Expr(ref subject, ref suffixes) => {
-				try!(write!(f, "Expr({:?}", subject));
-				for s in suffixes {
-					try!(write!(f, "{:?}", s));
-				}
-				write!(f, ")")
-			},
+			Almost::Call(ref func, ref a) => write!(f, "({:?}):({:?})", func, a),
+			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
+			Almost::Index(ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
 			Almost::Lazy(_) => write!(f, "<opaque>"),
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
@@ -342,59 +335,6 @@ impl fmt::Debug for Almost {
 			Almost::StrStatic(ref s) => {
 				write!(f, "{}", escape_string(&s))
 			},
-		}
-	}
-}
-
-pub enum Suffix {
-	Add(Almost),
-	Call(Almost),
-	Eq(Almost),
-	IndexExpr(Almost),
-	IndexIdent(String),
-	Neq(Almost),
-}
-
-impl Suffix {
-	fn call(&self, parent: Val, subject: Val) -> Val {
-		match *self {
-			Suffix::Add(ref a) => {
-				let val = a.complete(parent);
-				subject.add(val)
-			},
-			Suffix::Call(ref a) => {
-				let val = a.complete(parent);
-				subject.call(val)
-			},
-			Suffix::Eq(ref a) => {
-				let val = a.complete(parent);
-				Val::new(subject == val)
-			},
-			Suffix::IndexExpr(ref key) => {
-				let k = key.complete(parent);
-				thunk::Thunk::new(vec![subject, k], move |r| r[0].index(r[1].clone()))
-			},
-			Suffix::IndexIdent(ref id) => {
-				let id = id.clone();
-				thunk::Thunk::new(vec![subject], move |r| r[0].index_str(&id))
-			}
-			Suffix::Neq(ref a) => {
-				let val = a.complete(parent);
-				Val::new(subject != val)
-			},
-		}
-	}
-}
-
-impl fmt::Debug for Suffix {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
-			Suffix::Add(ref a) => write!(f, " + {:?}", a),
-			Suffix::Call(ref a) => write!(f, ": {:?}", a),
-			Suffix::Eq(ref a) => write!(f, "== {:?}", a),
-			Suffix::IndexExpr(ref a) => write!(f, ".{:?}", a),
-			Suffix::IndexIdent(ref s) => write!(f, ".{}", format_key(s)),
-			Suffix::Neq(ref a) => write!(f, "!= {:?}", a),
 		}
 	}
 }

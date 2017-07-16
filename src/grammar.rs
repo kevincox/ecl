@@ -528,30 +528,28 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	}
 	
 	fn expr(&mut self) -> ParseResult {
-		let a = self.atom()?;
-		self.suffixes(a)
+		let r = self.atom()?;
+		self.suffixes(r)
 	}
 	
-	fn suffixes(&mut self, expr: ::Almost) -> ParseResult {
-		let mut suffixes = vec![];
-		
+	fn suffixes(&mut self, mut r: ::Almost) -> ParseResult {
 		loop {
 			match self.next() {
-				Some((Token::Add, _)) => suffixes.push(::Suffix::Add(self.expr()?)),
-				Some((Token::Call, _)) => suffixes.push(::Suffix::Call(self.expr()?)),
-				Some((Token::Dot, _)) => {
-					suffixes.push(expect_next!{self: "parsing index",
-						Token::Ident(s) => ::Suffix::IndexIdent(s),
-						Token::StrOpen => ::Suffix::IndexExpr(self.string()?),
-					});
+				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.expr()?)),
+				Some((Token::Call, _)) => r = ::Almost::Call(Box::new(r), Box::new(self.expr()?)),
+				Some((Token::Dot, _)) => expect_next!{self: "parsing index",
+					Token::Ident(s) =>
+						r = ::Almost::Index(Box::new(r), Box::new(::Almost::StrStatic(s))),
+					Token::StrOpen =>
+						r = ::Almost::Index(Box::new(r), Box::new(self.string()?)),
 				},
-				Some((Token::Eq, _)) => suffixes.push(::Suffix::Eq(self.expr()?)),
+				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr()?)),
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
 		}
 		
-		Ok(::Almost::expr(expr, suffixes))
+		Ok(r)
 	}
 	
 	fn func(&mut self) -> ParseResult {
