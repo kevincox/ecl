@@ -3,10 +3,27 @@ use std::rc::Rc;
 
 use dict;
 
-#[derive(Debug)]
 pub enum Arg {
 	One(String),
 	Dict(Vec<(String,bool,::Almost)>),
+}
+
+impl fmt::Debug for Arg {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			Arg::One(ref s) => write!(f, "{}", s),
+			Arg::Dict(ref args) => {
+				write!(f, "{{")?;
+				let mut first = true;
+				for arg in args {
+					if first { first = false } else { write!(f, ", ")? }
+					write!(f, "{}", arg.0)?;
+					if arg.1 { write!(f, "={:?}", arg.2)?  }
+				}
+				write!(f, "}}")
+			}
+		}
+	}
 }
 
 #[derive(Trace)]

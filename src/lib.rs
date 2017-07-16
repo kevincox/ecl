@@ -242,8 +242,9 @@ pub enum Almost {
 	Add(Box<Almost>, Box<Almost>),
 	Call(Box<Almost>, Box<Almost>),
 	Eq(Box<Almost>, Box<Almost>),
+	Func(rc::Rc<func::FuncData>),
 	Index(Box<Almost>, Box<Almost>),
-	Lazy(Box<Fn(Val) -> Val>),
+	List(Vec<Almost>),
 	Nil,
 	Num(f64),
 	Ref(String),
@@ -252,39 +253,18 @@ pub enum Almost {
 }
 
 impl Almost {
-	fn val<F: Fn(Val) -> Val + 'static>(f: F) -> Almost {
-		Almost::Lazy(Box::new(f))
-	}
-	
-	fn function(arg: func::Arg, body: Almost) -> Almost {
-		let data = rc::Rc::new(func::FuncData{arg: arg, body: body});
-		Almost::val(move |p| {
-			func::Func::new(p.clone(), data.clone())
-		})
-	}
-	
-	fn list(items: Vec<Almost>) -> Almost {
-		Almost::val(move |p| {
-			list::List::new(p, &items)
-		})
-	}
-	
 	fn complete(&self, p: Val) -> Val {
 		match *self {
 			Almost::Add(ref l, ref r) => l.complete(p.clone()).add(r.complete(p)),
-			Almost::Dict(ref items) => {
-				dict::Dict::new(p, &items)
-			},
+			Almost::Dict(ref items) => dict::Dict::new(p, &items),
 			Almost::Call(ref f, ref a) => f.complete(p.clone()).call(a.complete(p)),
 			Almost::Eq(ref l, ref r) => Val::new(l.complete(p.clone()) == r.complete(p)),
+			Almost::Func(ref fd) => func::Func::new(p, fd.clone()),
 			Almost::Index(ref o, ref k) => o.complete(p.clone()).index(k.complete(p)),
-			Almost::Lazy(ref l) => l(p),
+			Almost::List(ref items) => list::List::new(p, items),
 			Almost::Nil => Val::new(nil::Nil),
 			Almost::Num(n) => Val::new(n),
-			Almost::Ref(ref id) => {
-				let id = id.clone();
-				thunk::Thunk::new(vec![p], move |r| r[0].lookup(&id))
-			},
+			Almost::Ref(ref id) => p.lookup(id),
 			Almost::Str(ref c) => {
 				let mut r = String::new();
 				for part in c {
@@ -296,9 +276,7 @@ impl Almost {
 				}
 				Val::new(r)
 			},
-			Almost::StrStatic(ref s) => {
-				Val::new(s.clone())
-			},
+			Almost::StrStatic(ref s) => Val::new(s.clone()),
 		}
 	}
 }
@@ -308,16 +286,23 @@ impl fmt::Debug for Almost {
 		match *self {
 			Almost::Add(ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
 			Almost::Dict(ref items) => {
-				try!(writeln!(f, "Dict({{"));
+				try!(writeln!(f, "{{"));
 				for i in &**items {
 					try!(writeln!(f, "\t{:?}", i));
 				}
-				write!(f, "}})")
+				write!(f, "}}")
 			},
-			Almost::Call(ref func, ref a) => write!(f, "({:?}):({:?})", func, a),
+			Almost::Call(ref func, ref a) => write!(f, "{:?}:{:?}", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
+			Almost::Func(ref fd) => write!(f, "(->{:?} {:?})", fd.arg, fd.body),
 			Almost::Index(ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
-			Almost::Lazy(_) => write!(f, "<opaque>"),
+			Almost::List(ref items) => {
+				writeln!(f, "[")?;
+				for item in items {
+					writeln!(f, "\t{:?}", item)?;
+				}
+				write!(f, "]")
+			},
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(ref id) => write!(f, "Ref({})", format_key(id)),

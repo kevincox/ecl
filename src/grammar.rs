@@ -2,9 +2,10 @@ type ParseResult = Result<::Almost,ParseError>;
 
 extern crate std;
 
+use rc::Rc;
+
 use dict;
 use func;
-use rc::Rc;
 
 #[derive(Clone,Copy,Debug,PartialEq)]
 pub struct Loc {
@@ -417,42 +418,15 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	}
 	
 	fn document(&mut self) -> ParseResult {
-		let e = match self.next() {
-			Some((Token::Ident(s), _)) => match self.next() {
-				Some((Token::Ident(s2), loc)) => {
-					if s == "local" {
-						self.document_local(s2)
-					} else {
-						Err(ParseError{
-							typ: ErrorType::Unexpected(loc, Token::Ident(s2), &[]),
-							msg: "Two identifiers in a row",
-						})
-					}
-				},
-				Some(tl@(Token::Dot, _)) |
-				Some(tl@(Token::Assign, _)) => {
-					self.unget(tl);
-					let path = vec![::Almost::StrStatic(s)];
-					let first = self.dict_item_end(path)?;
-					self.document_items(first)
-				},
-				Some(tl) => {
-					self.unget(tl);
-					self.suffixes(::Almost::Ref(s))
-				},
-				None => Ok(::Almost::Ref(s)),
-			},
-			Some(tl) => {
-				self.unget(tl);
-				self.expr()
-			}
-			None => {
-				Err(ParseError{
-					typ: ErrorType::Unfinished,
-					msg: "Empty document",
-				})
-			}
-		}?;
+		let is_expr = match self.peek() {
+			Some(&(Token::DictOpen, _)) |
+			Some(&(Token::Func, _)) |
+			Some(&(Token::ListOpen, _)) |
+			Some(&(Token::ParenOpen, _)) => true,
+			_ => false,
+		};
+		
+		let e = if is_expr { self.expr()? } else { self.document_items()? };
 		
 		match self.next() {
 			Some((t,l)) => Err(ParseError{
@@ -463,14 +437,8 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		}
 	}
 	
-	fn document_local(&mut self, ident: String) -> ParseResult {
-		expect_next!{self: "parsing initial local", Token::Assign => {}};
-		let first = dict::AlmostDictElement::Priv(ident, self.expr()?);
-		self.document_items(first)
-	}
-	
-	fn document_items(&mut self, first: dict::AlmostDictElement) -> ParseResult {
-		let mut items = vec![first];
+	fn document_items(&mut self) -> ParseResult {
+		let mut items = Vec::new();
 		while self.peek().is_some() {
 			items.push(self.dict_item()?);
 		}
@@ -493,7 +461,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				"local" => match self.next() {
 					Some((Token::Ident(s),_)) => {
 						expect_next!{self: "parsing local var", Token::Assign => {}};
-						return Ok(dict::AlmostDictElement::Priv(s, self.expr()?))
+						return Ok(dict::AlmostDictElement::Priv(s, Rc::new(self.expr()?)))
 					}
 					Some(t) => self.unget(t),
 					None => {},
@@ -503,18 +471,13 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 			Token::StrOpen => path.push(self.string()?),
 		};
 		
-		self.dict_item_end(path)
-	}
-	
-	fn dict_item_end(&mut self, mut path: Vec<::Almost>)
-		-> Result<dict::AlmostDictElement,ParseError>
-	{
 		while self.consume(Token::Dot) {
 			expect_next!{self: "parsing dict",
 				Token::Ident(s) => path.push(::Almost::StrStatic(s)),
 				Token::StrOpen => path.push(self.string()?),
 			}
 		}
+		
 		expect_next!{self: "parsing dict eq", Token::Assign => {}};
 		Ok(dict::AlmostDictElement::Dyn(Rc::new((path, self.expr()?))))
 	}
@@ -524,15 +487,12 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		while !self.consume(Token::ListClose) {
 			items.push(self.expr()?);
 		}
-		Ok(::Almost::list(items))
+		Ok(::Almost::List(items))
 	}
 	
 	fn expr(&mut self) -> ParseResult {
-		let r = self.atom()?;
-		self.suffixes(r)
-	}
-	
-	fn suffixes(&mut self, mut r: ::Almost) -> ParseResult {
+		let mut r = self.atom()?;
+		
 		loop {
 			match self.next() {
 				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.expr()?)),
@@ -554,7 +514,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
-		Ok(::Almost::function(args, self.expr()?))
+		Ok(::Almost::Func(Rc::new(func::FuncData{arg: args, body: self.expr()?})))
 	}
 	
 	fn args(&mut self) -> Result<func::Arg,ParseError> {
@@ -620,7 +580,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 
 pub fn parse<Input: Iterator<Item=char>>(input: Input) -> ParseResult {
 	let lexer = Lexer::new(input);
-	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
 	Parser{input: lexer, current: None}.document()
 }
 
@@ -631,35 +591,35 @@ mod tests {
 	
 	#[test]
 	fn num_decimal() {
-		assert_eq!(::parse("10"), Ok(::Val::new(10.0)));
-		assert_eq!(::parse("0d10"), Ok(::Val::new(10.0)));
-		assert_eq!(::parse("10.4"), Ok(::Val::new(10.4)));
-		assert_eq!(::parse("10.4e6"), Ok(::Val::new(10400000.0)));
-		assert_eq!(::parse("10.4e+6"), Ok(::Val::new(10400000.0)));
-		assert_eq!(::parse("10.4e-6"), Ok(::Val::new(0.0000104)));
-		assert_eq!(::parse("104_000__000_e-6_"), Ok(::Val::new(104.0)));
-		assert_eq!(::parse("1M"), Ok(::Val::new(1_000_000.0)));
-		assert_eq!(::parse("1ki"), Ok(::Val::new(1024.0)));
-		assert_eq!(::parse("4u"), Ok(::Val::new(0.000_004)));
+		assert_eq!(::parse("(10)"), Ok(::Val::new(10.0)));
+		assert_eq!(::parse("(0d10)"), Ok(::Val::new(10.0)));
+		assert_eq!(::parse("(10.4)"), Ok(::Val::new(10.4)));
+		assert_eq!(::parse("(10.4e6)"), Ok(::Val::new(10400000.0)));
+		assert_eq!(::parse("(10.4e+6)"), Ok(::Val::new(10400000.0)));
+		assert_eq!(::parse("(10.4e-6)"), Ok(::Val::new(0.0000104)));
+		assert_eq!(::parse("(104_000__000_e-6_)"), Ok(::Val::new(104.0)));
+		assert_eq!(::parse("(1M)"), Ok(::Val::new(1_000_000.0)));
+		assert_eq!(::parse("(1ki)"), Ok(::Val::new(1024.0)));
+		assert_eq!(::parse("(4u)"), Ok(::Val::new(0.000_004)));
 	}
 	
 	#[test]
 	fn num_binary() {
-		assert_eq!(::parse("0b10"), Ok(::Val::new(2.0)));
-		assert_eq!(::parse("0b10.1"), Ok(::Val::new(2.5)));
-		assert_eq!(::parse("0b10.1e6"), Err(ParseError{
+		assert_eq!(::parse("(0b10)"), Ok(::Val::new(2.0)));
+		assert_eq!(::parse("(0b10.1)"), Ok(::Val::new(2.5)));
+		assert_eq!(::parse("(0b10.1e6)"), Err(ParseError{
 			typ: ErrorType::Unexpected(
-				Loc{line: 1, col: 7}, Token::Unexpected('e'), &[]),
+				Loc{line: 1, col: 8}, Token::Unexpected('e'), &[]),
 			msg: "parsing atom",
 		}));
-		assert_eq!(::parse("0b1M"), Ok(::Val::new(1_000_000.0)));
-		assert_eq!(::parse("0b1u"), Ok(::Val::new(0.000_001)));
+		assert_eq!(::parse("(0b1M)"), Ok(::Val::new(1_000_000.0)));
+		assert_eq!(::parse("(0b1u)"), Ok(::Val::new(0.000_001)));
 	}
 	
 	#[test]
 	fn num_hex() {
-		assert_eq!(::parse("0x10"), Ok(::Val::new(16.0)));
-		assert_eq!(::parse("0x8.8"), Ok(::Val::new(8.5)));
-		assert_eq!(::parse("0x00.1"), Ok(::Val::new(0.0625)));
+		assert_eq!(::parse("(0x10)"), Ok(::Val::new(16.0)));
+		assert_eq!(::parse("(0x8.8)"), Ok(::Val::new(8.5)));
+		assert_eq!(::parse("(0x00.1)"), Ok(::Val::new(0.0625)));
 	}
 }

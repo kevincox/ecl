@@ -3,6 +3,7 @@ extern crate gc;
 use std::boxed::FnBox;
 use std::fmt;
 use std::mem;
+use std::rc::Rc;
 
 enum State {
 	Code(Vec<::Val>, Box<FnBox(Vec<::Val>) -> ::Val>),
@@ -26,6 +27,10 @@ unsafe impl gc::Trace for State {
 impl Thunk {
 	pub fn new<F: FnOnce(Vec<::Val>) -> ::Val + 'static>(refs: Vec<::Val>, code: F) -> ::Val {
 		::Val::new(Thunk(gc::GcCell::new(State::Code(refs, Box::new(code)))))
+	}
+	
+	pub fn lazy(p: ::Val, almost: Rc<::Almost>) -> ::Val {
+		Self::new(vec![p], move |refs| almost.complete(refs[0].clone()))
 	}
 	
 	fn eval(&self) -> ::Val {

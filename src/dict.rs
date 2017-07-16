@@ -5,10 +5,10 @@ extern crate serde;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt;
-use std::rc;
+use std::rc::Rc;
 
 use nil;
-use thunk;
+use thunk::Thunk;
 
 #[derive(Trace)]
 pub struct Dict {
@@ -197,9 +197,9 @@ impl ::Value for Dict {
 impl ::SameOps for Dict { }
 
 pub enum AlmostDictElement {
-	Dyn(rc::Rc<(Vec<::Almost>,::Almost)>),
-	Unknown(rc::Rc<::Almost>,::Almost),
-	Priv(String,::Almost),
+	Dyn(Rc<(Vec<::Almost>, ::Almost)>),
+	Unknown(Rc<::Almost>, Rc<::Almost>),
+	Priv(String, Rc<::Almost>),
 }
 
 enum DictPair {
@@ -214,19 +214,20 @@ impl AlmostDictElement {
 				let kdata = data.clone();
 				let vdata = data.clone();
 				DictPair::Unknown(
-					thunk::Thunk::new(vec![p.clone()], move |r| {
+					Thunk::new(vec![p.clone()], move |r| {
 						kdata.0[0].complete(r[0].clone())
 					}),
-					DictVal::Pub(thunk::Thunk::new(vec![p.clone()], move |r| {
+					DictVal::Pub(Thunk::new(vec![p.clone()], move |r| {
 						Self::make_auto_dyn(r[0].clone(), &vdata.0[1..], &vdata.1)
 					})))
 			},
 			&AlmostDictElement::Unknown(ref k, ref v) => {
-				let k = k.complete(p.clone());
-				DictPair::Unknown(k, DictVal::Pub(v.complete(p)))
+				DictPair::Unknown(
+					Thunk::lazy(p.clone(), k.clone()),
+					DictVal::Pub(Thunk::lazy(p, v.clone())))
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Priv(v.complete(p)))
+				DictPair::Known(k.to_owned(), DictVal::Priv(Thunk::lazy(p, v.clone())))
 			},
 		}
 	}
