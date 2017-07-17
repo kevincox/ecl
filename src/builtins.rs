@@ -5,40 +5,73 @@ extern crate regex;
 extern crate serde;
 
 use std::fmt;
+use std::cell::Cell;
 
 use nil;
 
+#[derive(PartialEq,Trace)]
+struct Empty;
+
 pub fn get(key: &str) -> ::Val {
 	match key {
+		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
 		"nil" => ::Val::new(nil::Nil),
+		"panic" => new("panic", |msg| panic!("Script called panic: {:?}", msg.get())),
 		"true" => ::Val::new(true),
 		"false" => ::Val::new(false),
-		"cond" => ::Val::new(Func("if", |v| cond(v.to_slice()))),
-		"reverse" => ::Val::new(Func("reverse", |v| v.reverse())),
+		"cond" => new("if", |v| cond(v.to_slice())),
+		"reverse" => new("reverse", |v| v.reverse()),
+		"_testing_assert_cache_eval" => {
+			let unevaluated = Cell::new(true);
+			let func = move |r| {
+				assert!(unevaluated.get(), "Called twice");
+				unevaluated.set(false);
+				r
+			};
+			new("_testing_assert_eval_once", func)
+		},
 		other => panic!("Undefined variable {:?}", other),
 	}
 }
 
-pub struct Func<F: Fn(::Val) -> ::Val + 'static>(&'static str, F);
-unsafe impl<F: Fn(::Val) -> ::Val + 'static> gc::Trace for Func<F> { unsafe_empty_trace!(); }
+#[derive(Trace)]
+pub struct Builtin<D: gc::Trace, F>{
+	name: &'static str,
+	data: D,
+	#[unsafe_ignore_trace]
+	func: F,
+}
 
-impl<F: Fn(::Val) -> ::Val + 'static> ::SameOps for Func<F> {
-	fn eq(&self, that: &Self) -> bool {
-		self.0 as *const str == that.0 as *const str
+fn new<F: Fn(::Val) -> ::Val + 'static>(name: &'static str, func: F) -> ::Val {
+	Builtin::new(name, Empty, move |_, a| func(a))
+}
+
+impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> Builtin<D, F> {
+	fn new(name: &'static str, d: D, func: F) -> ::Val {
+		::Val::new(Builtin{name: name, data: d, func: func})
 	}
 }
 
-impl<F: Fn(::Val) -> ::Val + 'static> ::Value for Func<F> {
+impl<
+	D: PartialEq + gc::Trace + 'static,
+	F: Fn(&D, ::Val) -> ::Val + 'static>
+::SameOps for Builtin<D, F> {
+	fn eq(&self, that: &Self) -> bool {
+		self.name as *const str == that.name as *const str && self.data == that.data
+	}
+}
+
+impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> ::Value for Builtin<D, F> {
 	fn call(&self, arg: ::Val) -> ::Val {
-		self.1(arg)
+		(self.func)(&self.data, arg)
 	}
 	
 	fn type_str(&self) -> &'static str { "builtin" }
 }
 
-impl<F: Fn(::Val) -> ::Val + 'static> fmt::Debug for Func<F> {
+impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> fmt::Debug for Builtin<D, F> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<builtin {:?}>", self.0)
+		write!(f, "<builtin {:?}>", self.name)
 	}
 }
 
@@ -53,5 +86,37 @@ fn cond(args: &[::Val]) -> ::Val {
 				val.clone()
 			}
 		},
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use ::Value;
+	use super::*;
+	
+	#[test]
+	#[should_panic(expected="Baby\\'s first error")]
+	fn panic() {
+		let v = ::parse(r###"
+			{
+				local msg = "Baby's first" + " error"
+				boom = panic:msg
+			}.boom
+		"###).unwrap().get();
+		println!("Returned value: {:?}", v);
+	}
+	
+	#[test]
+	fn assert_once_once() {
+		let v = nil::Nil.lookup("_testing_assert_cache_eval");
+		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
+	}
+	
+	#[test]
+	#[should_panic(expected="Called twice")]
+	fn assert_once_twice() {
+		let v = nil::Nil.lookup("_testing_assert_cache_eval");
+		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
+		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 	}
 }

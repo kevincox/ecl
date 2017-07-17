@@ -11,6 +11,10 @@ impl ::Value for f64 {
 	fn to_string(&self) -> String {
 		ToString::to_string(self)
 	}
+	
+	fn get_num(&self) -> Option<f64> {
+		Some(*self)
+	}
 }
 
 impl ::SameOps for f64 {

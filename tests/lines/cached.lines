@@ -1,0 +1,12 @@
+	DICT	{
+add	LIST	[
+add.1	NUM	13
+add.2	NUM	13
+add.3	NUM	13
+add	LIST	]
+plain	LIST	[
+plain.1	NUM	5
+plain.2	NUM	5
+plain.3	NUM	5
+plain	LIST	]
+	DICT	}

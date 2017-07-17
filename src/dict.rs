@@ -243,13 +243,15 @@ impl fmt::Debug for AlmostDictElement {
 
 #[derive(Trace)]
 pub struct ADict {
+	parent: ::Val,
 	key: String,
 	val: ::Val,
 }
 
 impl ADict {
-	pub fn new(key: String, val: ::Val) -> ::Val {
+	pub fn new(p: ::Val, key: String, val: ::Val) -> ::Val {
 		::Val::new(ADict {
+			parent: p,
 			key: key,
 			val: val,
 		})
@@ -287,7 +289,7 @@ impl ::Value for ADict {
 		if self.key == key {
 			self.val.clone()
 		} else {
-			panic!("No key {:?} in {:?}", key, self);
+			self.parent.lookup(key)
 		}
 	}
 	

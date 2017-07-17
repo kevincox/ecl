@@ -499,15 +499,15 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		
 		loop {
 			match self.next() {
-				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.expr()?)),
-				Some((Token::Call, _)) => r = ::Almost::Call(Box::new(r), Box::new(self.expr()?)),
+				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.atom()?)),
+				Some((Token::Call, _)) => r = ::Almost::Call(Box::new(r), Box::new(self.atom()?)),
 				Some((Token::Dot, _)) => expect_next!{self: "parsing index",
 					Token::Ident(s) =>
 						r = ::Almost::Index(Box::new(r), Box::new(::Almost::StrStatic(s))),
 					Token::StrOpen =>
 						r = ::Almost::Index(Box::new(r), Box::new(self.string()?)),
 				},
-				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr()?)),
+				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.atom()?)),
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
@@ -584,10 +584,9 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 
 pub fn parse<Input: Iterator<Item=char>>(input: Input) -> ParseResult {
 	let lexer = Lexer::new(input);
-	let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
 	Parser{input: lexer, current: None}.document()
 }
-
 
 #[cfg(test)]
 mod tests {

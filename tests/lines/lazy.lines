@@ -1,0 +1,5 @@
+	DICT	{
+cond-eval	NUM	42
+dict-eval	NUM	5
+list-eval	NUM	6
+	DICT	}

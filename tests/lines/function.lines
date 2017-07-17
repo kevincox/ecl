@@ -5,4 +5,5 @@ destructure-dict-closure	NUM	7
 destructure-dict-default	NUM	6
 destructure-dict-default-nil	NUM	3
 destructure-dict-override	NUM	9
+multi-arg	NUM	3
 	DICT	}

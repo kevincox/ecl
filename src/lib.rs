@@ -142,12 +142,14 @@ impl Val {
 	}
 	
 	pub fn index(&self, k: Val) -> Val {
+		let k = k.get();
+		
 		if let Some(s) = k.get_str() {
 			self.index_str(s)
 		} else if let Some(n) = k.get_num() {
 			self.index_int(n as usize)
 		} else {
-			panic!("Can't index {:?} with {:?}", self, k)
+			panic!("Can't index with a {:?}", k)
 		}
 	}
 	
@@ -301,7 +303,7 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, "}}")
 			},
-			Almost::Call(ref func, ref a) => write!(f, "{:?}:{:?}", func, a),
+			Almost::Call(ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
 			Almost::Func(ref fd) => write!(f, "(->{:?} {:?})", fd.arg, fd.body),
 			Almost::Index(ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),

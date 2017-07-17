@@ -49,7 +49,7 @@ impl ::Value for Func {
 	
 	fn call(&self, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
-			Arg::One(ref s) => dict::ADict::new(s.clone(), arg),
+			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
 			Arg::Dict(ref args) => {
 				let val = ::dict::Dict::new(self.parent.clone(), &[]);
 				
