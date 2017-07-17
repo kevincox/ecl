@@ -1,3 +1,4 @@
+#![feature(drop_types_in_const)]
 #![feature(fnbox)]
 #![feature(plugin)]
 #![feature(proc_macro)]
@@ -47,6 +48,7 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn get_num(&self) -> Option<f64> { None }
 	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> String { panic!("Can't turn {:?} into a string", self) }
+	fn to_bool(&self) -> bool { true }
 	fn call(&self, _arg: Val) -> Val { panic!("Can't call {:?}", self) }
 	fn reverse(&self) -> Val { panic!("Can't reverse {:?}", self) }
 }
@@ -101,10 +103,10 @@ impl Val {
 		let mut iterations = 0; // Delay cycle checking for performance.
 		let mut visited = Vec::new(); // Track visited items.
 		
-		while let Some(ref vn) = Value::get(&*v.0) {
+		while let Some(ref vn) = Value::get(v.deref()) {
 			iterations += 1;
 			if iterations > 100 {
-				let vn_ptr = &*vn.0 as *const Value;
+				let vn_ptr = vn.deref() as *const Value;
 				if visited.contains(&vn_ptr) {
 					panic!("Dependency cycle detected.");
 				}
@@ -114,31 +116,36 @@ impl Val {
 			v = vn.clone();
 		}
 		// println!("got {:?}", v);
+		
 		v
 	}
 	
+	fn value(&self) -> &Value { i_promise_this_will_stay_alive(self.get().deref()) }
+	
+	fn deref(&self) -> &Value { &*self.0 }
+	
 	fn downcast_ref<T: 'static>(&self) -> &T {
-		self.0.as_any().downcast_ref::<T>().unwrap()
+		self.deref().as_any().downcast_ref::<T>().unwrap()
 	}
 	
 	pub fn type_str(&self) -> &'static str {
-		self.get().0.type_str()
+		self.value().type_str()
 	}
 	
 	fn get_str(&self) -> Option<&str> {
-		self.get().0.get_str().map(|s| i_promise_this_will_stay_alive(s))
+		self.value().get_str().map(|s| i_promise_this_will_stay_alive(s))
 	}
 	
 	fn get_num(&self) -> Option<f64> {
-		self.get().0.get_num()
+		self.value().get_num()
 	}
 	
 	pub fn is_empty(&self) -> bool {
-		self.get().0.is_empty()
+		self.value().is_empty()
 	}
 	
 	pub fn len(&self) -> usize {
-		self.get().0.len()
+		self.value().len()
 	}
 	
 	pub fn index(&self, k: Val) -> Val {
@@ -154,43 +161,47 @@ impl Val {
 	}
 	
 	fn index_int(&self, k: usize) -> Val {
-		self.get().0.index_int(k)
+		self.value().index_int(k)
 	}
 	
 	pub fn index_str(&self, key: &str) -> Val {
 		let v = self.get();
-		v.0.index_str(key)
+		v.deref().index_str(key)
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
 		// println!("Lookup {:?} in {:?}", key, self);
 		let v = self.get();
-		v.0.lookup(key)
+		v.deref().lookup(key)
 	}
 	
 	fn add(&self, that: Val) -> Val {
-		self.get().0.add(&*that.get().0)
+		self.value().add(that.value())
 	}
 	
 	fn call(&self, arg: Val) -> Val {
-		self.get().0.call(arg)
+		self.value().call(arg)
 	}
 	
 	fn to_slice(&self) -> &[Val] {
-		i_promise_this_will_stay_alive(self.get().0.to_slice())
+		i_promise_this_will_stay_alive(self.value().to_slice())
 	}
 	
 	fn to_string(&self) -> String {
-		self.get().0.to_string()
+		self.value().to_string()
+	}
+	
+	fn to_bool(&self) -> bool {
+		self.value().to_bool()
 	}
 	
 	fn reverse(&self) -> Val {
-		self.get().0.reverse()
+		self.value().reverse()
 	}
 	
 	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
 		let selfr = self.get();
-		let selfp = &*selfr.0 as *const Value;
+		let selfp = selfr.deref() as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 		
@@ -200,13 +211,13 @@ impl Val {
 
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
-		self.get().0.eq(&*that.get().0)
+		self.value().eq(that.value())
 	}
 }
 
 impl fmt::Debug for Val {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		self.0.fmt(f)
+		self.deref().fmt(f)
 	}
 }
 
@@ -223,7 +234,7 @@ impl<'a> Drop for SerializeVal<'a> {
 
 impl<'a> serde::Serialize for SerializeVal<'a> {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
-		self.val.0.serialize(&mut*self.visited.borrow_mut(), s).map_err(unerase)
+		self.val.deref().serialize(&mut*self.visited.borrow_mut(), s).map_err(unerase)
 	}
 }
 
@@ -264,7 +275,7 @@ impl Almost {
 			Almost::Func(ref fd) => func::Func::new(p, fd.clone()),
 			Almost::Index(ref o, ref k) => o.complete(p.clone()).index(k.complete(p)),
 			Almost::List(ref items) => list::List::new(p, items),
-			Almost::Nil => Val::new(nil::Nil),
+			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(ref id) => thunk::Thunk::evaluated(p.lookup(id)),
 			Almost::Str(ref c) => {
@@ -337,7 +348,7 @@ impl fmt::Debug for Almost {
 
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
 	let almost = grammar::parse(doc.chars())?;
-	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(Val::new(nil::Nil))))
+	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(nil::get())))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
@@ -390,6 +401,15 @@ pub fn format_key(s: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	
+	#[test]
+	fn val_is_gc_sized() {
+		// Testing an implementation detail. A value should be one word.
+		// If more falls out of https://github.com/rust-lang/rfcs/issues/1230
+		// we can probably pack more types into the enum safely. Otherwise we
+		// can consider having a pointer and doing the checking ourselves unsafely.
+		assert_eq!(std::mem::size_of::<gc::Gc<Value>>(), std::mem::size_of::<Val>());
+	}
 	
 	#[test]
 	fn list() {

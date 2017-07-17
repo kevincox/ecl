@@ -7,7 +7,6 @@ use std::collections::btree_map::Entry;
 use std::fmt;
 use std::rc::Rc;
 
-use nil;
 use thunk::Thunk;
 
 #[derive(Trace)]
@@ -162,9 +161,9 @@ impl ::Value for Dict {
 			Some(DictVal::Pub(ref v)) => v.clone(),
 			Some(DictVal::Priv(_)) => {
 				println!("WRN: Attempt to access private memeber {:?}", key);
-				::Val::new(nil::Nil)
+				::nil::get()
 			},
-			None => ::Val::new(nil::Nil),
+			None => ::nil::get(),
 		}
 	}
 	
@@ -281,7 +280,7 @@ impl ::Value for ADict {
 		if self.key == key {
 			self.val.clone()
 		} else {
-			::Val::new(nil::Nil)
+			::nil::get()
 		}
 	}
 	

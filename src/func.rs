@@ -58,7 +58,7 @@ impl ::Value for Func {
 					let mut passed_used = 0;
 					for &(ref k, required, ref default) in args {
 						let passed = arg.index_str(&k);
-						if passed != ::Val::new(::nil::Nil) {
+						if passed != ::nil::get() {
 							passed_used += 1;
 							dict._set_val(k.clone(), ::dict::DictVal::Priv(passed));
 						} else if required {

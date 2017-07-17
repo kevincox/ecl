@@ -1,5 +1,13 @@
 extern crate erased_serde;
 
+thread_local! {
+	static TRUE: ::Val = ::Val::new(true);
+	static FALSE: ::Val = ::Val::new(false);
+}
+
+pub fn get_true() -> ::Val { TRUE.with(|t| t.clone()) }
+pub fn get_false() -> ::Val { FALSE.with(|f| f.clone()) }
+
 impl ::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }
 	
@@ -10,6 +18,10 @@ impl ::Value for bool {
 	
 	fn to_string(&self) -> String {
 		ToString::to_string(self)
+	}
+	
+	fn to_bool(&self) -> bool {
+		*self
 	}
 }
 

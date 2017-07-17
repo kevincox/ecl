@@ -15,10 +15,10 @@ struct Empty;
 pub fn get(key: &str) -> ::Val {
 	match key {
 		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
-		"nil" => ::Val::new(nil::Nil),
+		"nil" => nil::get(),
 		"panic" => new("panic", |msg| panic!("Script called panic: {:?}", msg.get())),
-		"true" => ::Val::new(true),
-		"false" => ::Val::new(false),
+		"true" => ::bool::get_true(),
+		"false" => ::bool::get_false(),
 		"cond" => new("if", |v| cond(v.to_slice())),
 		"reverse" => new("reverse", |v| v.reverse()),
 		"_testing_assert_cache_eval" => {
@@ -77,13 +77,13 @@ impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> fmt::Debug for Builtin<D
 
 fn cond(args: &[::Val]) -> ::Val {
 	match *args {
-		[] => ::Val::new(nil::Nil),
+		[] => nil::get(),
 		[ref val] => val.clone(),
 		[ref pred, ref val, ref rest..] => {
-			if *pred == ::Val::new(nil::Nil) || *pred == ::Val::new(false) {
-				cond(rest)
-			} else {
+			if pred.to_bool() {
 				val.clone()
+			} else {
+				cond(rest)
 			}
 		},
 	}
