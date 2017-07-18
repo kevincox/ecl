@@ -9,8 +9,8 @@ use func;
 
 #[derive(Clone,Copy,Debug,PartialEq)]
 pub struct Loc {
-	line: usize,
-	col: usize,
+	pub line: usize,
+	pub col: usize,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -75,6 +75,7 @@ struct Lexer<Input: Iterator<Item=char>> {
 	input: Input,
 	current: Option<char>,
 	state: Vec<usize>,
+	start_loc: Loc,
 	loc: Loc,
 }
 
@@ -87,6 +88,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			input: input,
 			current: None,
 			state: statestack,
+			start_loc: Loc{line: 1, col: 0},
 			loc: Loc{line: 1, col: 0},
 		}
 	}
@@ -125,17 +127,24 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 	
 	fn raw_next(&mut self) -> Option<char> {
 		let next = self.input.next();
-		if next == Some('\n') {
-			self.loc.line += 1;
-			self.loc.col = 1;
-		} else {
-			self.loc.col += 1;
-		}
 		next
 	}
 	
+	fn unexpected(&mut self, c: char) -> Token {
+		self.start_loc = self.loc; // Report the bad char, not the start of the token.
+		Token::Unexpected(c)
+	}
+	
 	fn next(&mut self) -> Option<char> {
-		std::mem::replace(&mut self.current, None).or_else(|| self.raw_next())
+		let next = std::mem::replace(&mut self.current, None).or_else(|| self.raw_next());
+		if next == Some('\n') {
+			self.loc.line += 1;
+			self.loc.col = 0;
+		} else {
+			self.loc.col += 1;
+		}
+		println!("At {:?} got {:?}", self.loc, next);
+		next
 	}
 	
 	fn peek(&mut self) -> Option<char> {
@@ -151,11 +160,13 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 	
 	fn unget(&mut self, c: char) {
 		debug_assert!(self.current.is_none());
+		if c == '\n' { self.loc.line -= 1 } else { self.loc.col -= 1 }
 		self.current = Some(c);
 	}
 	
 	fn next_token(&mut self) -> Option<Token> {
 		self.next().and_then(|c| {
+			self.start_loc = self.loc; // Capture at start.
 			match self.state.last() {
 				Some(&0) => self.lex_str(c),
 				_ => self.lex_code(c),
@@ -240,7 +251,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'a' => bindec(self, 8.673617379884035e-19, 1e-21),
 			'e' => {
 				if base != 10 {
-					return Token::Unexpected('e')
+					return self.unexpected('e')
 				}
 				
 				let sign = match self.next() {
@@ -254,7 +265,10 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			},
 		}.unwrap_or(1.0);
 		
-		if self.next_is_ident() { return Token::Unexpected(self.next().unwrap()) }
+		if self.next_is_ident() {
+			let c = self.next().unwrap();
+			return self.unexpected(c)
+		}
 		
 		Token::Num(n)
 	}
@@ -272,7 +286,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			},
 			'-' => match self.next() {
 				Some('>') => Token::Func,
-				_ => Token::Unexpected('-'),
+				_ => self.unexpected('-'),
 			},
 			'.' => Token::Dot,
 			'{' => {
@@ -359,14 +373,14 @@ impl<Input: Iterator<Item=char>> Iterator for Lexer<Input> {
 	type Item = (Token,Loc);
 	
 	fn next(&mut self) -> Option<Self::Item> {
-		self.next_token().map(|t| (t, self.loc))
+		self.next_token().map(|t| (t, self.start_loc))
 	}
 }
 
 macro_rules! expect_next {
 	{$i:ident : $c:expr, $($($p:pat)|+ => $e:expr),+ $(,)* } => {
 		match $i.next() {
-			$($(Some(($p,_)))|+ => { $e }),+
+			$($(Some($p))|+ => { $e }),+
 			Some((t,l)) => {
 				return Err(ParseError{
 					typ: ErrorType::Unexpected(l, t, &[]),
@@ -406,15 +420,15 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	}
 	
 	
-	fn consume(&mut self, tok: Token) -> bool {
+	fn consume(&mut self, tok: Token) -> Option<Loc> {
 		if let Some(t) = self.next() {
 			if t.0 == tok {
-				return true
+				return Some(t.1)
 			}
 			self.unget(t)
 		}
 		
-		false
+		None
 	}
 	
 	fn document(&mut self) -> ParseResult {
@@ -447,7 +461,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn dict_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
-		while !self.consume(Token::DictClose) {
+		while !self.consume(Token::DictClose).is_some() {
 			items.push(self.dict_item()?);
 		}
 		Ok(::Almost::Dict(items))
@@ -455,11 +469,11 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn dict_item(&mut self) -> Result<dict::AlmostDictElement,ParseError> {
 		let ade = expect_next!{self: "parsing dict element",
-			Token::Ident(s) => {
+			(Token::Ident(s), _) => {
 				if s == "local" {
 					match self.next() {
 						Some((Token::Ident(s),_)) => {
-							expect_next!{self: "parsing local var", Token::Assign => {}};
+							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 							return Ok(dict::AlmostDictElement::Priv(s, Rc::new(self.expr()?)))
 						},
 						Some(t) => self.unget(t),
@@ -468,16 +482,16 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				}
 				
 				let val = expect_next!{self: "parsing dict key",
-					Token::Dot => ::Almost::Dict(vec![self.dict_item()?]),
-					Token::Assign => self.expr()?,
+					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
+					(Token::Assign, _) => self.expr()?,
 				};
 				dict::AlmostDictElement::Known(s, Rc::new(val))
 			},
-			Token::StrOpen => {
+			(Token::StrOpen, _) => {
 				let key = self.string()?;
 				let val = expect_next!{self: "parsing dict key",
-					Token::Dot => ::Almost::Dict(vec![self.dict_item()?]),
-					Token::Assign => self.expr()?,
+					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
+					(Token::Assign, _) => self.expr()?,
 				};
 				dict::AlmostDictElement::Unknown(Rc::new(key), Rc::new(val))
 			},
@@ -488,7 +502,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn list_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
-		while !self.consume(Token::ListClose) {
+		while !self.consume(Token::ListClose).is_some() {
 			items.push(Rc::new(self.expr()?));
 		}
 		Ok(::Almost::List(items))
@@ -501,16 +515,16 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn args(&mut self) -> Result<func::Arg,ParseError> {
 		expect_next!{self: "parsing function argument",
-			Token::Ident(name) => Ok(func::Arg::One(name)),
-			Token::DictOpen => {
+			(Token::Ident(name), _) => Ok(func::Arg::One(name)),
+			(Token::DictOpen, _) => {
 				let mut args = Vec::new();
 				
-				while !self.consume(Token::DictClose) {
+				while !self.consume(Token::DictClose).is_some() {
 					let k = expect_next!{self: "destructure dict key",
-						Token::Ident(k) => k,
+						(Token::Ident(k), _) => k,
 					};
 					
-					if self.consume(Token::Assign) {
+					if let Some(_) = self.consume(Token::Assign) {
 						args.push((k.clone(), false, self.expr()?));
 					} else {
 						args.push((k.clone(), true, ::Almost::Nil));
@@ -545,7 +559,9 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		
 		loop {
 			match self.next() {
-				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.expr_call()?)),
+				Some((Token::Add, l)) => {
+					r = ::Almost::Add(l, Box::new(r), Box::new(self.expr_call()?))
+				},
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
@@ -557,8 +573,8 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	fn expr_call(&mut self) -> ParseResult {
 		let mut r = self.expr_index()?;
 		
-		while self.consume(Token::Call) {
-			r = ::Almost::Call(Box::new(r), Box::new(self.expr_index()?));
+		while let Some(loc) = self.consume(Token::Call) {
+			r = ::Almost::Call(loc, Box::new(r), Box::new(self.expr_index()?));
 		}
 		
 		
@@ -569,12 +585,12 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	fn expr_index(&mut self) -> ParseResult {
 		let mut r = self.atom()?;
 		
-		while self.consume(Token::Dot) {
+		while let Some(loc) = self.consume(Token::Dot) {
 			expect_next!{self: "parsing index",
-				Token::Ident(s) =>
-					r = ::Almost::Index(Box::new(r), Box::new(::Almost::StrStatic(s))),
-				Token::StrOpen =>
-					r = ::Almost::Index(Box::new(r), Box::new(self.string()?)),
+				(Token::Ident(s), _) =>
+					r = ::Almost::Index(loc, Box::new(r), Box::new(::Almost::StrStatic(s))),
+				(Token::StrOpen, _) =>
+					r = ::Almost::Index(loc, Box::new(r), Box::new(self.string()?)),
 			}
 		}
 		
@@ -583,17 +599,17 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 	
 	fn atom(&mut self) -> ParseResult {
 		expect_next!{self: "parsing atom",
-			Token::DictOpen => self.dict_items(),
-			Token::Func => self.func(),
-			Token::Ident(s) => Ok(::Almost::Ref(s)),
-			Token::ListOpen => self.list_items(),
-			Token::Num(n) => Ok(::Almost::Num(n)),
-			Token::ParenOpen => {
+			(Token::DictOpen, _) => self.dict_items(),
+			(Token::Func, _) => self.func(),
+			(Token::Ident(s), loc) => Ok(::Almost::Ref(loc, s)),
+			(Token::ListOpen, _) => self.list_items(),
+			(Token::Num(n), _) => Ok(::Almost::Num(n)),
+			(Token::ParenOpen, _) => {
 				let e = self.expr()?;
-				expect_next!{self: "closing bracket", Token::ParenClose => {}};
+				expect_next!{self: "closing bracket", (Token::ParenClose, _) => {}};
 				Ok(e)
 			},
-			Token::StrOpen => self.string(),
+			(Token::StrOpen, _) => self.string(),
 		}
 	}
 	
@@ -621,7 +637,7 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 
 pub fn parse<Input: Iterator<Item=char>>(input: Input) -> ParseResult {
 	let lexer = Lexer::new(input);
-	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
 	Parser{input: lexer, current: None}.document()
 }
 

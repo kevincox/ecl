@@ -50,7 +50,8 @@ impl Thunk {
 		let state = mem::replace(&mut*self.0.borrow_mut(), State::Working);
 		let (refs, code) = match state {
 			State::Val(_) => unreachable!(),
-			State::Working => unreachable!(),
+			State::Working =>
+				return ::err::Err::new("Dependency cycle detected.".to_owned()),
 			State::Code(refs, code) => (refs, code),
 		};
 		let v = code(refs);

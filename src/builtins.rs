@@ -30,7 +30,7 @@ pub fn get(key: &str) -> ::Val {
 			};
 			new("_testing_assert_eval_once", func)
 		},
-		other => panic!("Undefined variable {:?}", other),
+		other => ::err::Err::new(format!("Undefined variable {:?}", other)),
 	}
 }
 

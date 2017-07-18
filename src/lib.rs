@@ -2,6 +2,7 @@
 #![feature(fnbox)]
 #![feature(plugin)]
 #![feature(proc_macro)]
+#![feature(question_mark_carrier)]
 #![feature(slice_patterns)]
 #![feature(stmt_expr_attributes)]
 
@@ -20,6 +21,7 @@ use std::rc;
 
 mod builtins;
 mod bool;
+mod err;
 mod dict;
 mod func;
 pub mod grammar;
@@ -37,6 +39,7 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn get(&self) -> Option<Val> { None }
 	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
+	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
@@ -69,10 +72,10 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 	fn as_any(&self) -> &any::Any { self }
 	
 	fn add(&self, that: &Value) -> Val {
-		if that.type_str() as *const str == that.type_str() as *const str {
-			SameOps::add(self, unsafe { *mem::transmute::<&&Value, &&T>(&that) })
+		if self.type_str() as *const str == that.type_str() as *const str {
+			SameOps::add(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
-			panic!("Can't add {:?} and {:?}", self, that)
+			err::Err::new(format!("Can't add {:?} and {:?}", self, that))
 		}
 	}
 	
@@ -100,19 +103,7 @@ impl Val {
 		// println!("getting {:?}", self.0.type_str());
 		let mut v = self.clone();
 		
-		let mut iterations = 0; // Delay cycle checking for performance.
-		let mut visited = Vec::new(); // Track visited items.
-		
 		while let Some(ref vn) = Value::get(v.deref()) {
-			iterations += 1;
-			if iterations > 100 {
-				let vn_ptr = vn.deref() as *const Value;
-				if visited.contains(&vn_ptr) {
-					panic!("Dependency cycle detected.");
-				}
-				visited.push(vn_ptr);
-			}
-			
 			v = vn.clone();
 		}
 		// println!("got {:?}", v);
@@ -120,83 +111,93 @@ impl Val {
 		v
 	}
 	
-	fn value(&self) -> &Value { i_promise_this_will_stay_alive(self.get().deref()) }
+	fn value(&self) -> Result<&Value,Val> {
+		Ok(i_promise_this_will_stay_alive(self.get()?.deref()))
+	}
 	
 	fn deref(&self) -> &Value { &*self.0 }
+	
+	fn annotate(&self, loc: grammar::Loc, msg: &str) -> Val {
+		let v = self.get();
+		if v.is_err() {
+			err::Err::new_from(v, loc, msg.to_owned())
+		} else {
+			v
+		}
+	}
 	
 	fn downcast_ref<T: 'static>(&self) -> &T {
 		self.deref().as_any().downcast_ref::<T>().unwrap()
 	}
 	
 	pub fn type_str(&self) -> &'static str {
-		self.value().type_str()
+		self.value().unwrap().type_str()
 	}
 	
-	fn get_str(&self) -> Option<&str> {
-		self.value().get_str().map(|s| i_promise_this_will_stay_alive(s))
-	}
-	
-	fn get_num(&self) -> Option<f64> {
-		self.value().get_num()
+	pub fn get_num(&self) -> Option<f64> {
+		self.value().unwrap().get_num()
 	}
 	
 	pub fn is_empty(&self) -> bool {
-		self.value().is_empty()
+		self.value().unwrap().is_empty()
+	}
+	
+	pub fn is_err(&self) -> bool {
+		self.get().deref().is_err()
 	}
 	
 	pub fn len(&self) -> usize {
-		self.value().len()
+		self.value().unwrap().len()
 	}
 	
 	pub fn index(&self, k: Val) -> Val {
-		let k = k.get();
+		let this = self.value()?;
+		let k = k.value()?;
 		
 		if let Some(s) = k.get_str() {
-			self.index_str(s)
+			this.index_str(s)
 		} else if let Some(n) = k.get_num() {
-			self.index_int(n as usize)
+			this.index_int(n as usize)
 		} else {
 			panic!("Can't index with a {:?}", k)
 		}
 	}
 	
-	fn index_int(&self, k: usize) -> Val {
-		self.value().index_int(k)
+	pub fn index_int(&self, k: usize) -> Val {
+		self.value().unwrap().index_int(k)
 	}
 	
 	pub fn index_str(&self, key: &str) -> Val {
-		let v = self.get();
-		v.deref().index_str(key)
+		self.value().unwrap().index_str(key)
 	}
 	
 	fn lookup(&self, key: &str) -> Val {
 		// println!("Lookup {:?} in {:?}", key, self);
-		let v = self.get();
-		v.deref().lookup(key)
+		self.value()?.lookup(key)
 	}
 	
 	fn add(&self, that: Val) -> Val {
-		self.value().add(that.value())
+		self.value()?.add(that.value()?)
 	}
 	
 	fn call(&self, arg: Val) -> Val {
-		self.value().call(arg)
+		self.value().unwrap().call(arg)
 	}
 	
 	fn to_slice(&self) -> &[Val] {
-		i_promise_this_will_stay_alive(self.value().to_slice())
+		i_promise_this_will_stay_alive(self.value().unwrap().to_slice())
 	}
 	
 	fn to_string(&self) -> String {
-		self.value().to_string()
+		self.value().unwrap().to_string()
 	}
 	
 	fn to_bool(&self) -> bool {
-		self.value().to_bool()
+		self.value().unwrap().to_bool()
 	}
 	
 	fn reverse(&self) -> Val {
-		self.value().reverse()
+		self.value()?.reverse()
 	}
 	
 	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
@@ -211,13 +212,25 @@ impl Val {
 
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
-		self.value().eq(that.value())
+		self.value().unwrap().eq(that.value().unwrap())
 	}
 }
 
 impl fmt::Debug for Val {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		self.deref().fmt(f)
+	}
+}
+
+impl std::ops::Carrier for Val {
+	type Success = Self;
+	type Error = Self;
+	
+	fn from_success(v: Self::Success) -> Self { v }
+	fn from_error(v: Self::Error) -> Self { v }
+	fn translate<T: std::ops::Carrier<Success=Val,Error=Val>>(self) -> T {
+		let val = self.get();
+		if val.deref().is_err() { T::from_error(val) } else { T::from_success(val) }
 	}
 }
 
@@ -252,15 +265,15 @@ impl serde::Serialize for Val {
 
 pub enum Almost {
 	Dict(Vec<dict::AlmostDictElement>),
-	Add(Box<Almost>, Box<Almost>),
-	Call(Box<Almost>, Box<Almost>),
+	Add(grammar::Loc, Box<Almost>, Box<Almost>),
+	Call(grammar::Loc, Box<Almost>, Box<Almost>),
 	Eq(Box<Almost>, Box<Almost>),
 	Func(rc::Rc<func::FuncData>),
-	Index(Box<Almost>, Box<Almost>),
+	Index(grammar::Loc, Box<Almost>, Box<Almost>),
 	List(Vec<rc::Rc<Almost>>),
 	Nil,
 	Num(f64),
-	Ref(String),
+	Ref(grammar::Loc, String),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
@@ -268,16 +281,30 @@ pub enum Almost {
 impl Almost {
 	fn complete(&self, p: Val) -> Val {
 		match *self {
-			Almost::Add(ref l, ref r) => l.complete(p.clone()).add(r.complete(p)),
+			Almost::Add(loc, ref l, ref r) => {
+				let l = l.complete(p.clone()).annotate(loc, "Left side of add")?;
+				let r = r.complete(p).annotate(loc, "Right side of add")?;
+				l.add(r)
+			}
 			Almost::Dict(ref items) => dict::Dict::new(p, &items),
-			Almost::Call(ref f, ref a) => f.complete(p.clone()).call(a.complete(p)),
+			Almost::Call(loc, ref f, ref a) => {
+				let f = f.complete(p.clone()).annotate(loc, "Calling error as function")?;
+				// Note, allow calling function with an error.
+				f.call(a.complete(p))
+			},
 			Almost::Eq(ref l, ref r) => Val::new(l.complete(p.clone()) == r.complete(p)),
 			Almost::Func(ref fd) => func::Func::new(p, fd.clone()),
-			Almost::Index(ref o, ref k) => o.complete(p.clone()).index(k.complete(p)),
+			Almost::Index(loc, ref o, ref k) => {
+				let o = o.complete(p.clone()).annotate(loc, "Indexing error")?;
+				let k = k.complete(p).annotate(loc, "Indexing with error as key")?;
+				o.index(k).annotate(loc, "Error returned from index")
+			},
 			Almost::List(ref items) => list::List::new(p, items),
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
-			Almost::Ref(ref id) => thunk::Thunk::evaluated(p.lookup(id)),
+			Almost::Ref(loc, ref id) =>
+				thunk::Thunk::evaluated(
+					p.lookup(id).annotate(loc, "Error value referenced")),
 			Almost::Str(ref c) => {
 				let mut r = String::new();
 				for part in c {
@@ -306,7 +333,7 @@ impl Almost {
 impl fmt::Debug for Almost {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Almost::Add(ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
+			Almost::Add(_, ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "{{"));
 				for i in &**items {
@@ -314,10 +341,10 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, "}}")
 			},
-			Almost::Call(ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
+			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
 			Almost::Func(ref fd) => write!(f, "(->{:?} {:?})", fd.arg, fd.body),
-			Almost::Index(ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
+			Almost::Index(_, ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
 			Almost::List(ref items) => {
 				writeln!(f, "[")?;
 				for item in items {
@@ -327,7 +354,7 @@ impl fmt::Debug for Almost {
 			},
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
-			Almost::Ref(ref id) => write!(f, "Ref({})", format_key(id)),
+			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "\""));
 				for part in parts {
