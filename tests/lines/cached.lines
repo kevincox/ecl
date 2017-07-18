@@ -4,6 +4,11 @@ add.1	NUM	13
 add.2	NUM	13
 add.3	NUM	13
 add	LIST	]
+arg-twice	LIST	[
+arg-twice.1	NUM	2
+arg-twice.2	NUM	2
+arg-twice.3	NUM	2
+arg-twice	LIST	]
 plain	LIST	[
 plain.1	NUM	5
 plain.2	NUM	5
