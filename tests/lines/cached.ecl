@@ -1,7 +1,7 @@
 local func = ->{a=_testing_assert_cache_eval:1 b} _testing_assert_cache_eval:(a + b)
 local func-twice = ->{a=_testing_assert_cache_eval:1} a + a
 local dict = {
-	add =  (_testing_assert_cache_eval:6) + (_testing_assert_cache_eval:7)
+	add =  _testing_assert_cache_eval:6 + _testing_assert_cache_eval:7
 	arg-twice = func-twice:{}
 	plain = _testing_assert_cache_eval: 5
 }

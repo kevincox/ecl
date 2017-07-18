@@ -494,28 +494,6 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 		Ok(::Almost::List(items))
 	}
 	
-	fn expr(&mut self) -> ParseResult {
-		let mut r = self.atom()?;
-		
-		loop {
-			match self.next() {
-				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.atom()?)),
-				Some((Token::Call, _)) => r = ::Almost::Call(Box::new(r), Box::new(self.atom()?)),
-				Some((Token::Dot, _)) => expect_next!{self: "parsing index",
-					Token::Ident(s) =>
-						r = ::Almost::Index(Box::new(r), Box::new(::Almost::StrStatic(s))),
-					Token::StrOpen =>
-						r = ::Almost::Index(Box::new(r), Box::new(self.string()?)),
-				},
-				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.atom()?)),
-				Some(other) => { self.unget(other); break },
-				None => break,
-			}
-		}
-		
-		Ok(r)
-	}
-	
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
 		Ok(::Almost::Func(Rc::new(func::FuncData{arg: args, body: self.expr()?})))
@@ -542,6 +520,65 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				Ok(func::Arg::Dict(args))
 			},
 		}
+	}
+	
+	fn expr(&mut self) -> ParseResult {
+		self.expr_eq()
+	}
+	
+	fn expr_eq(&mut self) -> ParseResult {
+		let mut r = self.expr_ops()?;
+		
+		loop {
+			match self.next() {
+				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some(other) => { self.unget(other); break },
+				None => break,
+			}
+		}
+		
+		Ok(r)
+	}
+	
+	fn expr_ops(&mut self) -> ParseResult {
+		let mut r = self.expr_call()?;
+		
+		loop {
+			match self.next() {
+				Some((Token::Add, _)) => r = ::Almost::Add(Box::new(r), Box::new(self.expr_call()?)),
+				Some(other) => { self.unget(other); break },
+				None => break,
+			}
+		}
+		
+		Ok(r)
+	}
+	
+	fn expr_call(&mut self) -> ParseResult {
+		let mut r = self.expr_index()?;
+		
+		while self.consume(Token::Call) {
+			r = ::Almost::Call(Box::new(r), Box::new(self.expr_index()?));
+		}
+		
+		
+		Ok(r)
+	}
+	
+	
+	fn expr_index(&mut self) -> ParseResult {
+		let mut r = self.atom()?;
+		
+		while self.consume(Token::Dot) {
+			expect_next!{self: "parsing index",
+				Token::Ident(s) =>
+					r = ::Almost::Index(Box::new(r), Box::new(::Almost::StrStatic(s))),
+				Token::StrOpen =>
+					r = ::Almost::Index(Box::new(r), Box::new(self.string()?)),
+			}
+		}
+		
+		Ok(r)
 	}
 	
 	fn atom(&mut self) -> ParseResult {
