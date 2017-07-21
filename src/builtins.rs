@@ -106,7 +106,7 @@ mod tests {
 	#[test]
 	#[should_panic(expected="Baby\\'s first error")]
 	fn panic() {
-		let v = ::parse(r###"
+		let v = ::parse("<str>", r###"
 			{
 				local msg = "Baby's first" + " error"
 				boom = panic:msg

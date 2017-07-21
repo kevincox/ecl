@@ -386,7 +386,8 @@ impl fmt::Debug for Almost {
 	}
 }
 
-pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
+pub fn parse(source: &str, doc: &str) -> Result<Val, grammar::ParseError> {
+	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	let almost = grammar::parse("", doc.chars())?;
 	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(nil::get())))
 }
@@ -473,27 +474,27 @@ mod tests {
 	
 	#[test]
 	fn list() {
-		assert!(parse("[]").unwrap().is_empty());
-		let v = parse("[0d29 0b1.1]").unwrap();
+		assert!(parse("<str>", "[]").unwrap().is_empty());
+		let v = parse("<str>", "[0d29 0b1.1]").unwrap();
 		assert_eq!(v.index_int(0), Val::new(29.0));
 		assert_eq!(v.index_int(1), Val::new(1.5));
 	}
 	
 	#[test]
 	fn ident() {
-		assert_eq!(parse("{b = 4}.b").unwrap(), Val::new(4.0));
+		assert_eq!(parse("<str>","{b = 4}.b").unwrap(), Val::new(4.0));
 	}
 	
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion() {
-		parse("{b = b}").unwrap().index_str("b").get_num();
+		parse("<str>" ,"{b = b}").unwrap().index_str("b").get_num();
 	}
 	
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion_multi_step() {
-		parse("{
+		parse("<str>", "{
 			a = b
 			b = c
 			c = d

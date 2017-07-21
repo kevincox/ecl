@@ -17,7 +17,6 @@ pub struct Loc {
 pub enum StrType {
 	String,
 	Relative,
-	Absolute
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -736,35 +735,35 @@ mod tests {
 	
 	#[test]
 	fn num_decimal() {
-		assert_eq!(::parse("(10)"), Ok(::Val::new(10.0)));
-		assert_eq!(::parse("(0d10)"), Ok(::Val::new(10.0)));
-		assert_eq!(::parse("(10.4)"), Ok(::Val::new(10.4)));
-		assert_eq!(::parse("(10.4e6)"), Ok(::Val::new(10400000.0)));
-		assert_eq!(::parse("(10.4e+6)"), Ok(::Val::new(10400000.0)));
-		assert_eq!(::parse("(10.4e-6)"), Ok(::Val::new(0.0000104)));
-		assert_eq!(::parse("(104_000__000_e-6_)"), Ok(::Val::new(104.0)));
-		assert_eq!(::parse("(1M)"), Ok(::Val::new(1_000_000.0)));
-		assert_eq!(::parse("(1ki)"), Ok(::Val::new(1024.0)));
-		assert_eq!(::parse("(4u)"), Ok(::Val::new(0.000_004)));
+		assert_eq!(::parse("<str>", "(10)"), Ok(::Val::new(10.0)));
+		assert_eq!(::parse("<str>", "(0d10)"), Ok(::Val::new(10.0)));
+		assert_eq!(::parse("<str>", "(10.4)"), Ok(::Val::new(10.4)));
+		assert_eq!(::parse("<str>", "(10.4e6)"), Ok(::Val::new(10400000.0)));
+		assert_eq!(::parse("<str>", "(10.4e+6)"), Ok(::Val::new(10400000.0)));
+		assert_eq!(::parse("<str>", "(10.4e-6)"), Ok(::Val::new(0.0000104)));
+		assert_eq!(::parse("<str>", "(104_000__000_e-6_)"), Ok(::Val::new(104.0)));
+		assert_eq!(::parse("<str>", "(1M)"), Ok(::Val::new(1_000_000.0)));
+		assert_eq!(::parse("<str>", "(1ki)"), Ok(::Val::new(1024.0)));
+		assert_eq!(::parse("<str>", "(4u)"), Ok(::Val::new(0.000_004)));
 	}
 	
 	#[test]
 	fn num_binary() {
-		assert_eq!(::parse("(0b10)"), Ok(::Val::new(2.0)));
-		assert_eq!(::parse("(0b10.1)"), Ok(::Val::new(2.5)));
-		assert_eq!(::parse("(0b10.1e6)"), Err(ParseError{
+		assert_eq!(::parse("<str>", "(0b10)"), Ok(::Val::new(2.0)));
+		assert_eq!(::parse("<str>", "(0b10.1)"), Ok(::Val::new(2.5)));
+		assert_eq!(::parse("<str>", "(0b10.1e6)"), Err(ParseError{
 			typ: ErrorType::Unexpected(
 				Loc{line: 1, col: 8}, Token::Unexpected('e'), &[]),
 			msg: "parsing atom",
 		}));
-		assert_eq!(::parse("(0b1M)"), Ok(::Val::new(1_000_000.0)));
-		assert_eq!(::parse("(0b1u)"), Ok(::Val::new(0.000_001)));
+		assert_eq!(::parse("<str>", "(0b1M)"), Ok(::Val::new(1_000_000.0)));
+		assert_eq!(::parse("<str>", "(0b1u)"), Ok(::Val::new(0.000_001)));
 	}
 	
 	#[test]
 	fn num_hex() {
-		assert_eq!(::parse("(0x10)"), Ok(::Val::new(16.0)));
-		assert_eq!(::parse("(0x8.8)"), Ok(::Val::new(8.5)));
-		assert_eq!(::parse("(0x00.1)"), Ok(::Val::new(0.0625)));
+		assert_eq!(::parse("<str>", "(0x10)"), Ok(::Val::new(16.0)));
+		assert_eq!(::parse("<str>", "(0x8.8)"), Ok(::Val::new(8.5)));
+		assert_eq!(::parse("<str>", "(0x00.1)"), Ok(::Val::new(0.0625)));
 	}
 }
