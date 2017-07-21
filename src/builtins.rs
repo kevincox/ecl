@@ -14,13 +14,22 @@ struct Empty;
 
 pub fn get(key: &str) -> ::Val {
 	match key {
+		"cond" => new("if", |v| cond(v.to_slice())),
 		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
+		"load" => new("load", |path| {
+			if path.is_err() { return path }
+			match path.get_str() {
+				Ok(s) => ::parse_file(s),
+				Err(e) => ::err::Err::new_from(e,
+					::grammar::Loc{line:0, col: 0},
+					format!("load expects string argument, got {:?}", path)),
+			}
+		}),
 		"nil" => nil::get(),
+		"reverse" => new("reverse", |v| v.reverse()),
 		"panic" => new("panic", |msg| panic!("Script called panic: {:?}", msg.get())),
 		"true" => ::bool::get_true(),
 		"false" => ::bool::get_false(),
-		"cond" => new("if", |v| cond(v.to_slice())),
-		"reverse" => new("reverse", |v| v.reverse()),
 		"_testing_assert_cache_eval" => {
 			let unevaluated = Cell::new(true);
 			let func = move |r| {
@@ -56,8 +65,8 @@ impl<
 	D: PartialEq + gc::Trace + 'static,
 	F: Fn(&D, ::Val) -> ::Val + 'static>
 ::SameOps for Builtin<D, F> {
-	fn eq(&self, that: &Self) -> bool {
-		self.name as *const str == that.name as *const str && self.data == that.data
+	fn eq(&self, that: &Self) -> ::Val {
+		::bool::get(self.name as *const str == that.name as *const str && self.data == that.data)
 	}
 }
 

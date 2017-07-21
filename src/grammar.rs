@@ -14,6 +14,13 @@ pub struct Loc {
 }
 
 #[derive(Clone,Debug,PartialEq)]
+pub enum StrType {
+	String,
+	Relative,
+	Absolute
+}
+
+#[derive(Clone,Debug,PartialEq)]
 pub enum Token {
 	Add,
 	Assign,
@@ -29,7 +36,7 @@ pub enum Token {
 	Num(f64),
 	ParenOpen,
 	ParenClose,
-	StrOpen,
+	StrOpen(StrType),
 	StrChunk(String),
 	StrClose,
 	Unexpected(char),
@@ -71,10 +78,17 @@ macro_rules! if_next {
 	}
 }
 
+#[derive(Debug,PartialEq)]
+enum LexerMode {
+	Code(usize),
+	String,
+	Path,
+}
+
 struct Lexer<Input: Iterator<Item=char>> {
 	input: Input,
 	current: Option<char>,
-	state: Vec<usize>,
+	state: Vec<LexerMode>,
 	start_loc: Loc,
 	loc: Loc,
 }
@@ -82,7 +96,7 @@ struct Lexer<Input: Iterator<Item=char>> {
 impl<Input: Iterator<Item=char>> Lexer<Input> {
 	fn new(input: Input) -> Self {
 		let mut statestack = Vec::with_capacity(2);
-		statestack.push(1);
+		statestack.push(LexerMode::Code(2));
 		
 		Lexer {
 			input: input,
@@ -143,7 +157,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		} else {
 			self.loc.col += 1;
 		}
-		println!("At {:?} got {:?}", self.loc, next);
+		// println!("At {:?} got {:?}", self.loc, next);
 		next
 	}
 	
@@ -167,9 +181,10 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 	fn next_token(&mut self) -> Option<Token> {
 		self.next().and_then(|c| {
 			self.start_loc = self.loc; // Capture at start.
-			match self.state.last() {
-				Some(&0) => self.lex_str(c),
-				_ => self.lex_code(c),
+			match self.state.last().unwrap() {
+				&LexerMode::Code(_) => self.lex_code(c),
+				&LexerMode::Path => Some(self.lex_path(c)),
+				&LexerMode::String => Some(self.lex_str(c)),
 			}
 		})
 	}
@@ -288,26 +303,43 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				Some('>') => Token::Func,
 				_ => self.unexpected('-'),
 			},
-			'.' => Token::Dot,
+			'.' => match self.next() {
+				Some('/') => {
+					self.state.push(LexerMode::Path);
+					Token::StrOpen(StrType::Relative)
+				},
+				Some(c) => { self.unget(c); Token::Dot },
+				None => Token::Assign,
+			},
 			'{' => {
-				self.state.last_mut().map(|depth| *depth += 1).unwrap();
+				match self.state.last_mut() {
+					Some(&mut LexerMode::Code(ref mut depth)) => *depth += 1,
+					other => unreachable!("Unexpected mode {:?}", other)
+				};
 				Token::DictOpen
 			},
 			'}' => {
-				let endofiterpolation = self.state.last_mut().map(|depth| {
-					*depth -= 1;
-					*depth == 0
-				}).unwrap();
-				if endofiterpolation { return self.next_token() }
-				Token::DictClose
+				let depth = match self.state.last_mut() {
+					Some(&mut LexerMode::Code(ref mut depth)) => {
+						*depth -= 1;
+						*depth
+					},
+					other => unreachable!("Unexpected mode {:?}", other),
+				};
+				if depth == 0 {
+					self.state.pop();
+					return self.next_token()
+				} else {
+					Token::DictClose
+				}
 			},
 			'[' => Token::ListOpen,
 			']' => Token::ListClose,
 			'(' => Token::ParenOpen,
 			')' => Token::ParenClose,
 			'"' => {
-				self.state.push(0);
-				Token::StrOpen
+				self.state.push(LexerMode::String);
+				Token::StrOpen(StrType::String)
 			},
 			'#' => {
 				while let Some(c) = self.next() {
@@ -320,26 +352,28 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		})
 	}
 	
-	fn lex_str(&mut self, c: char) -> Option<Token> {
+	fn lex_interpolation(&mut self) -> Token {
+		match self.next() {
+			Some('{') => {
+				if let Some(c) = self.next() {
+					self.state.push(LexerMode::Code(1));
+					return self.lex_code(c).unwrap_or(Token::Unfinished);
+				}
+				return Token::Unfinished
+			},
+			Some(c) => return self.ident(c),
+			None => return Token::Unfinished,
+		}
+	}
+	
+	fn lex_str(&mut self, c: char) -> Token {
 		match c {
 			'"' => {
-				self.state.pop();
-				return Some(Token::StrClose)
+				let old = self.state.pop();
+				debug_assert_eq!(old, Some(LexerMode::String));
+				return Token::StrClose
 			},
-			'$' => {
-				match self.next() {
-					Some('{') => {
-						debug_assert!(self.state.last() == Some(&0));
-						if let Some(c) = self.next() {
-							self.state.last_mut().map(|s| *s = 1);
-							return self.lex_code(c)
-						}
-						return Some(Token::Unfinished)
-					},
-					Some(c) => return Some(self.ident(c)),
-					None => return Some(Token::Unfinished),
-				}
-			},
+			'$' => return self.lex_interpolation(),
 			c => self.unget(c),
 		}
 		
@@ -358,14 +392,45 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 					Some(c@'0'...'9') =>
 						panic!("Unknown escape sequence \"\\{}\"", c),
 					Some(c) => s.push(c),
-					None => return None,
+					None => return Token::Unfinished,
 				},
 				Some(c) => s.push(c),
-				None => return Some(Token::Unfinished),
+				None => return Token::Unfinished,
 			}
 		}
 		
-		Some(Token::StrChunk(s))
+		Token::StrChunk(s)
+	}
+	
+	fn lex_path(&mut self, c: char) -> Token {
+		match c {
+			'$' => return self.lex_interpolation(),
+			c => self.unget(c),
+		}
+		
+		let mut s = String::new();
+		
+		loop {
+			match self.next() {
+				Some('$') => { self.unget('$'); break },
+				Some(c@'/') | Some(c@'.') => s.push(c),
+				Some(c) if Self::ident_char(c) => s.push(c),
+				Some(c) => { self.unget(c); break },
+				None => {
+					self.unget(' '); // Hack to close path.
+					break
+				},
+			}
+		}
+		
+		if s.is_empty() {
+			let old = self.state.pop();
+			debug_assert_eq!(old, Some(LexerMode::Path));
+			Token::StrClose
+		} else {
+			Token::StrChunk(s)
+		}
+		
 	}
 }
 
@@ -397,12 +462,25 @@ macro_rules! expect_next {
 	}
 }
 
-struct Parser<Input: Iterator<Item=(Token,Loc)>> {
+struct Parser<'a, Input: Iterator<Item=(Token,Loc)>> {
 	input: Input,
 	current: Option<(Token,Loc)>,
+	// file: &'a str,
+	directory: &'a str,
 }
 
-impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
+impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
+	fn new(path: &'a str, input: Input) -> Self {
+		let last_slash = path.rfind('/').map(|i| i + 1).unwrap_or(0);
+		
+		Parser{
+			// file: path,
+			directory: &path[0..last_slash],
+			input: input,
+			current: None,
+		}
+	}
+	
 	fn next(&mut self) -> Option<(Token,Loc)> {
 		std::mem::replace(&mut self.current, None).or_else(|| self.input.next())
 	}
@@ -487,8 +565,8 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				};
 				dict::AlmostDictElement::Known(s, Rc::new(val))
 			},
-			(Token::StrOpen, _) => {
-				let key = self.string()?;
+			(Token::StrOpen(t), _) => {
+				let key = self.string(t)?;
 				let val = expect_next!{self: "parsing dict key",
 					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
 					(Token::Assign, _) => self.expr()?,
@@ -589,8 +667,8 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 			expect_next!{self: "parsing index",
 				(Token::Ident(s), _) =>
 					r = ::Almost::Index(loc, Box::new(r), Box::new(::Almost::StrStatic(s))),
-				(Token::StrOpen, _) =>
-					r = ::Almost::Index(loc, Box::new(r), Box::new(self.string()?)),
+				(Token::StrOpen(t), _) =>
+					r = ::Almost::Index(loc, Box::new(r), Box::new(self.string(t)?)),
 			}
 		}
 		
@@ -609,12 +687,22 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				expect_next!{self: "closing bracket", (Token::ParenClose, _) => {}};
 				Ok(e)
 			},
-			(Token::StrOpen, _) => self.string(),
+			(Token::StrOpen(t), _) => self.string(t),
 		}
 	}
 	
-	fn string(&mut self) -> ParseResult {
+	fn string(&mut self, typ: StrType) -> ParseResult {
 		let mut pieces = vec![];
+		
+		match typ {
+			StrType::Relative => {
+				pieces.push(::StringPart::Lit(self.directory.to_owned()))
+			},
+			_ => {},
+		}
+		
+		// println!("Pieces: {:?}", pieces);
+		
 		loop {
 			match self.next() {
 				Some((Token::StrChunk(s), _)) => pieces.push(::StringPart::Lit(s)),
@@ -631,14 +719,15 @@ impl<Input: Iterator<Item=(Token,Loc)>> Parser<Input> {
 				},
 			}
 		}
+		
 		Ok(::Almost::Str(pieces))
 	}
 }
 
-pub fn parse<Input: Iterator<Item=char>>(input: Input) -> ParseResult {
+pub fn parse<Input: Iterator<Item=char>>(file: &str, input: Input) -> ParseResult {
 	let lexer = Lexer::new(input);
-	let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
-	Parser{input: lexer, current: None}.document()
+	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	Parser::new(file, lexer).document()
 }
 
 #[cfg(test)]

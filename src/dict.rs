@@ -75,14 +75,14 @@ impl Dict {
 			None => return None,
 		};
 		
-		let strkey = k.to_string();
+		let strkey = k.to_string().get_str().unwrap().to_owned();
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.entry(strkey) {
 			Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
 			Entry::Vacant(e) => { e.insert(v.clone()); },
 		};
 		
-		Some((k.to_string(), v.clone()))
+		Some((k.to_string().get_str().unwrap().to_owned(), v.clone()))
 	}
 	
 	fn eval(&self) {

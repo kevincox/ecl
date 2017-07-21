@@ -1,5 +1,6 @@
 #![feature(drop_types_in_const)]
 #![feature(fnbox)]
+#![feature(io)]
 #![feature(plugin)]
 #![feature(proc_macro)]
 #![feature(question_mark_carrier)]
@@ -16,6 +17,7 @@ extern crate serde;
 use std::any;
 use std::cell::{RefCell};
 use std::fmt;
+use std::io::Read;
 use std::mem;
 use std::rc;
 
@@ -37,35 +39,36 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 }
 
 pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
+	fn type_str(&self) -> &'static str;
+	
 	fn get(&self) -> Option<Val> { None }
-	fn type_str(&self) -> &'static str { panic!("Unknown type str for {:?}", self) }
 	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
-	fn index_int(&self, _k: usize) -> Val { panic!("Can't index {:?} with an int", self) }
-	fn index_str(&self, _k: &str) -> Val { panic!("Can't index {:?} with string", self) }
-	fn lookup(&self, _key: &str) -> Val { panic!("Can't lookup in {:?}", self) }
+	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
+	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
+	fn lookup(&self, _key: &str) -> Val { err::Err::new(format!("Can't lookup in {:?}", self)) }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
 	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
-	fn to_string(&self) -> String { panic!("Can't turn {:?} into a string", self) }
+	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
-	fn call(&self, _arg: Val) -> Val { panic!("Can't call {:?}", self) }
-	fn reverse(&self) -> Val { panic!("Can't reverse {:?}", self) }
+	fn call(&self, _arg: Val) -> Val { err::Err::new(format!("Can't call {:?}", self)) }
+	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
 pub trait SameOps: fmt::Debug {
-	fn add(&self, that: &Self) -> Val { panic!("Can't add {:?} and {:?}", self, that) }
-	fn eq(&self, that: &Self) -> bool { panic!("Can't compare {:?} and {:?}", self, that) }
+	fn add(&self, that: &Self) -> Val { err::Err::new(format!("Can't add {:?} and {:?}", self, that)) }
+	fn eq(&self, that: &Self) -> Val { err::Err::new(format!("Can't compare {:?} and {:?}", self, that)) }
 }
 
 pub trait SameOpsTrait {
 	fn as_any(&self) -> &any::Any;
 	
 	fn add(&self, that: &Value) -> Val;
-	fn eq(&self, that: &Value) -> bool;
+	fn eq(&self, that: &Value) -> Val;
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
@@ -79,11 +82,11 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		}
 	}
 	
-	fn eq(&self, that: &Value) -> bool {
+	fn eq(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
-			false
+			bool::get_false()
 		}
 	}
 }
@@ -184,12 +187,21 @@ impl Val {
 		self.value().unwrap().call(arg)
 	}
 	
+	fn get_str(&self) -> Result<&str,Val> {
+		let v = self.get()?;
+		v.deref().get_str()
+			.map(|r| i_promise_this_will_stay_alive(r))
+			.ok_or_else(|| err::Err::new(format!("Attempt to treat {:?} as a string", v)))
+	}
+	
 	fn to_slice(&self) -> &[Val] {
 		i_promise_this_will_stay_alive(self.value().unwrap().to_slice())
 	}
 	
-	fn to_string(&self) -> String {
-		self.value().unwrap().to_string()
+	fn to_string(&self) -> Val {
+		let v = self.value()?;
+		if v.type_str() == "string" { return self.clone() }
+		v.to_string()
 	}
 	
 	fn to_bool(&self) -> bool {
@@ -212,7 +224,7 @@ impl Val {
 
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
-		self.value().unwrap().eq(that.value().unwrap())
+		self.value().unwrap().eq(that.value().unwrap()).to_bool()
 	}
 }
 
@@ -310,7 +322,8 @@ impl Almost {
 				for part in c {
 					match part {
 						&StringPart::Esc(s) => r.push(s),
-						&StringPart::Exp(ref e) => r += &e.complete(p.clone()).to_string(),
+						&StringPart::Exp(ref e) =>
+							r += e.complete(p.clone()).to_string().get_str()?,
 						&StringPart::Lit(ref s) => r += &s,
 					}
 				}
@@ -374,16 +387,36 @@ impl fmt::Debug for Almost {
 }
 
 pub fn parse(doc: &str) -> Result<Val, grammar::ParseError> {
-	let almost = grammar::parse(doc.chars())?;
+	let almost = grammar::parse("", doc.chars())?;
 	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(nil::get())))
 }
 
+pub fn parse_file(path: &str) -> Val {
+	let file = match std::fs::File::open(path) {
+		Ok(file) => file,
+		Err(e) => return err::Err::new(format!("Failed to open {:?}: {:?}", path, e)),
+	};
+	
+	let mut err = None;
+	let chars = file.chars()
+		.filter_map(|r| r.map_err(|e| err = Some(e)).ok())
+		.fuse();
+	
+	let almost = match grammar::parse(path, chars) {
+		Ok(almost) => almost,
+		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)),
+	};
+	
+	thunk::Thunk::new(vec![], move |_| almost.complete(nil::get()))
+}
+
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
-	let almost = try!(grammar::parse(doc.chars()));
+	let almost = try!(grammar::parse("", doc.chars()));
 	println!("{:?}", almost);
 	Ok(())
 }
 
+#[derive(Debug)]
 pub enum StringPart { Esc(char), Lit(String), Exp(Almost) }
 
 fn do_escape_string_contents(s: &str, r: &mut String) {

@@ -11,10 +11,6 @@ impl ::Value for String {
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self)
 	}
-	
-	fn to_string(&self) -> String {
-		self.clone()
-	}
 }
 
 impl ::SameOps for String {
@@ -22,7 +18,7 @@ impl ::SameOps for String {
 		::Val::new(self.clone() + that)
 	}
 	
-	fn eq(&self, that: &Self) -> bool {
-		self == that
+	fn eq(&self, that: &Self) -> ::Val {
+		::bool::get(self == that)
 	}
 }

@@ -19,8 +19,8 @@ impl ::Value for Nil {
 		s.erased_serialize_none()
 	}
 	
-	fn to_string(&self) -> String {
-		"nil".to_owned()
+	fn to_string(&self) -> ::Val {
+		::Val::new("nil".to_owned())
 	}
 	
 	fn to_bool(&self) -> bool {
@@ -33,7 +33,7 @@ impl ::Value for Nil {
 }
 
 impl ::SameOps for Nil {
-	fn eq(&self, _: &Self) -> bool {
-		true
+	fn eq(&self, _: &Self) -> ::Val {
+		::bool::get_true()
 	}
 }

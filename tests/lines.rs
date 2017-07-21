@@ -15,20 +15,16 @@ fn test_lines() {
 	
 	for entry in fs::read_dir("tests/lines/").unwrap() {
 		let path = entry.unwrap().path();
+		if path.file_name().map_or(false, |f| f.to_string_lossy().starts_with("_")) { continue }
 		if path.extension().unwrap() != "ecl" { continue }
 		
 		println!("Testing {:?}", path);
 		
-		let mut ecl = fs::File::open(path.as_path()).unwrap();
-		let mut lines = fs::File::open(path.with_extension("lines")).unwrap();
-		
-		let mut input = String::new();
-		ecl.read_to_string(&mut input).unwrap();
 		let mut output = Vec::new();
-		// ecl::dump_ast(&input);
-		ecl::parse(&input).unwrap()
+		ecl::parse_file(&path.to_string_lossy())
 			.erased_serialize(&mut ecl::lines::Serializer::new(&mut output)).unwrap();
 		
+		let mut lines = fs::File::open(path.with_extension("lines")).unwrap();
 		let mut reference = Vec::new();
 		lines.read_to_end(&mut reference).unwrap();
 		

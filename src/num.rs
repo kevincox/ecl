@@ -8,8 +8,8 @@ impl ::Value for f64 {
 		s.erased_serialize_f64(*self)
 	}
 	
-	fn to_string(&self) -> String {
-		ToString::to_string(self)
+	fn to_string(&self) -> ::Val {
+		::Val::new(ToString::to_string(self))
 	}
 	
 	fn get_num(&self) -> Option<f64> {
@@ -22,7 +22,7 @@ impl ::SameOps for f64 {
 		::Val::new(*self + *that)
 	}
 	
-	fn eq(&self, that: &Self) -> bool {
-		*self == *that
+	fn eq(&self, that: &Self) -> ::Val {
+		::bool::get(*self == *that)
 	}
 }
