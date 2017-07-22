@@ -729,6 +729,12 @@ pub fn parse<Input: Iterator<Item=char>>(file: &str, input: Input) -> ParseResul
 	Parser::new(file, lexer).document()
 }
 
+pub fn parse_expr<Input: Iterator<Item=char>>(file: &str, input: Input) -> ParseResult {
+	let lexer = Lexer::new(input);
+	// let lexer = lexer.inspect(|t| println!("Token: {:?}", t));
+	Parser::new(file, lexer).expr()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

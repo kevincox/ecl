@@ -3,9 +3,9 @@
 #![feature(io)]
 #![feature(plugin)]
 #![feature(proc_macro)]
-#![feature(question_mark_carrier)]
 #![feature(slice_patterns)]
 #![feature(stmt_expr_attributes)]
+#![feature(try_trait)]
 
 extern crate erased_serde;
 #[macro_use] extern crate gc;
@@ -183,7 +183,7 @@ impl Val {
 		self.value()?.add(that.value()?)
 	}
 	
-	fn call(&self, arg: Val) -> Val {
+	pub fn call(&self, arg: Val) -> Val {
 		self.value().unwrap().call(arg)
 	}
 	
@@ -234,15 +234,15 @@ impl fmt::Debug for Val {
 	}
 }
 
-impl std::ops::Carrier for Val {
-	type Success = Self;
+impl std::ops::Try for Val {
+	type Ok = Self;
 	type Error = Self;
 	
-	fn from_success(v: Self::Success) -> Self { v }
+	fn from_ok(v: Self::Ok) -> Self { v }
 	fn from_error(v: Self::Error) -> Self { v }
-	fn translate<T: std::ops::Carrier<Success=Val,Error=Val>>(self) -> T {
+	fn into_result(self) -> Result<Self::Ok, Self::Error> {
 		let val = self.get();
-		if val.deref().is_err() { T::from_error(val) } else { T::from_success(val) }
+		if val.deref().is_err() { Err(val) } else { Ok(val) }
 	}
 }
 
@@ -409,6 +409,21 @@ pub fn parse_file(path: &str) -> Val {
 	};
 	
 	thunk::Thunk::new(vec![], move |_| almost.complete(nil::get()))
+}
+
+pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
+{
+	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
+	
+	let almost = match grammar::parse(source, doc.chars()) {
+		Ok(almost) => almost,
+		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)),
+	};
+	
+	func::Func::new(nil::get(), rc::Rc::new(func::FuncData{
+		arg: func::Arg::One(name),
+		body: almost,
+	}))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
