@@ -29,16 +29,13 @@ impl Thunk {
 		::Val::new(Thunk(gc::GcCell::new(State::Code(refs, Box::new(code)))))
 	}
 	
-	pub fn lazy(p: ::Val, almost: Rc<::Almost>) -> ::Val {
+	pub fn lazy(plex: ::Val, pstruct: ::Val, almost: Rc<::Almost>) -> ::Val {
 		if almost.is_cheep() {
-			almost.complete(p)
+			almost.complete(plex, pstruct)
 		} else {
-			Self::new(vec![p], move |refs| almost.complete(refs[0].clone()))
+			Self::new(vec![plex, pstruct],
+				move |refs| almost.complete(refs[0].clone(), refs[1].clone()))
 		}
-	}
-	
-	pub fn evaluated(v: ::Val) -> ::Val {
-		::Val::new(Thunk(gc::GcCell::new(State::Val(v))))
 	}
 	
 	fn eval(&self) -> ::Val {

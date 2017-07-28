@@ -11,10 +11,15 @@ use thunk::Thunk;
 
 #[derive(Trace)]
 pub struct Dict {
-	parent: ::Val,
+	parent_structural: ::Val,
+	parent_lexical: ::Val,
 	prv: gc::GcCell<DictData>,
+	
+	#[unsafe_ignore_trace]
+	source: Vec<AlmostDictElement>,
 }
 
+// TODO: Switch from enum to struct with visibility member.
 #[derive(Clone,Debug,PartialEq,Trace)]
 pub enum DictVal { Pub(::Val), Priv(::Val) }
 
@@ -37,19 +42,21 @@ unsafe impl gc::Trace for DictData {
 }
 
 impl Dict {
-	pub fn new(parent: ::Val, items: &[AlmostDictElement]) -> ::Val {
+	pub fn new(plex: ::Val, pstruct: ::Val, items: &[AlmostDictElement]) -> ::Val {
 		let this = ::Val::new(Dict{
-			parent: parent,
+			parent_lexical: plex,
+			parent_structural: pstruct,
 			prv: gc::GcCell::new(DictData {
 				data: BTreeMap::new(),
 				unevaluated: Vec::new(),
-			},
-		)});
+			}),
+			source: items.into(),
+		});
 		{
-			let self_ref = this.clone();
-			let dict = this.downcast_ref::<Dict>();
+			let dict = this.clone();
+			let dict = dict.downcast_ref::<Dict>().unwrap();
 			for item in items {
-				match item.complete(self_ref.clone()) {
+				match item.complete(this.clone(), this.clone()) {
 					DictPair::Known(k, v) => {
 						match dict.prv.borrow_mut().data.entry(k) {
 							Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
@@ -108,6 +115,65 @@ impl Dict {
 		}
 		
 		None
+	}
+	
+	fn call(&self, this: ::Val, arg: ::Val, pstruct: ::Val) -> ::Val {
+		let arg = arg.get();
+		let that = match arg.downcast_ref::<Dict>() {
+			Some(dict) => dict,
+			None => return ::err::Err::new(format!("Can't call dict with {:?}", arg)),
+		};
+		
+		let child = ::Val::new(Dict{
+			parent_structural: pstruct,
+			parent_lexical:
+				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
+			prv: gc::GcCell::new(DictData {
+				data: BTreeMap::new(),
+				unevaluated: Vec::new(),
+			}),
+			source: Vec::new(),
+		});
+		
+		{
+			let dict = child.clone();
+			let ref dict = dict.downcast_ref::<Dict>().unwrap();
+			
+			let that_elements = that.source.iter().map(|e| (e, arg.clone()));
+			let self_elements = self.source.iter().map(|e| (e, this.clone()));
+			
+			for (item, parent) in that_elements.chain(self_elements) {
+				match item.complete(parent, child.clone()) {
+					DictPair::Known(k, v) => match dict.prv.borrow_mut().data.entry(k) {
+						Entry::Occupied(mut e) => {
+							let old = match v {
+								DictVal::Pub(ref v) => v.clone(),
+								DictVal::Priv(ref v) => v.clone(),
+							};
+							let old = old.get();
+							match old.downcast_ref::<Dict>() {
+								Some(d) => {
+									let new = match *e.get() {
+										DictVal::Pub(ref v) => v.clone(),
+										DictVal::Priv(ref v) => v.clone(),
+									};
+									e.insert(DictVal::Pub(d.call(old.clone(), new, child.clone())));
+								}
+								None => {},
+							};
+						},
+						Entry::Vacant(e) => {
+							e.insert(v);
+						},
+					},
+					DictPair::Unknown(k, v) => {
+						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));
+					},
+				}
+			}
+		}
+		
+		child
 	}
 }
 
@@ -171,8 +237,29 @@ impl ::Value for Dict {
 		match self.index(key) {
 			Some(DictVal::Pub(ref v)) => v.clone(),
 			Some(DictVal::Priv(ref v)) => v.clone(),
-			None => self.parent.lookup(key),
+			None => self.parent_lexical.lookup(key),
 		}
+	}
+	
+	fn structural_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
+		println!("lookup({}, {})", depth, key);
+		let v = match depth {
+			0 => match self.index(key) {
+				Some(DictVal::Pub(ref v)) => Some(v.clone()),
+				Some(DictVal::Priv(ref v)) => Some(v.clone()),
+				None => None
+			},
+			other => {
+				println!("Escalate to: {:?} from {:?}", self.parent_structural, self);
+				self.parent_structural.structural_lookup(other-1, key)
+			},
+		};
+		println!("lookup({}, {}) -> {:?}", depth, key, v.clone().map(|v| v.get()));
+		v
+	}
+	
+	fn call(&self, this: ::Val, arg: ::Val) -> ::Val {
+		self.call(this, arg, ::nil::get())
 	}
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
@@ -195,6 +282,7 @@ impl ::Value for Dict {
 
 impl ::SameOps for Dict { }
 
+#[derive(Clone)]
 pub enum AlmostDictElement {
 	Unknown(Rc<::Almost>, Rc<::Almost>),
 	Known(String, Rc<::Almost>),
@@ -207,18 +295,18 @@ enum DictPair {
 }
 
 impl AlmostDictElement {
-	fn complete(&self, p: ::Val) -> DictPair {
+	fn complete(&self, plex: ::Val, pstruct: ::Val) -> DictPair {
 		match self {
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				DictPair::Unknown(
-					Thunk::lazy(p.clone(), k.clone()),
-					DictVal::Pub(Thunk::lazy(p, v.clone())))
+					Thunk::lazy(plex.clone(), pstruct.clone(), k.clone()),
+					DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Known(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(p, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Priv(Thunk::lazy(p, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::Priv(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 		}
 	}

@@ -71,7 +71,7 @@ impl<
 }
 
 impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> ::Value for Builtin<D, F> {
-	fn call(&self, arg: ::Val) -> ::Val {
+	fn call(&self, _this: ::Val, arg: ::Val) -> ::Val {
 		(self.func)(&self.data, arg)
 	}
 	

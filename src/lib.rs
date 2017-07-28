@@ -48,6 +48,7 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
 	fn lookup(&self, _key: &str) -> Val { err::Err::new(format!("Can't lookup in {:?}", self)) }
+	fn structural_lookup(&self, _depth: usize, _key: &str) -> Option<Val> { None }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
@@ -55,7 +56,8 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
-	fn call(&self, _arg: Val) -> Val { err::Err::new(format!("Can't call {:?}", self)) }
+	fn call(&self, _this: Val, arg: Val) -> Val
+		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
@@ -129,8 +131,8 @@ impl Val {
 		}
 	}
 	
-	fn downcast_ref<T: 'static>(&self) -> &T {
-		self.deref().as_any().downcast_ref::<T>().unwrap()
+	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+		self.deref().as_any().downcast_ref::<T>()
 	}
 	
 	pub fn type_str(&self) -> &'static str {
@@ -179,12 +181,17 @@ impl Val {
 		self.value()?.lookup(key)
 	}
 	
+	fn structural_lookup(&self, depth: usize, key: &str) -> Option<Val> {
+		// println!("Lookup {:?} in {:?}", key, self);
+		self.deref().structural_lookup(depth, key)
+	}
+	
 	fn add(&self, that: Val) -> Val {
 		self.value()?.add(that.value()?)
 	}
 	
 	pub fn call(&self, arg: Val) -> Val {
-		self.value().unwrap().call(arg)
+		self.value().unwrap().call(self.clone(), arg)
 	}
 	
 	fn get_str(&self) -> Result<&str,Val> {
@@ -285,45 +292,61 @@ pub enum Almost {
 	List(Vec<rc::Rc<Almost>>),
 	Nil,
 	Num(f64),
-	Ref(grammar::Loc, String),
+	RefLex(grammar::Loc, String),
+	RefStruct(grammar::Loc, usize, String),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
 
 impl Almost {
-	fn complete(&self, p: Val) -> Val {
+	fn complete(&self, plex: Val, pstruct: Val) -> Val {
 		match *self {
 			Almost::Add(loc, ref l, ref r) => {
-				let l = l.complete(p.clone()).annotate(loc, "Left side of add")?;
-				let r = r.complete(p).annotate(loc, "Right side of add")?;
+				let l = l.complete(plex.clone(), pstruct.clone())
+					.annotate(loc, "Left side of add")?;
+				let r = r.complete(plex, pstruct)
+					.annotate(loc, "Right side of add")?;
 				l.add(r)
 			}
-			Almost::Dict(ref items) => dict::Dict::new(p, &items),
+			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
 			Almost::Call(loc, ref f, ref a) => {
-				let f = f.complete(p.clone()).annotate(loc, "Calling error as function")?;
+				let f = f.complete(plex.clone(), pstruct.clone())
+					.annotate(loc, "Calling error as function")?;
 				// Note, allow calling function with an error.
-				f.call(a.complete(p))
+				f.call(a.complete(plex, pstruct))
 			},
-			Almost::Eq(ref l, ref r) => Val::new(l.complete(p.clone()) == r.complete(p)),
-			Almost::Func(ref fd) => func::Func::new(p, fd.clone()),
+			Almost::Eq(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				bool::get(l == r)
+			},
+			Almost::Func(ref fd) => func::Func::new(plex, fd.clone()),
 			Almost::Index(loc, ref o, ref k) => {
-				let o = o.complete(p.clone()).annotate(loc, "Indexing error")?;
-				let k = k.complete(p).annotate(loc, "Indexing with error as key")?;
+				let o = o.complete(plex.clone(), pstruct.clone())
+					.annotate(loc, "Indexing error")?;
+				let k = k.complete(plex, pstruct)
+					.annotate(loc, "Indexing with error as key")?;
 				o.index(k).annotate(loc, "Error returned from index")
 			},
-			Almost::List(ref items) => list::List::new(p, items),
+			Almost::List(ref items) => list::List::new(plex, items),
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
-			Almost::Ref(loc, ref id) =>
-				thunk::Thunk::evaluated(
-					p.lookup(id).annotate(loc, "Error value referenced")),
+			Almost::RefLex(loc, ref id) => {
+				plex.lookup(id).annotate(loc, "Error value referenced")
+			},
+			Almost::RefStruct(loc, depth, ref id) => {
+				pstruct.structural_lookup(depth, id)
+					.unwrap_or_else(|| plex.lookup(id))
+					.annotate(loc, "Error value referenced")
+			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
 				for part in c {
 					match part {
 						&StringPart::Esc(s) => r.push(s),
 						&StringPart::Exp(ref e) =>
-							r += e.complete(p.clone()).to_string().get_str()?,
+							r += e.complete(plex.clone(), pstruct.clone())
+								.to_string().get_str()?,
 						&StringPart::Lit(ref s) => r += &s,
 					}
 				}
@@ -367,7 +390,8 @@ impl fmt::Debug for Almost {
 			},
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
-			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
+			Almost::RefLex(_, ref id) => write!(f, "Ref({})", format_key(id)),
+			Almost::RefStruct(_, depth, ref id) => write!(f, "Ref({}, {})", depth, format_key(id)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "\""));
 				for part in parts {
@@ -389,7 +413,7 @@ impl fmt::Debug for Almost {
 pub fn parse(source: &str, doc: &str) -> Result<Val, grammar::ParseError> {
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	let almost = grammar::parse("", doc.chars())?;
-	Ok(thunk::Thunk::new(vec![], move |_| almost.complete(nil::get())))
+	Ok(almost.complete(nil::get(), nil::get()))
 }
 
 pub fn parse_file(path: &str) -> Val {
@@ -408,7 +432,7 @@ pub fn parse_file(path: &str) -> Val {
 		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)),
 	};
 	
-	thunk::Thunk::new(vec![], move |_| almost.complete(nil::get()))
+	almost.complete(nil::get(), nil::get())
 }
 
 pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val

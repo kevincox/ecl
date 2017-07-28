@@ -13,7 +13,7 @@ pub struct List {
 impl List {
 	pub fn new(p: ::Val, items: &[Rc<::Almost>]) -> ::Val {
 		::Val::new(List {
-			data: items.iter().map(|a| Thunk::lazy(p.clone(), a.clone())).collect(),
+			data: items.iter().map(|a| Thunk::lazy(p.clone(), ::nil::get(), a.clone())).collect(),
 		})
 	}
 }

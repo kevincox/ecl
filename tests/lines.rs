@@ -12,6 +12,7 @@ use erased_serde::Serialize;
 fn test_lines() {
 	let mut good = 0;
 	let mut bad = 0;
+	let mut diffs = String::new();
 	
 	for entry in fs::read_dir("tests/lines/").unwrap() {
 		let path = entry.unwrap().path();
@@ -32,14 +33,18 @@ fn test_lines() {
 			good += 1;
 		} else {
 			bad += 1;
-			difference::print_diff(
+			let changes = difference::Changeset::new(
 				&String::from_utf8(reference).unwrap(),
 				&String::from_utf8(output).unwrap(),
-			"\n");
-			println!("ERROR: Above difference found in {:?}", path);
+				"\n");
+			print!("{}", changes);
+			diffs += &format!("ERROR: Below difference found in {:?}", path);
+			diffs += &format!("{}\n", changes);
+			diffs += &format!("ERROR: Above difference found in {:?}", path);
 		}
 	}
 	
+	println!("{}", diffs);
 	println!("RESULT: {}/{} differ from the expected value.", bad, bad + good);
 	
 	env::remove_var("RUST_BACKTRACE");

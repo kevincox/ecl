@@ -47,11 +47,11 @@ impl Func {
 impl ::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
 	
-	fn call(&self, arg: ::Val) -> ::Val {
+	fn call(&self, _this: ::Val, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
 			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
 			Arg::Dict(ref args) => {
-				let val = ::dict::Dict::new(self.parent.clone(), &[]);
+				let val = ::dict::Dict::new(self.parent.clone(), ::nil::get(), &[]);
 				
 				{
 					let dict = val.downcast_ref::<::dict::Dict>();
@@ -60,12 +60,12 @@ impl ::Value for Func {
 						let passed = arg.index_str(&k);
 						if passed != ::nil::get() {
 							passed_used += 1;
-							dict._set_val(k.clone(), ::dict::DictVal::Priv(passed));
+							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Priv(passed));
 						} else if required {
 							panic!("Error: required argument {:?} not found.", k);
 						} else {
-							let default = default.complete(val.clone());
-							dict._set_val(k.clone(), ::dict::DictVal::Priv(default));
+							let default = default.complete(val.clone(), ::nil::get());
+							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Priv(default));
 						}
 					}
 					
@@ -76,7 +76,7 @@ impl ::Value for Func {
 			},
 		};
 		
-		self.data.body.complete(scope)
+		self.data.body.complete(scope, ::nil::get())
 	}
 }
 

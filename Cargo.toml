@@ -18,7 +18,7 @@ features = ["nightly"]
 version = "0.3"
 
 [dev-dependencies]
-difference = "0.4"
+difference = "1.0"
 
 [patch]
 
