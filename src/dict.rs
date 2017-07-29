@@ -21,7 +21,20 @@ pub struct Dict {
 
 // TODO: Switch from enum to struct with visibility member.
 #[derive(Clone,Debug,PartialEq,Trace)]
-pub enum DictVal { Pub(::Val), Priv(::Val) }
+pub struct DictVal {
+	visible: bool,
+	val: ::Val,
+}
+
+impl DictVal {
+	pub fn private(v: ::Val) -> DictVal {
+		DictVal{visible: false, val: v}
+	}
+	
+	pub fn public(v: ::Val) -> DictVal {
+		DictVal{visible: true, val: v}
+	}
+}
 
 #[derive(Debug,PartialEq,Trace)]
 struct DictUneval(::Val,DictVal);
@@ -146,18 +159,11 @@ impl Dict {
 				match item.complete(parent, child.clone()) {
 					DictPair::Known(k, v) => match dict.prv.borrow_mut().data.entry(k) {
 						Entry::Occupied(mut e) => {
-							let old = match v {
-								DictVal::Pub(ref v) => v.clone(),
-								DictVal::Priv(ref v) => v.clone(),
-							};
-							let old = old.get();
+							let old = v.val.get();
 							match old.downcast_ref::<Dict>() {
 								Some(d) => {
-									let new = match *e.get() {
-										DictVal::Pub(ref v) => v.clone(),
-										DictVal::Priv(ref v) => v.clone(),
-									};
-									e.insert(DictVal::Pub(d.call(old.clone(), new, child.clone())));
+									let new = e.get().val.clone();
+									e.insert(DictVal::public(d.call(old.clone(), new, child.clone())));
 								}
 								None => {},
 							};
@@ -187,9 +193,8 @@ impl fmt::Debug for Dict {
 		
 		try!(writeln!(f, "{{"));
 		for (k, v) in &prv.data {
-			match *v {
-				DictVal::Pub(ref v) => try!(writeln!(f, "\t{:?}: {:?}", k, v)),
-				_ => {},
+			if v.visible {
+				try!(writeln!(f, "\t{:?}: {:?}", k, v));
 			}
 		}
 		
@@ -213,21 +218,17 @@ impl ::Value for Dict {
 	fn is_empty(&self) -> bool {
 		// Check if any of our un-evaluated elements are "public"
 		let prv = self.prv.borrow();
-		prv.data.values().all(|e| match e {
-			&DictVal::Priv(_) => true,
-			_ => false,
-		}) && prv.unevaluated.iter().all(|e| match e.1 {
-			DictVal::Priv(_) => true,
-			_ => false,
-		})
+		prv.data.values().all(|e| !e.visible) && prv.unevaluated.iter().all(|e| !e.1.visible)
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
 		match self.index(key) {
-			Some(DictVal::Pub(ref v)) => v.clone(),
-			Some(DictVal::Priv(_)) => {
-				println!("WRN: Attempt to access private memeber {:?}", key);
-				::nil::get()
+			Some(element) => {
+				if element.visible {
+					element.val.clone()
+				} else {
+					::err::Err::new(format!("Attempt to access private member {:?}", key))
+				}
 			},
 			None => ::nil::get(),
 		}
@@ -235,8 +236,7 @@ impl ::Value for Dict {
 	
 	fn lookup(&self, key: &str) -> ::Val {
 		match self.index(key) {
-			Some(DictVal::Pub(ref v)) => v.clone(),
-			Some(DictVal::Priv(ref v)) => v.clone(),
+			Some(element) => element.val.clone(),
 			None => self.parent_lexical.lookup(key),
 		}
 	}
@@ -245,8 +245,7 @@ impl ::Value for Dict {
 		println!("lookup({}, {})", depth, key);
 		let v = match depth {
 			0 => match self.index(key) {
-				Some(DictVal::Pub(ref v)) => Some(v.clone()),
-				Some(DictVal::Priv(ref v)) => Some(v.clone()),
+				Some(element) => Some(element.val.clone()),
 				None => None
 			},
 			other => {
@@ -271,9 +270,9 @@ impl ::Value for Dict {
 		
 		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
 		for (k, i) in &prv.data {
-			if let DictVal::Pub(ref v) = *i {
+			if i.visible {
 				try!(s.erased_serialize_map_key(&mut state, k));
-				try!(s.erased_serialize_map_value(&mut state, &v.rec_ser(visited)));
+				try!(s.erased_serialize_map_value(&mut state, &i.val.rec_ser(visited)));
 			}
 		}
 		s.erased_serialize_map_end(state)
@@ -300,13 +299,13 @@ impl AlmostDictElement {
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				DictPair::Unknown(
 					Thunk::lazy(plex.clone(), pstruct.clone(), k.clone()),
-					DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
+					DictVal::public(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Known(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::public(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Priv(Thunk::lazy(plex, pstruct, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::private(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 		}
 	}

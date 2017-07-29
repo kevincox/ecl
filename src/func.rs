@@ -60,12 +60,12 @@ impl ::Value for Func {
 						let passed = arg.index_str(&k);
 						if passed != ::nil::get() {
 							passed_used += 1;
-							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Priv(passed));
+							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::private(passed));
 						} else if required {
 							panic!("Error: required argument {:?} not found.", k);
 						} else {
 							let default = default.complete(val.clone(), ::nil::get());
-							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Priv(default));
+							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::private(default));
 						}
 					}
 					
