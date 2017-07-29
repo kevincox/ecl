@@ -1,0 +1,10 @@
+	DICT	{
+base	DICT	{
+base.output	NUM	5
+base.some-option	NUM	5
+base	DICT	}
+sub	DICT	{
+sub.output	NUM	16
+sub.some-option	NUM	16
+sub	DICT	}
+	DICT	}

@@ -10,10 +10,6 @@ use erased_serde::Serialize;
 
 #[test]
 fn test_lines() {
-	let mut good = 0;
-	let mut bad = 0;
-	let mut diffs = String::new();
-	
 	for entry in fs::read_dir("tests/lines/").unwrap() {
 		let path = entry.unwrap().path();
 		if path.file_name().map_or(false, |f| f.to_string_lossy().starts_with("_")) { continue }
@@ -29,25 +25,14 @@ fn test_lines() {
 		let mut reference = Vec::new();
 		lines.read_to_end(&mut reference).unwrap();
 		
-		if output == reference {
-			good += 1;
-		} else {
-			bad += 1;
+		if output != reference {
 			let changes = difference::Changeset::new(
 				&String::from_utf8(reference).unwrap(),
 				&String::from_utf8(output).unwrap(),
 				"\n");
 			print!("{}", changes);
-			diffs += &format!("ERROR: Below difference found in {:?}", path);
-			diffs += &format!("{}\n", changes);
-			diffs += &format!("ERROR: Above difference found in {:?}", path);
+			env::remove_var("RUST_BACKTRACE");
+			panic!("ERROR: Difference found in {:?}", path);
 		}
 	}
-	
-	println!("{}", diffs);
-	println!("RESULT: {}/{} differ from the expected value.", bad, bad + good);
-	
-	env::remove_var("RUST_BACKTRACE");
-	assert_eq!(bad, 0, "Test failures encountered.");
-	assert!(good > 0, "No tests passed");
 }

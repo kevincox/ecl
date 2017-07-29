@@ -48,7 +48,8 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
 	fn lookup(&self, _key: &str) -> Val { err::Err::new(format!("Can't lookup in {:?}", self)) }
-	fn structural_lookup(&self, _depth: usize, _key: &str) -> Option<Val> { None }
+	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> { None }
+	fn find(&self, _k: &str) -> (usize, dict::Key, Val) { panic!("Can't lookup in {:?}", self) }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
@@ -181,7 +182,7 @@ impl Val {
 		self.value()?.lookup(key)
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &str) -> Option<Val> {
+	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {
 		// println!("Lookup {:?} in {:?}", key, self);
 		self.deref().structural_lookup(depth, key)
 	}
@@ -292,8 +293,7 @@ pub enum Almost {
 	List(Vec<rc::Rc<Almost>>),
 	Nil,
 	Num(f64),
-	RefLex(grammar::Loc, String),
-	RefStruct(grammar::Loc, usize, String),
+	Ref(grammar::Loc, String),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
@@ -323,7 +323,7 @@ impl Almost {
 			Almost::Func(ref fd) => func::Func::new(plex, fd.clone()),
 			Almost::Index(loc, ref o, ref k) => {
 				let o = o.complete(plex.clone(), pstruct.clone())
-					.annotate(loc, "Indexing error")?;
+					.annotate(loc, "Indexing error value")?;
 				let k = k.complete(plex, pstruct)
 					.annotate(loc, "Indexing with error as key")?;
 				o.index(k).annotate(loc, "Error returned from index")
@@ -331,13 +331,10 @@ impl Almost {
 			Almost::List(ref items) => list::List::new(plex, items),
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
-			Almost::RefLex(loc, ref id) => {
-				plex.lookup(id).annotate(loc, "Error value referenced")
-			},
-			Almost::RefStruct(loc, depth, ref id) => {
-				pstruct.structural_lookup(depth, id)
-					.unwrap_or_else(|| plex.lookup(id))
-					.annotate(loc, "Error value referenced")
+			Almost::Ref(loc, ref id) => {
+				let (depth, dictkey, val) = plex.value()?.find(id);
+				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
+				v.annotate(loc, "Error value referenced")
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -390,8 +387,7 @@ impl fmt::Debug for Almost {
 			},
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
-			Almost::RefLex(_, ref id) => write!(f, "Ref({})", format_key(id)),
-			Almost::RefStruct(_, depth, ref id) => write!(f, "Ref({}, {})", depth, format_key(id)),
+			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "\""));
 				for part in parts {

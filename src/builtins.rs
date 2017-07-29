@@ -108,7 +108,7 @@ mod tests {
 	fn panic() {
 		let v = ::parse("<str>", r###"
 			{
-				local msg = "Baby's first" + " error"
+				msg = "Baby's first" + " error"
 				boom = panic:msg
 			}.boom
 		"###).unwrap().get();

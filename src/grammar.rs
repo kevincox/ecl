@@ -466,8 +466,6 @@ struct Parser<'a, Input: Iterator<Item=(Token,Loc)>> {
 	current: Option<(Token,Loc)>,
 	// file: &'a str,
 	directory: &'a str,
-	names: Vec<(String,usize)>, // Name -> depth
-	depth: usize,
 }
 
 impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
@@ -479,8 +477,6 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			directory: &path[0..last_slash],
 			input: input,
 			current: None,
-			names: Vec::new(),
-			depth: 1,
 		}
 	}
 	
@@ -512,15 +508,6 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		None
 	}
 	
-	fn resolve(&self, name: String, loc: Loc) -> ::Almost {
-		let depth = self.names.iter().rev().find(|p| p.0 == name).map(|p| p.1).unwrap_or(0);
-		if depth != 0 {
-			::Almost::RefStruct(loc, self.depth - depth, name)
-		} else {
-			::Almost::RefLex(loc, name)
-		}
-	}
-	
 	fn document(&mut self) -> ParseResult {
 		let is_expr = match self.peek() {
 			Some(&(Token::DictOpen, _)) |
@@ -550,19 +537,9 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	}
 	
 	fn dict_items(&mut self) -> ParseResult {
-		self.depth += 1;
-		
 		let mut items = Vec::new();
 		while !self.consume(Token::DictClose).is_some() {
 			items.push(self.dict_item()?);
-		}
-		
-		self.depth -= 1;
-		while let Some(t) = self.names.pop() {
-			if t.1 < self.depth {
-				self.names.push(t);
-				break
-			}
 		}
 		
 		Ok(::Almost::Dict(items))
@@ -575,8 +552,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					match self.next() {
 						Some((Token::Ident(s),_)) => {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
-							self.names.push((s.clone(), 0));
-							return Ok(dict::AlmostDictElement::Priv(s, Rc::new(self.expr()?)))
+							let val = Rc::new(self.expr()?);
+							let ns = val.as_ref() as *const ::Almost as usize;
+							let key = ::dict::Key::local(ns, s);
+							return Ok(dict::AlmostDictElement::Priv(key, val))
 						},
 						Some(t) => self.unget(t),
 						None => {},
@@ -587,8 +566,8 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
 					(Token::Assign, _) => self.expr()?,
 				};
-				self.names.push((s.clone(), self.depth));
-				dict::AlmostDictElement::Known(s, Rc::new(val))
+				dict::AlmostDictElement::Known(
+					::dict::Key::new(s), Rc::new(val))
 			},
 			(Token::StrOpen(t), _) => {
 				let key = self.string(t)?;
@@ -704,7 +683,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		expect_next!{self: "parsing atom",
 			(Token::DictOpen, _) => self.dict_items(),
 			(Token::Func, _) => self.func(),
-			(Token::Ident(s), loc) => Ok(self.resolve(s, loc)),
+			(Token::Ident(s), loc) => Ok(::Almost::Ref(loc, s)),
 			(Token::ListOpen, _) => self.list_items(),
 			(Token::Num(n), _) => Ok(::Almost::Num(n)),
 			(Token::ParenOpen, _) => {

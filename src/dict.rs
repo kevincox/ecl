@@ -20,19 +20,47 @@ pub struct Dict {
 }
 
 // TODO: Switch from enum to struct with visibility member.
+#[derive(Clone,Eq,Ord,PartialEq,PartialOrd,Trace)]
+pub struct Key {
+	pub namespace: usize,
+	pub key: String,
+}
+
+impl fmt::Debug for Key {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self.namespace {
+			0 => write!(f, "{:?}", self.key),
+			_ => write!(f, "{}::{:?}", self.namespace, self.key),
+		}
+	}
+}
+
+impl Key {
+	pub fn new(key: String) -> Self { Key{namespace: 0, key: key} }
+	pub fn local(ns: usize, key: String) -> Self { Key{namespace: ns, key: key} }
+}
+
 #[derive(Clone,Debug,PartialEq,Trace)]
-pub struct DictVal {
-	visible: bool,
-	val: ::Val,
+pub enum DictVal {
+	Pub(::Val),
+	Prv(::Val),
+	Local(usize),
 }
 
 impl DictVal {
-	pub fn private(v: ::Val) -> DictVal {
-		DictVal{visible: false, val: v}
+	fn val(&self) -> Option<::Val> {
+		match *self {
+			DictVal::Pub(ref v) => Some(v.clone()),
+			DictVal::Prv(ref v) => Some(v.clone()),
+			DictVal::Local(_) => None,
+		}
 	}
 	
-	pub fn public(v: ::Val) -> DictVal {
-		DictVal{visible: true, val: v}
+	fn public(&self) -> bool {
+		match *self {
+			DictVal::Pub(_) => true,
+			_ => false,
+		}
 	}
 }
 
@@ -41,7 +69,7 @@ struct DictUneval(::Val,DictVal);
 
 #[derive(PartialEq)]
 pub struct DictData {
-	data: BTreeMap<String,DictVal>,
+	data: BTreeMap<Key,DictVal>,
 	unevaluated: Vec<(DictUneval)>,
 }
 
@@ -71,6 +99,15 @@ impl Dict {
 			for item in items {
 				match item.complete(this.clone(), this.clone()) {
 					DictPair::Known(k, v) => {
+						if k.namespace != 0 {
+							let redirect_key = Key::new(k.key.clone());
+							match dict.prv.borrow_mut().data.entry(redirect_key) {
+								Entry::Occupied(e) =>
+									panic!("Multiple entries for key {:?}", e.key()),
+								Entry::Vacant(e) => e.insert(DictVal::Local(k.namespace)),
+							};
+						}
+						
 						match dict.prv.borrow_mut().data.entry(k) {
 							Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
 							Entry::Vacant(e) => e.insert(v),
@@ -86,7 +123,7 @@ impl Dict {
 	}
 	
 	pub fn _set_val(&self, key: String, val: DictVal) {
-		self.prv.borrow_mut().data.insert(key, val);
+		self.prv.borrow_mut().data.insert(Key::new(key), val);
 	}
 	
 	fn eval_next(&self) -> Option<(String,DictVal)> {
@@ -97,7 +134,7 @@ impl Dict {
 		
 		let strkey = k.to_string().get_str().unwrap().to_owned();
 		let mut prv = self.prv.borrow_mut();
-		match prv.data.entry(strkey) {
+		match prv.data.entry(Key::new(strkey)) {
 			Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
 			Entry::Vacant(e) => { e.insert(v.clone()); },
 		};
@@ -109,7 +146,7 @@ impl Dict {
 		while let Some(_) = self.eval_next() { }
 	}
 	
-	fn index(&self, key: &str) -> Option<DictVal> {
+	fn index(&self, key: &Key) -> Option<DictVal> {
 		{
 			let prv = self.prv.borrow();
 			if let Some(v) = prv.data.get(key) {
@@ -122,7 +159,7 @@ impl Dict {
 		}
 		
 		while let Some((k, v)) = self.eval_next() {
-			if k == key {
+			if k == key.key {
 				return Some(v)
 			}
 		}
@@ -159,16 +196,19 @@ impl Dict {
 				match item.complete(parent, child.clone()) {
 					DictPair::Known(k, v) => match dict.prv.borrow_mut().data.entry(k) {
 						Entry::Occupied(mut e) => {
-							let old = v.val.get();
+							let old = v.val().unwrap().get();
+							println!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
 							match old.downcast_ref::<Dict>() {
 								Some(d) => {
-									let new = e.get().val.clone();
-									e.insert(DictVal::public(d.call(old.clone(), new, child.clone())));
+									let new = e.get().val().unwrap();
+									println!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
+									e.insert(DictVal::Pub(d.call(old.clone(), new, child.clone())));
 								}
 								None => {},
 							};
 						},
 						Entry::Vacant(e) => {
+							println!("ELEM {:?} => {:?}", e.key(), v);
 							e.insert(v);
 						},
 					},
@@ -191,19 +231,24 @@ impl fmt::Debug for Dict {
 			return write!(f, "{{}}")
 		}
 		
-		try!(writeln!(f, "{{"));
+		let mut leader = '{';
 		for (k, v) in &prv.data {
-			if v.visible {
-				try!(writeln!(f, "\t{:?}: {:?}", k, v));
+			write!(f, "{}", leader)?;
+			leader = ' ';
+			
+			match *v {
+				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
+				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
+				DictVal::Local(_) => {},
 			}
 		}
 		
 		let unevaluated = prv.unevaluated.len();
 		if unevaluated > 0 {
-			try!(writeln!(f, "\t<{} unevaluated>", unevaluated))
+			writeln!(f, "...{} unevaluated", unevaluated)?;
 		}
-		try!(write!(f, "}}"));
-		Ok(())
+		
+		write!(f, "}}")
 	}
 }
 
@@ -218,43 +263,54 @@ impl ::Value for Dict {
 	fn is_empty(&self) -> bool {
 		// Check if any of our un-evaluated elements are "public"
 		let prv = self.prv.borrow();
-		prv.data.values().all(|e| !e.visible) && prv.unevaluated.iter().all(|e| !e.1.visible)
+		prv.data.values().all(|e| !e.public()) && prv.unevaluated.iter().all(|e| !e.1.public())
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
-		match self.index(key) {
-			Some(element) => {
-				if element.visible {
-					element.val.clone()
-				} else {
-					::err::Err::new(format!("Attempt to access private member {:?}", key))
-				}
-			},
+		match self.index(&Key::new(key.to_owned())) {
+			Some(DictVal::Pub(ref v)) => v.clone(),
+			Some(_) => ::err::Err::new(format!("Attempt to access private member {:?}", key)),
 			None => ::nil::get(),
 		}
 	}
 	
 	fn lookup(&self, key: &str) -> ::Val {
-		match self.index(key) {
-			Some(element) => element.val.clone(),
+		match self.index(&Key::new(key.to_owned())) {
+			Some(element) => element.val().unwrap(),
 			None => self.parent_lexical.lookup(key),
 		}
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
-		println!("lookup({}, {})", depth, key);
+	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+		println!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		let v = match depth {
 			0 => match self.index(key) {
-				Some(element) => Some(element.val.clone()),
+				Some(element) => Some(element.val().unwrap()),
 				None => None
 			},
-			other => {
-				println!("Escalate to: {:?} from {:?}", self.parent_structural, self);
-				self.parent_structural.structural_lookup(other-1, key)
-			},
+			other => self.parent_structural.structural_lookup(other-1, key),
 		};
-		println!("lookup({}, {}) -> {:?}", depth, key, v.clone().map(|v| v.get()));
+		println!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
+	}
+	
+	fn find(&self, k: &str) -> (usize, Key, ::Val) {
+		let mut key = Key::new(k.to_owned());
+		match self.index(&key) {
+			Some(element) => match element {
+				DictVal::Pub(ref v) => (0, key, v.clone()),
+				DictVal::Prv(ref v) => (0, key, v.clone()),
+				DictVal::Local(ns) => {
+					key.namespace = ns;
+					let v = self.index(&key).unwrap().val().unwrap();
+					(0, key, v)
+				}
+			},
+			None => {
+				let (depth, k, v) = self.parent_lexical.deref().find(k);
+				(depth+1, k, v)
+			},
+		}
 	}
 	
 	fn call(&self, this: ::Val, arg: ::Val) -> ::Val {
@@ -270,9 +326,9 @@ impl ::Value for Dict {
 		
 		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
 		for (k, i) in &prv.data {
-			if i.visible {
-				try!(s.erased_serialize_map_key(&mut state, k));
-				try!(s.erased_serialize_map_value(&mut state, &i.val.rec_ser(visited)));
+			if let DictVal::Pub(ref v) = *i {
+				s.erased_serialize_map_key(&mut state, &k.key)?;
+				s.erased_serialize_map_value(&mut state, &v.rec_ser(visited))?;
 			}
 		}
 		s.erased_serialize_map_end(state)
@@ -284,12 +340,12 @@ impl ::SameOps for Dict { }
 #[derive(Clone)]
 pub enum AlmostDictElement {
 	Unknown(Rc<::Almost>, Rc<::Almost>),
-	Known(String, Rc<::Almost>),
-	Priv(String, Rc<::Almost>),
+	Known(Key, Rc<::Almost>),
+	Priv(Key, Rc<::Almost>),
 }
 
 enum DictPair {
-	Known(String,DictVal),
+	Known(Key,DictVal),
 	Unknown(::Val,DictVal),
 }
 
@@ -299,13 +355,13 @@ impl AlmostDictElement {
 			&AlmostDictElement::Unknown(ref k, ref v) => {
 				DictPair::Unknown(
 					Thunk::lazy(plex.clone(), pstruct.clone(), k.clone()),
-					DictVal::public(Thunk::lazy(plex, pstruct, v.clone())))
+					DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Known(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::public(Thunk::lazy(plex, pstruct, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::private(Thunk::lazy(plex, pstruct, v.clone())))
+				DictPair::Known(k.to_owned(), DictVal::Prv(Thunk::lazy(plex, pstruct, v.clone())))
 			},
 		}
 	}
@@ -318,10 +374,10 @@ impl fmt::Debug for AlmostDictElement {
 				write!(f, "pub   {:?} = {:?}", k, v)
 			},
 			&AlmostDictElement::Known(ref k, ref v) => {
-				write!(f, "pub   {} = {:?}", k, v)
+				write!(f, "pub   {:?} = {:?}", k, v)
 			},
 			&AlmostDictElement::Priv(ref k, ref v) => {
-				write!(f, "local {} = {:?}", ::format_key(k), v)
+				write!(f, "local {:?} = {:?}", k, v)
 			},
 		}
 	}
@@ -378,6 +434,15 @@ impl ::Value for ADict {
 			self.parent.lookup(key)
 		}
 	}
+	
+	fn find(&self, k: &str) -> (usize, Key, ::Val) {
+		if self.key == k {
+			(0, Key::new(k.to_owned()), self.val.clone())
+		} else {
+			self.parent.deref().find(k)
+		}
+	}
+	
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
