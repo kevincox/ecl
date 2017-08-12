@@ -132,12 +132,14 @@ impl Dict {
 			None => return None,
 		};
 		
-		let strkey = k.to_string().get_str().unwrap().to_owned();
-		let mut prv = self.prv.borrow_mut();
-		match prv.data.entry(Key::new(strkey)) {
-			Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-			Entry::Vacant(e) => { e.insert(v.clone()); },
-		};
+		{
+			let strkey = k.to_string().get_str().unwrap().to_owned();
+			let mut prv = self.prv.borrow_mut();
+			match prv.data.entry(Key::new(strkey)) {
+				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
+				Entry::Vacant(e) => { e.insert(v.clone()); },
+			};
+		}
 		
 		Some((k.to_string().get_str().unwrap().to_owned(), v.clone()))
 	}
@@ -168,55 +170,74 @@ impl Dict {
 	}
 	
 	fn call(&self, this: ::Val, arg: ::Val, pstruct: ::Val) -> ::Val {
+		// eprintln!("START CALL DICT");
+		
 		let arg = arg.get();
 		let that = match arg.downcast_ref::<Dict>() {
 			Some(dict) => dict,
 			None => return ::err::Err::new(format!("Can't call dict with {:?}", arg)),
 		};
 		
+		let mut source = Vec::with_capacity(that.source.len() + self.source.len());
+		source.extend(self.source.iter().cloned());
+		source.extend(that.source.iter().cloned());
+		
 		let child = ::Val::new(Dict{
 			parent_structural: pstruct,
 			parent_lexical:
-				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
+				::nil::get(),
+				// ::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
 				data: BTreeMap::new(),
 				unevaluated: Vec::new(),
 			}),
-			source: Vec::new(),
+			source: source,
 		});
 		
 		{
 			let dict = child.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			
+			// eprintln!("Sources: {} + {}", self.source.len(), that.source.len());
+			
 			let that_elements = that.source.iter().map(|e| (e, arg.clone()));
 			let self_elements = self.source.iter().map(|e| (e, this.clone()));
 			
 			for (item, parent) in that_elements.chain(self_elements) {
 				match item.complete(parent, child.clone()) {
-					DictPair::Known(k, v) => match dict.prv.borrow_mut().data.entry(k) {
-						Entry::Occupied(mut e) => {
-							let old = v.val().unwrap().get();
-							// println!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
-							match old.downcast_ref::<Dict>() {
-								Some(d) => {
-									let new = e.get().val().unwrap();
-									// println!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
-									e.insert(DictVal::Pub(d.call(old.clone(), new, child.clone())));
-								}
-								None => {},
-							};
-						},
-						Entry::Vacant(e) => {
-							// println!("ELEM {:?} => {:?}", e.key(), v);
-							e.insert(v);
-						},
+					DictPair::Known(k, v) => {
+						let old = v.val().unwrap().get();
+						match dict.prv.borrow_mut().data.entry(k) {
+							Entry::Occupied(mut e) => {
+								// eprintln!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
+								match old.downcast_ref::<Dict>() {
+									Some(_) => {
+										let new = e.get().val().unwrap();
+										// eprintln!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
+										e.insert(DictVal::Pub(
+											Thunk::new(vec![old.clone(), new, child.clone()], |r|
+												r[0].downcast_ref::<Dict>().unwrap()
+													.call(
+														r[0].clone(),
+														r[1].clone(),
+														r[2].clone()))));
+									}
+									None => {},
+								};
+							},
+							Entry::Vacant(e) => {
+								// eprintln!("ELEM {:?} => {:?}", e.key(), v);
+								e.insert(v);
+							},
+						}
 					},
 					DictPair::Unknown(k, v) => {
 						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));
 					},
 				}
 			}
+			
+			// eprintln!("Sources out: {}", dict.source.len());
 		}
 		
 		child
@@ -282,7 +303,7 @@ impl ::Value for Dict {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
-		// println!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
+		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		let v = match depth {
 			0 => match self.index(key) {
 				Some(element) => Some(element.val().unwrap()),
@@ -290,7 +311,7 @@ impl ::Value for Dict {
 			},
 			other => self.parent_structural.structural_lookup(other-1, key),
 		};
-		// println!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
+		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
 	}
 	
@@ -315,6 +336,23 @@ impl ::Value for Dict {
 	
 	fn call(&self, this: ::Val, arg: ::Val) -> ::Val {
 		self.call(this, arg, ::nil::get())
+	}
+	
+	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
+		self.eval();
+		
+		// This is fine because the dict has been fully evaluated.
+		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
+		
+		Some(Box::new(
+			data
+				.iter()
+				.filter(|&(_, v)| v.public())
+				.map(|(k, v)| {
+					let k = ::Val::new(k.key.clone());
+					let data = vec![k, v.val().unwrap()];
+					::list::List::of_vals(data)
+				})))
 	}
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)

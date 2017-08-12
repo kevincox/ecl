@@ -9,6 +9,11 @@ cond_.multi_found	STR	"result"
 cond_.simple_false	NUM	2
 cond_.simple_true	NUM	49
 cond_	DICT	}
+dict-map	LIST	[
+dict-map.1	STR	"a=1"
+dict-map.2	STR	"b=2"
+dict-map.3	STR	"c=3"
+dict-map	LIST	]
 list-foldl	STR	"sabc"
 list-foldr	STR	"scba"
 list-map	LIST	[

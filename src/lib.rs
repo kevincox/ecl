@@ -67,7 +67,6 @@ pub trait Value:
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
 	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
-	fn map(&self, _: Val) -> Val { err::Err::new(format!("Can't map over {:?}", self)) }
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
@@ -225,6 +224,10 @@ impl Val {
 		self.value().unwrap().to_bool()
 	}
 	
+	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
+		i_promise_this_will_stay_alive(self.get().deref()).iter()
+	}
+	
 	fn foldl(&self, f: Val, accum: Val) -> Val {
 		let iterable = self.get();
 		let iterable = iterable.deref();
@@ -247,7 +250,21 @@ impl Val {
 		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
 	}
 	
-	fn map(&self, f: Val) -> Val { self.value()?.map(f) }
+	fn map(&self, f: Val) -> Val {
+		let iterable = self.get();
+		let iterable = iterable.deref();
+		let iter = match iterable.iter() {
+			Some(iter) => iter,
+			None => return err::Err::new(format!("Can't reverse iterate over {:?}", iterable)),
+		};
+		let vals = iter
+			.map(move |v|
+				 thunk::Thunk::new(vec![f.clone(), v.clone()], move |r|
+					r[0].clone().call(r[1].clone())))
+			.collect();
+		list::List::of_vals(vals)
+	}
+	
 	
 	fn reverse(&self) -> Val {
 		self.value()?.reverse()
@@ -361,7 +378,7 @@ impl Almost {
 					.annotate(loc, "Indexing with error as key")?;
 				o.index(k).annotate(loc, "Error returned from index")
 			},
-			Almost::List(ref items) => list::List::new(plex, items),
+			Almost::List(ref items) => list::List::new(plex, pstruct, items),
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(loc, ref id) => {

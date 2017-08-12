@@ -6,6 +6,7 @@ use dict;
 pub enum Arg {
 	One(String),
 	Dict(Vec<(String,bool,::Almost)>),
+	List(Vec<(String,bool,::Almost)>),
 }
 
 impl fmt::Debug for Arg {
@@ -16,11 +17,21 @@ impl fmt::Debug for Arg {
 				write!(f, "{{")?;
 				let mut first = true;
 				for arg in args {
-					if first { first = false } else { write!(f, ", ")? }
+					if first { first = false } else { write!(f, " ")? }
 					write!(f, "{}", arg.0)?;
 					if arg.1 { write!(f, "={:?}", arg.2)?  }
 				}
 				write!(f, "}}")
+			}
+			Arg::List(ref args) => {
+				write!(f, "[")?;
+				let mut first = true;
+				for arg in args {
+					if first { first = false } else { write!(f, " ")? }
+					write!(f, "{}", arg.0)?;
+					if arg.1 { write!(f, "={:?}", arg.2)?  }
+				}
+				write!(f, "]")
 			}
 		}
 	}
@@ -70,6 +81,43 @@ impl ::Value for Func {
 					}
 					
 					assert_eq!(passed_used, arg.len());
+				}
+				
+				val
+			},
+			Arg::List(ref args) => {
+				let val = ::dict::Dict::new(self.parent.clone(), ::nil::get(), &[]);
+				
+				{
+					let dict = val.downcast_ref::<::dict::Dict>().unwrap();
+					
+					let arg_len = arg.len();
+					if arg_len > args.len() {
+						return ::err::Err::new(
+							format!(
+								"Too many elements for destructure. Got {}, \
+								expected at most {}",
+								arg_len, args.len()));
+					}
+					let mut arg_iter = match arg.iter() {
+						Some(iter) => iter,
+						None => return ::err::Err::new(
+							format!("Can't destructure {:?} as a list", arg)),
+					};
+					for &(ref k, required, ref default) in args {
+						if let Some(val) = arg_iter.next() {
+							dict._set_val(k.clone(), ::dict::DictVal::Prv(val));
+						} else if required {
+							return ::err::Err::new(
+								format!(
+									"Not enough elements in list to \
+									destructure {:?}.",
+									k));
+						} else {
+							let default = default.complete(val.clone(), ::nil::get());
+							dict._set_val(k.clone(), ::dict::DictVal::Prv(default));
+						}
+					}
 				}
 				
 				val

@@ -21,4 +21,13 @@ hello.args.service-name	STR	"default-name"
 hello.args	DICT	}
 hello.name	STR	"hello"
 hello	DICT	}
+multi-level0	DICT	{
+multi-level0.item	STR	"an item"
+multi-level0	DICT	}
+multi-level1	DICT	{
+multi-level1.item	STR	"an item"
+multi-level1	DICT	}
+multi-level2	DICT	{
+multi-level2.item	STR	"an item"
+multi-level2	DICT	}
 	DICT	}

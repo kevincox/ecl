@@ -18,6 +18,8 @@ struct Two(::Val, ::Val);
 pub fn get(key: &str) -> ::Val {
 	match key {
 		"cond" => new("if", |v| cond(v.to_slice())),
+		"error" => new("error", |msg|
+			::err::Err::new(format!("Error: {:?}", msg.get()))),
 		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
 		"foldl" => new("foldl",
 			|f| Builtin::new("foldl:func", f,
@@ -39,7 +41,8 @@ pub fn get(key: &str) -> ::Val {
 		"map" => new("index", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone()))),
 		"nil" => nil::get(),
 		"reverse" => new("reverse", |v| v.reverse()),
-		"panic" => new("panic", |msg| panic!("Script called panic: {:?}", msg.get())),
+		"panic" => new("panic", |msg|
+			panic!("Script called panic: {:?}", msg.get())),
 		"true" => ::bool::get_true(),
 		"false" => ::bool::get_false(),
 		"_testing_assert_cache_eval" => {

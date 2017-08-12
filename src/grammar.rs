@@ -548,8 +548,8 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	fn dict_item(&mut self) -> Result<dict::AlmostDictElement,ParseError> {
 		let ade = expect_next!{self: "parsing dict element",
 			(Token::Ident(s), _) => {
-				if s == "local" {
-					match self.next() {
+				match s.as_str() {
+					"local" => match self.next() {
 						Some((Token::Ident(s),_)) => {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 							let val = Rc::new(self.expr()?);
@@ -559,7 +559,8 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 						},
 						Some(t) => self.unget(t),
 						None => {},
-					}
+					},
+					_ => {},
 				}
 				
 				let val = expect_next!{self: "parsing dict key",
@@ -614,6 +615,23 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				}
 				
 				Ok(func::Arg::Dict(args))
+			},
+			(Token::ListOpen, _) => {
+				let mut args = Vec::new();
+				
+				while !self.consume(Token::ListClose).is_some() {
+					let k = expect_next!{self: "destructure list key",
+						(Token::Ident(k), _) => k,
+					};
+					
+					if let Some(_) = self.consume(Token::Assign) {
+						args.push((k.clone(), false, self.expr()?));
+					} else {
+						args.push((k.clone(), true, ::Almost::Nil));
+					}
+				}
+				
+				Ok(func::Arg::List(args))
 			},
 		}
 	}

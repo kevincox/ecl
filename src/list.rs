@@ -11,10 +11,15 @@ pub struct List {
 }
 
 impl List {
-	pub fn new(p: ::Val, items: &[Rc<::Almost>]) -> ::Val {
+	pub fn new(plex: ::Val, pstruct: ::Val, items: &[Rc<::Almost>]) -> ::Val {
 		::Val::new(List {
-			data: items.iter().map(|a| Thunk::lazy(p.clone(), ::nil::get(), a.clone())).collect(),
+			data: items.iter().map(|a|
+				Thunk::lazy(plex.clone(), pstruct.clone(), a.clone())).collect(),
 		})
+	}
+	
+	pub fn of_vals(data: Vec<::Val>) -> ::Val {
+		::Val::new(List{data})
 	}
 }
 
@@ -49,16 +54,6 @@ impl ::Value for List {
 		Some(Box::new(self.data.iter().rev().cloned()))
 	}
 	
-	fn map(&self, f: ::Val) -> ::Val {
-		let data = self.data
-			.iter()
-			.map(move |v|
-				 Thunk::new(vec![f.clone(), v.clone()], move |r|
-					r[0].clone().call(r[1].clone())))
-			.collect();
-		::Val::new(List{data})
-	}
-	
 	fn reverse(&self) -> ::Val {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();
@@ -68,7 +63,14 @@ impl ::Value for List {
 	}
 }
 
-impl ::SameOps for List { }
+impl ::SameOps for List {
+	fn add(&self, that: &Self) -> ::Val {
+		let mut data = Vec::with_capacity(self.data.len() + that.data.len());
+		data.extend(self.data.iter().cloned());
+		data.extend(that.data.iter().cloned());
+		::Val::new(List{data})
+	}
+}
 
 impl fmt::Debug for List {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

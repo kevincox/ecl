@@ -21,3 +21,7 @@ func-eval = {
 
 local list = [ panic:"Unused list head" 6 panic:"Unused list tail" ]
 list-eval = index:list:1
+
+# TODO: This is a hack to avoid evaluation, it shouldn't be necessary.
+local template = { var = [ panic: "Overridden value." ] }
+template-eval = template:{ var = "ok" }
