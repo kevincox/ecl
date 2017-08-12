@@ -38,7 +38,13 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 	unsafe { mem::transmute(v) }
 }
 
-pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
+pub trait Value:
+	any::Any +
+	fmt::Debug +
+	gc::Trace +
+	SameOpsTrait +
+	'static
+{
 	fn type_str(&self) -> &'static str;
 	
 	fn get(&self) -> Option<Val> { None }
@@ -59,6 +65,9 @@ pub trait Value: gc::Trace + fmt::Debug + any::Any + SameOpsTrait + 'static {
 	fn to_bool(&self) -> bool { true }
 	fn call(&self, _this: Val, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
+	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
+	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
+	fn map(&self, _: Val) -> Val { err::Err::new(format!("Can't map over {:?}", self)) }
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
@@ -215,6 +224,30 @@ impl Val {
 	fn to_bool(&self) -> bool {
 		self.value().unwrap().to_bool()
 	}
+	
+	fn foldl(&self, f: Val, accum: Val) -> Val {
+		let iterable = self.get();
+		let iterable = iterable.deref();
+		let iter = match iterable.iter() {
+			Some(iter) => iter,
+			None => return err::Err::new(format!("Can't iterate over {:?}", iterable)),
+		};
+		
+		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
+	}
+	
+	fn foldr(&self, f: Val, accum: Val) -> Val {
+		let iterable = self.get();
+		let iterable = iterable.deref();
+		let iter = match iterable.reverse_iter() {
+			Some(iter) => iter,
+			None => return err::Err::new(format!("Can't reverse iterate over {:?}", iterable)),
+		};
+		
+		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
+	}
+	
+	fn map(&self, f: Val) -> Val { self.value()?.map(f) }
 	
 	fn reverse(&self) -> Val {
 		self.value()?.reverse()

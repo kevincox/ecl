@@ -197,18 +197,18 @@ impl Dict {
 					DictPair::Known(k, v) => match dict.prv.borrow_mut().data.entry(k) {
 						Entry::Occupied(mut e) => {
 							let old = v.val().unwrap().get();
-							println!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
+							// println!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
 							match old.downcast_ref::<Dict>() {
 								Some(d) => {
 									let new = e.get().val().unwrap();
-									println!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
+									// println!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
 									e.insert(DictVal::Pub(d.call(old.clone(), new, child.clone())));
 								}
 								None => {},
 							};
 						},
 						Entry::Vacant(e) => {
-							println!("ELEM {:?} => {:?}", e.key(), v);
+							// println!("ELEM {:?} => {:?}", e.key(), v);
 							e.insert(v);
 						},
 					},
@@ -282,7 +282,7 @@ impl ::Value for Dict {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
-		println!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
+		// println!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		let v = match depth {
 			0 => match self.index(key) {
 				Some(element) => Some(element.val().unwrap()),
@@ -290,7 +290,7 @@ impl ::Value for Dict {
 			},
 			other => self.parent_structural.structural_lookup(other-1, key),
 		};
-		println!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
+		// println!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
 	}
 	

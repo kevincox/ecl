@@ -41,6 +41,24 @@ impl ::Value for List {
 		s.erased_serialize_seq_end(state)
 	}
 	
+	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
+		Some(Box::new(self.data.iter().cloned()))
+	}
+	
+	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
+		Some(Box::new(self.data.iter().rev().cloned()))
+	}
+	
+	fn map(&self, f: ::Val) -> ::Val {
+		let data = self.data
+			.iter()
+			.map(move |v|
+				 Thunk::new(vec![f.clone(), v.clone()], move |r|
+					r[0].clone().call(r[1].clone())))
+			.collect();
+		::Val::new(List{data})
+	}
+	
 	fn reverse(&self) -> ::Val {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();

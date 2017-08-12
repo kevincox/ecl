@@ -12,10 +12,21 @@ use nil;
 #[derive(PartialEq,Trace)]
 struct Empty;
 
+#[derive(PartialEq,Trace)]
+struct Two(::Val, ::Val);
+
 pub fn get(key: &str) -> ::Val {
 	match key {
 		"cond" => new("if", |v| cond(v.to_slice())),
 		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
+		"foldl" => new("foldl",
+			|f| Builtin::new("foldl:func", f,
+				|f, accum| Builtin::new("foldl:func:accum", Two(f.clone(), accum.clone()),
+					|&Two(ref f, ref accum), o| o.foldl(f.clone(), accum.clone())))),
+		"foldr" => new("foldr",
+			|f| Builtin::new("foldr:func", f,
+				|f, accum| Builtin::new("foldr:func:accum", Two(f.clone(), accum.clone()),
+					|&Two(ref f, ref accum), o| o.foldr(f.clone(), accum.clone())))),
 		"load" => new("load", |path| {
 			if path.is_err() { return path }
 			match path.get_str() {
@@ -25,6 +36,7 @@ pub fn get(key: &str) -> ::Val {
 					format!("load expects string argument, got {:?}", path)),
 			}
 		}),
+		"map" => new("index", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone()))),
 		"nil" => nil::get(),
 		"reverse" => new("reverse", |v| v.reverse()),
 		"panic" => new("panic", |msg| panic!("Script called panic: {:?}", msg.get())),

@@ -9,12 +9,19 @@ cond_.multi_found	STR	"result"
 cond_.simple_false	NUM	2
 cond_.simple_true	NUM	49
 cond_	DICT	}
+list-foldl	STR	"sabc"
+list-foldr	STR	"scba"
+list-map	LIST	[
+list-map.1	NUM	3
+list-map.2	NUM	4
+list-map.3	NUM	5
+list-map	LIST	]
+list-reverse	LIST	[
+list-reverse.1	NUM	3
+list-reverse.2	NUM	2
+list-reverse.3	NUM	1
+list-reverse	LIST	]
+list-reverse-empty	LIST	[
+list-reverse-empty	LIST	]
 nil_	NIL	nil
-reverse_list	LIST	[
-reverse_list.1	NUM	3
-reverse_list.2	NUM	2
-reverse_list.3	NUM	1
-reverse_list	LIST	]
-reverse_list_empty	LIST	[
-reverse_list_empty	LIST	]
 	DICT	}
