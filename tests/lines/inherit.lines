@@ -21,6 +21,15 @@ hello.args.service-name	STR	"default-name"
 hello.args	DICT	}
 hello.name	STR	"hello"
 hello	DICT	}
+mid-override0	DICT	{
+mid-override0.a	NUM	0
+mid-override0	DICT	}
+mid-override1	DICT	{
+mid-override1.a	NUM	1
+mid-override1	DICT	}
+mid-override2	DICT	{
+mid-override2.a	NUM	1
+mid-override2	DICT	}
 multi-level0	DICT	{
 multi-level0.item	STR	"an item"
 multi-level0	DICT	}

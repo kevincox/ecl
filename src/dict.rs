@@ -189,8 +189,8 @@ impl Dict {
 		};
 		
 		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
-		source.extend(self.source().iter().cloned());
 		source.extend(that.source().iter().cloned());
+		source.extend(self.source().iter().cloned());
 		
 		let child = ::Val::new(Dict{
 			parent_structural: pstruct,
@@ -207,10 +207,7 @@ impl Dict {
 			let dict = child.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			
-			// eprintln!("Sources: {} + {}", self.source.len(), that.source.len());
-			
-			let sources = that.source().iter().chain(self.source().iter());
-			for &Source{ref parent, ref almost} in sources {
+			for &Source{ref parent, ref almost} in dict.source() {
 				match almost.complete(parent.clone(), child.clone()) {
 					DictPair::Known(k, v) => {
 						let old = v.val().unwrap().get();
@@ -311,7 +308,7 @@ impl ::Value for Dict {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
-		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
+		eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		let v = match depth {
 			0 => match self.index(key) {
 				Some(element) => Some(element.val().unwrap()),
@@ -319,7 +316,7 @@ impl ::Value for Dict {
 			},
 			other => self.parent_structural.structural_lookup(other-1, key),
 		};
-		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
+		eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
 	}
 	
