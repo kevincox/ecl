@@ -3,23 +3,31 @@ extern crate ecl;
 extern crate erased_serde;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_yaml;
 
 use erased_serde::Serialize;
 
 fn serialize_val_with(val: ecl::Val, format: &str, compact: bool)
-	-> Result<(),erased_serde::Error>
 {
-	let r = match (format, compact) {
+	match (format, compact) {
 		("json", false) =>
-			val.erased_serialize(&mut serde_json::Serializer::pretty(std::io::stdout())),
+			val.erased_serialize(&mut serde_json::Serializer::pretty(std::io::stdout()))
+				.unwrap(),
 		("json", true) =>
-			val.erased_serialize(&mut serde_json::Serializer::new(std::io::stdout())),
+			val.erased_serialize(&mut serde_json::Serializer::new(std::io::stdout()))
+				.unwrap(),
 		("lines", _) =>
-			return val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout())),
+			val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout()))
+				.unwrap(),
+		("yaml", _) => {
+			let mut vec = Vec::new();
+			let seriliazable = val.rec_ser(&mut vec);
+			serde_yaml::to_writer(&mut std::io::stdout(), &seriliazable)
+				.unwrap()
+		}
 		(other, _) => panic!("Unknown formatter: {:?}", other),
-	};
-	if r.is_ok() { println!() }
-	r
+	}
+	println!();
 }
 
 fn main() {
@@ -28,9 +36,9 @@ fn main() {
 		.author("Kevin Cox <kevincox@kevincox.ca>")
 		.setting(clap::AppSettings::SubcommandRequired)
 		.arg(clap::Arg::from_usage("-f --format [format] 'Output format'")
-			 .possible_values(&["json", "lines"])
-			 .default_value("json")
-			 .global(true))
+			.possible_values(&["json", "lines", "yaml"])
+			.default_value("json")
+			.global(true))
 		.arg(clap::Arg::from_usage("-c, --compact 'Format for robots.'").global(true))
 		.subcommand(clap::SubCommand::with_name("load")
 			.arg_from_usage("<file> 'ecl config to load'")
@@ -53,16 +61,16 @@ fn main() {
 				val = select.call(val);
 			}
 			serialize_val_with(val,
-				matches.value_of("format").unwrap(),
-				matches.is_present("compact")).unwrap();
+				load.value_of("format").unwrap(),
+				load.is_present("compact"));
 		},
 		("eval", Some(eval)) => {
 			let source = eval.value_of("code").unwrap();
 			let val = ecl::parse("<command-line>", source)
 				.expect("Failed to parse expression.");
 			serialize_val_with(val,
-				matches.value_of("format").unwrap(),
-				matches.is_present("compact")).unwrap();
+				eval.value_of("format").unwrap(),
+				eval.is_present("compact"));
 		},
 		(command, args) => {
 			panic!("Unknown command {:?} with {:?}", command, args);

@@ -12,6 +12,7 @@ ramp = "0.3"
 regex = "0.1"
 serde = "0.8"
 serde_json = "0.8"
+serde_yaml = "0.5"
 
 [dependencies.gc]
 features = ["nightly"]

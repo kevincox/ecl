@@ -270,7 +270,7 @@ impl Val {
 		self.value()?.reverse()
 	}
 	
-	fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
+	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
 		let selfr = self.get();
 		let selfp = selfr.deref() as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
@@ -304,7 +304,7 @@ impl std::ops::Try for Val {
 	}
 }
 
-struct SerializeVal<'a> {
+pub struct SerializeVal<'a> {
 	val: Val,
 	visited: RefCell<&'a mut Vec<*const Value>>,
 }
