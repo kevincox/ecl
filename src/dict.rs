@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use thunk::Thunk;
 
-#[derive(Clone,Trace)]
+#[derive(Clone,Debug,Trace)]
 struct Source {
 	parent: ::Val,
 	#[unsafe_ignore_trace]
@@ -180,7 +180,7 @@ impl Dict {
 	}
 	
 	fn call(&self, arg: ::Val, pstruct: ::Val) -> ::Val {
-		// eprintln!("START CALL DICT");
+		eprintln!("START CALL DICT {:?}:{:?}", self, arg);
 		
 		let arg = arg.get();
 		let that = match arg.downcast_ref::<Dict>() {
@@ -191,6 +191,8 @@ impl Dict {
 		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
 		source.extend(that.source().iter().cloned());
 		source.extend(self.source().iter().cloned());
+		
+		eprintln!("Sources: {:?}", source);
 		
 		let child = ::Val::new(Dict{
 			parent_structural: pstruct,
@@ -208,25 +210,18 @@ impl Dict {
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			
 			for &Source{ref parent, ref almost} in dict.source() {
+				eprintln!("Almost {:?}", almost);
 				match almost.complete(parent.clone(), child.clone()) {
 					DictPair::Known(k, v) => {
-						let old = v.val().unwrap().get();
+						eprintln!("Source for {:?} => {:?}", k, v);
 						match dict.prv.borrow_mut().data.entry(k) {
 							Entry::Occupied(mut e) => {
-								// eprintln!("ELEM {:?} => {:?}:{:?}", e.key(), old, e.get());
-								match old.downcast_ref::<Dict>() {
-									Some(_) => {
-										let new = e.get().val().unwrap();
-										// eprintln!("CALL {:?} => {:?}:{:?}", e.key(), d, new);
-										e.insert(DictVal::Pub(
-											Thunk::new(vec![old.clone(), new, child.clone()], |r|
-												r[0].downcast_ref::<Dict>().unwrap()
-													.call(
-														r[1].clone(),
-														r[2].clone()))));
-									}
-									None => {},
-								};
+								eprintln!("ELEM {:?} => {:?}:{:?}", e.key(), v, e.get());
+								let sub_val = v.val().unwrap();
+								let sup_val = e.get().val().unwrap();
+								e.insert(DictVal::Pub(
+									Thunk::new(vec![sub_val, sup_val, child.clone()], |r|
+										override_(r[0].clone(), r[1].clone(), r[2].clone()))));
 							},
 							Entry::Vacant(e) => {
 								// eprintln!("ELEM {:?} => {:?}", e.key(), v);
@@ -240,10 +235,21 @@ impl Dict {
 				}
 			}
 			
-			// eprintln!("Sources out: {}", dict.source.len());
+			eprintln!("Sources out: {}", dict.source().len());
+			eprintln!("Known out: {}", dict.prv.borrow_mut().data.len());
+			eprintln!("Uneval out: {}", dict.prv.borrow_mut().unevaluated.len());
+			eprintln!("Out: {:?}", child);
 		}
 		
 		child
+	}
+}
+
+fn override_(sub: ::Val, sup: ::Val, pstruct: ::Val) -> ::Val {
+	let sub = sub.get();
+	match sub.downcast_ref::<Dict>() {
+		Some(sub_dict) => sub_dict.call(sup, pstruct),
+		None => sup,
 	}
 }
 
@@ -308,7 +314,7 @@ impl ::Value for Dict {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
-		eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
+		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		let v = match depth {
 			0 => match self.index(key) {
 				Some(element) => Some(element.val().unwrap()),
@@ -316,7 +322,7 @@ impl ::Value for Dict {
 			},
 			other => self.parent_structural.structural_lookup(other-1, key),
 		};
-		eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
+		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
 	}
 	

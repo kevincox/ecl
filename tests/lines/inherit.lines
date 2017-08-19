@@ -39,4 +39,19 @@ multi-level1	DICT	}
 multi-level2	DICT	{
 multi-level2.item	STR	"an item"
 multi-level2	DICT	}
+nested-type-base	DICT	{
+nested-type-base.a	DICT	{
+nested-type-base.a.base-val	NUM	1
+nested-type-base.a	DICT	}
+nested-type-base	DICT	}
+nested-type-sub	DICT	{
+nested-type-sub.a	DICT	{
+nested-type-sub.a.base-val	NUM	1
+nested-type-sub.a.sub-val	NUM	2
+nested-type-sub.a	DICT	}
+nested-type-sub.b	DICT	{
+nested-type-sub.b.base-val	NUM	1
+nested-type-sub.b.sub-val	NUM	2
+nested-type-sub.b	DICT	}
+nested-type-sub	DICT	}
 	DICT	}

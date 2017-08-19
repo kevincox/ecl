@@ -382,9 +382,9 @@ impl Almost {
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(loc, ref id) => {
-				// eprintln!("Evaluating ref: {:?} {:?}", loc, id);
+				eprintln!("Evaluating ref: {:?} {:?}", loc, id);
 				let (depth, dictkey, val) = plex.value()?.find(id);
-				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
+				eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
 				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
 				v.annotate(loc, "Error value referenced")
 			},
