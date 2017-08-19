@@ -209,7 +209,7 @@ impl Dict {
 			
 			// eprintln!("Sources: {} + {}", self.source.len(), that.source.len());
 			
-			let sources = self.source().iter().chain(self.source().iter());
+			let sources = that.source().iter().chain(self.source().iter());
 			for &Source{ref parent, ref almost} in sources {
 				match almost.complete(parent.clone(), child.clone()) {
 					DictPair::Known(k, v) => {
@@ -266,8 +266,8 @@ impl fmt::Debug for Dict {
 			match *v {
 				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
 				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
-				DictVal::Local(v) => {
-					write!(f, "redir {:?}={:?}", k, v)?
+				DictVal::Local(_v) => {
+					// write!(f, "redir {:?}={:?}", k, _v)?;
 				},
 			}
 		}
