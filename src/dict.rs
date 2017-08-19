@@ -9,14 +9,19 @@ use std::rc::Rc;
 
 use thunk::Thunk;
 
+#[derive(Clone,Trace)]
+struct Source {
+	parent: ::Val,
+	#[unsafe_ignore_trace]
+	almost: AlmostDictElement,
+}
+
 #[derive(Trace)]
 pub struct Dict {
 	parent_structural: ::Val,
 	parent_lexical: ::Val,
 	prv: gc::GcCell<DictData>,
-	
-	#[unsafe_ignore_trace]
-	source: Vec<AlmostDictElement>,
+	source: gc::GcCell<Vec<Source>>,
 }
 
 // TODO: Switch from enum to struct with visibility member.
@@ -26,6 +31,11 @@ pub struct Key {
 	pub key: String,
 }
 
+impl Key {
+	pub fn new(key: String) -> Self { Key{namespace: 0, key: key} }
+	pub fn local(ns: usize, key: String) -> Self { Key{namespace: ns, key: key} }
+}
+
 impl fmt::Debug for Key {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self.namespace {
@@ -33,11 +43,6 @@ impl fmt::Debug for Key {
 			_ => write!(f, "{}::{:?}", self.namespace, self.key),
 		}
 	}
-}
-
-impl Key {
-	pub fn new(key: String) -> Self { Key{namespace: 0, key: key} }
-	pub fn local(ns: usize, key: String) -> Self { Key{namespace: ns, key: key} }
 }
 
 #[derive(Clone,Debug,PartialEq,Trace)]
@@ -91,12 +96,13 @@ impl Dict {
 				data: BTreeMap::new(),
 				unevaluated: Vec::new(),
 			}),
-			source: items.into(),
+			source: gc::GcCell::new(Vec::new()),
 		});
 		{
 			let dict = this.clone();
 			let dict = dict.downcast_ref::<Dict>().unwrap();
 			for item in items {
+				dict.source.borrow_mut().push(Source{parent: this.clone(), almost: item.clone()});
 				match item.complete(this.clone(), this.clone()) {
 					DictPair::Known(k, v) => {
 						if k.namespace != 0 {
@@ -120,6 +126,10 @@ impl Dict {
 			}
 		}
 		this
+	}
+	
+	fn source(&self) -> &[Source] {
+		::i_promise_this_will_stay_alive(&*self.source.borrow()).as_slice()
 	}
 	
 	pub fn _set_val(&self, key: String, val: DictVal) {
@@ -169,7 +179,7 @@ impl Dict {
 		None
 	}
 	
-	fn call(&self, this: ::Val, arg: ::Val, pstruct: ::Val) -> ::Val {
+	fn call(&self, arg: ::Val, pstruct: ::Val) -> ::Val {
 		// eprintln!("START CALL DICT");
 		
 		let arg = arg.get();
@@ -178,20 +188,19 @@ impl Dict {
 			None => return ::err::Err::new(format!("Can't call dict with {:?}", arg)),
 		};
 		
-		let mut source = Vec::with_capacity(that.source.len() + self.source.len());
-		source.extend(self.source.iter().cloned());
-		source.extend(that.source.iter().cloned());
+		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
+		source.extend(self.source().iter().cloned());
+		source.extend(that.source().iter().cloned());
 		
 		let child = ::Val::new(Dict{
 			parent_structural: pstruct,
 			parent_lexical:
-				::nil::get(),
-				// ::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
+				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
 				data: BTreeMap::new(),
 				unevaluated: Vec::new(),
 			}),
-			source: source,
+			source: gc::GcCell::new(source),
 		});
 		
 		{
@@ -200,11 +209,9 @@ impl Dict {
 			
 			// eprintln!("Sources: {} + {}", self.source.len(), that.source.len());
 			
-			let that_elements = that.source.iter().map(|e| (e, arg.clone()));
-			let self_elements = self.source.iter().map(|e| (e, this.clone()));
-			
-			for (item, parent) in that_elements.chain(self_elements) {
-				match item.complete(parent, child.clone()) {
+			let sources = self.source().iter().chain(self.source().iter());
+			for &Source{ref parent, ref almost} in sources {
+				match almost.complete(parent.clone(), child.clone()) {
 					DictPair::Known(k, v) => {
 						let old = v.val().unwrap().get();
 						match dict.prv.borrow_mut().data.entry(k) {
@@ -218,7 +225,6 @@ impl Dict {
 											Thunk::new(vec![old.clone(), new, child.clone()], |r|
 												r[0].downcast_ref::<Dict>().unwrap()
 													.call(
-														r[0].clone(),
 														r[1].clone(),
 														r[2].clone()))));
 									}
@@ -260,7 +266,9 @@ impl fmt::Debug for Dict {
 			match *v {
 				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
 				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
-				DictVal::Local(_) => {},
+				DictVal::Local(v) => {
+					write!(f, "redir {:?}={:?}", k, v)?
+				},
 			}
 		}
 		
@@ -317,6 +325,7 @@ impl ::Value for Dict {
 	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
 		let mut key = Key::new(k.to_owned());
+		// eprintln!("Find {:?} in {:?}", key, self);
 		match self.index(&key) {
 			Some(element) => match element {
 				DictVal::Pub(ref v) => (0, key, v.clone()),
@@ -334,8 +343,8 @@ impl ::Value for Dict {
 		}
 	}
 	
-	fn call(&self, this: ::Val, arg: ::Val) -> ::Val {
-		self.call(this, arg, ::nil::get())
+	fn call(&self, arg: ::Val) -> ::Val {
+		self.call(arg, ::nil::get())
 	}
 	
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {

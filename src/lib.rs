@@ -63,7 +63,7 @@ pub trait Value:
 	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
-	fn call(&self, _this: Val, arg: Val) -> Val
+	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
 	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
@@ -200,7 +200,7 @@ impl Val {
 	}
 	
 	pub fn call(&self, arg: Val) -> Val {
-		self.value().unwrap().call(self.clone(), arg)
+		self.value().unwrap().call(arg)
 	}
 	
 	fn get_str(&self) -> Result<&str,Val> {
@@ -382,7 +382,9 @@ impl Almost {
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(loc, ref id) => {
+				// eprintln!("Evaluating ref: {:?} {:?}", loc, id);
 				let (depth, dictkey, val) = plex.value()?.find(id);
+				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
 				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
 				v.annotate(loc, "Error value referenced")
 			},

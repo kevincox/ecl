@@ -58,7 +58,7 @@ impl Func {
 impl ::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
 	
-	fn call(&self, _this: ::Val, arg: ::Val) -> ::Val {
+	fn call(&self, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
 			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
 			Arg::Dict(ref args) => {
