@@ -17,6 +17,7 @@ pub struct Loc {
 pub enum StrType {
 	String,
 	Relative,
+	Parent,
 }
 
 #[derive(Clone,Debug,PartialEq)]
@@ -306,6 +307,14 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				Some('/') => {
 					self.state.push(LexerMode::Path);
 					Token::StrOpen(StrType::Relative)
+				},
+				Some('.') => match self.next() {
+					Some('/') => {
+						self.state.push(LexerMode::Path);
+						Token::StrOpen(StrType::Parent)
+					}
+					Some(c) => self.unexpected(c),
+					None => Token::Unfinished,
 				},
 				Some(c) => { self.unget(c); Token::Dot },
 				None => Token::Assign,
@@ -718,9 +727,12 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		
 		match typ {
 			StrType::Relative => {
-				pieces.push(::StringPart::Lit(self.directory.to_owned()))
-			},
-			_ => {},
+				pieces.push(::StringPart::Lit(self.directory.to_owned()));
+			}
+			StrType::Parent => {
+				pieces.push(::StringPart::Lit(self.directory.to_owned() + "../"));
+			}
+			StrType::String => {},
 		}
 		
 		// println!("Pieces: {:?}", pieces);

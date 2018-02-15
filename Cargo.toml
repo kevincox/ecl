@@ -6,24 +6,13 @@ version = "0.1.0"
 [dependencies]
 clap = "2.25.1"
 erased-serde = "0.1"
+gc = { version = "0.3", features = ["nightly"] }
 gc_derive = "0.3"
 lazy_static = "0.2"
-ramp = "0.3"
 regex = "0.1"
 serde = "0.8"
 serde_json = "0.8"
 serde_yaml = "0.5"
 
-[dependencies.gc]
-features = ["nightly"]
-version = "0.3"
-
 [dev-dependencies]
 difference = "1.0"
-
-[patch]
-
-[patch.crates-io]
-
-[patch.crates-io.gc]
-path = "../rust-gc/gc"

@@ -180,8 +180,6 @@ impl Dict {
 	}
 	
 	fn call(&self, arg: ::Val, pstruct: ::Val) -> ::Val {
-		eprintln!("START CALL DICT {:?}:{:?}", self, arg);
-		
 		let arg = arg.get();
 		let that = match arg.downcast_ref::<Dict>() {
 			Some(dict) => dict,
@@ -191,8 +189,6 @@ impl Dict {
 		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
 		source.extend(that.source().iter().cloned());
 		source.extend(self.source().iter().cloned());
-		
-		eprintln!("Sources: {:?}", source);
 		
 		let child = ::Val::new(Dict{
 			parent_structural: pstruct,
@@ -210,21 +206,17 @@ impl Dict {
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			
 			for &Source{ref parent, ref almost} in dict.source() {
-				eprintln!("Almost {:?}", almost);
 				match almost.complete(parent.clone(), child.clone()) {
 					DictPair::Known(k, v) => {
-						eprintln!("Source for {:?} => {:?}", k, v);
 						match dict.prv.borrow_mut().data.entry(k) {
 							Entry::Occupied(mut e) => {
-								eprintln!("ELEM {:?} => {:?}:{:?}", e.key(), v, e.get());
-								let sub_val = v.val().unwrap();
-								let sup_val = e.get().val().unwrap();
+								let sup_val = v.val().unwrap();
+								let sub_val = e.get().val().unwrap();
 								e.insert(DictVal::Pub(
-									Thunk::new(vec![sub_val, sup_val, child.clone()], |r|
+									Thunk::new(vec![sup_val, sub_val, child.clone()], |r|
 										override_(r[0].clone(), r[1].clone(), r[2].clone()))));
 							},
 							Entry::Vacant(e) => {
-								// eprintln!("ELEM {:?} => {:?}", e.key(), v);
 								e.insert(v);
 							},
 						}
@@ -234,22 +226,17 @@ impl Dict {
 					},
 				}
 			}
-			
-			eprintln!("Sources out: {}", dict.source().len());
-			eprintln!("Known out: {}", dict.prv.borrow_mut().data.len());
-			eprintln!("Uneval out: {}", dict.prv.borrow_mut().unevaluated.len());
-			eprintln!("Out: {:?}", child);
 		}
 		
 		child
 	}
 }
 
-fn override_(sub: ::Val, sup: ::Val, pstruct: ::Val) -> ::Val {
-	let sub = sub.get();
-	match sub.downcast_ref::<Dict>() {
-		Some(sub_dict) => sub_dict.call(sup, pstruct),
-		None => sup,
+fn override_(sup: ::Val, sub: ::Val, pstruct: ::Val) -> ::Val {
+	let sup = sup.get();
+	match sup.downcast_ref::<Dict>() {
+		Some(sup_dict) => sup_dict.call(sub, pstruct),
+		None => sub,
 	}
 }
 
@@ -270,7 +257,7 @@ impl fmt::Debug for Dict {
 				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
 				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
 				DictVal::Local(_v) => {
-					// write!(f, "redir {:?}={:?}", k, _v)?;
+					write!(f, "redir {:?}={:?}", k, _v)?;
 				},
 			}
 		}
@@ -328,8 +315,9 @@ impl ::Value for Dict {
 	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
 		let mut key = Key::new(k.to_owned());
-		// eprintln!("Find {:?} in {:?}", key, self);
-		match self.index(&key) {
+		// let dbg_key = key.clone();
+		// eprintln!("Find {:?} in {:?}", dbg_key, self);
+		let v = match self.index(&key) {
 			Some(element) => match element {
 				DictVal::Pub(ref v) => (0, key, v.clone()),
 				DictVal::Prv(ref v) => (0, key, v.clone()),
@@ -343,11 +331,13 @@ impl ::Value for Dict {
 				let (depth, k, v) = self.parent_lexical.deref().find(k);
 				(depth+1, k, v)
 			},
-		}
+		};
+		// eprintln!("Find {:?} in {:?} -> {:?}", dbg_key, self, v);
+		return v
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
-		self.call(arg, ::nil::get())
+		self.call(arg, self.parent_structural.clone())
 	}
 	
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
