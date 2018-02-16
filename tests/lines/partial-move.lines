@@ -1,0 +1,4 @@
+	DICT	{
+name	STR	"My Deployment"
+namespace	STR	"MyApp Name"
+	DICT	}

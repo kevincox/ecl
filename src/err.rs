@@ -19,6 +19,10 @@ impl Err {
 impl ::Value for Err {
 	fn type_str(&self) -> &'static str { "err" }
 	fn is_err(&self) -> bool { true }
+	
+	fn structural_lookup(&self, _: usize, _: &::dict::Key) -> Option<::Val> {
+		unreachable!("Can't perform structural lookup in error: {:?}", self);
+	}
 }
 
 impl ::SameOps for Err {

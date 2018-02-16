@@ -11,14 +11,14 @@ use thunk::Thunk;
 
 #[derive(Clone,Debug,Trace)]
 struct Source {
-	parent: ::Val,
+	parent_lexical: ::Val,
+	parent_structual: ::Val,
 	#[unsafe_ignore_trace]
 	almost: AlmostDictElement,
 }
 
 #[derive(Trace)]
 pub struct Dict {
-	parent_structural: ::Val,
 	parent_lexical: ::Val,
 	prv: gc::GcCell<DictData>,
 	source: gc::GcCell<Vec<Source>>,
@@ -91,19 +91,28 @@ impl Dict {
 	pub fn new(plex: ::Val, pstruct: ::Val, items: &[AlmostDictElement]) -> ::Val {
 		let this = ::Val::new(Dict{
 			parent_lexical: plex,
-			parent_structural: pstruct,
 			prv: gc::GcCell::new(DictData {
 				data: BTreeMap::new(),
 				unevaluated: Vec::new(),
 			}),
 			source: gc::GcCell::new(Vec::new()),
 		});
+		
+		let this_pstruct = ::Val::new(ParentSplitter{
+			parent: this.clone(),
+			grandparent: pstruct.clone(),
+		});
+		
 		{
 			let dict = this.clone();
 			let dict = dict.downcast_ref::<Dict>().unwrap();
 			for item in items {
-				dict.source.borrow_mut().push(Source{parent: this.clone(), almost: item.clone()});
-				match item.complete(this.clone(), this.clone()) {
+				dict.source.borrow_mut().push(Source{
+					parent_lexical: this.clone(),
+					parent_structual: pstruct.clone(),
+					almost: item.clone()
+				});
+				match item.complete(this.clone(), this_pstruct.clone()) {
 					DictPair::Known(k, v) => {
 						if k.namespace != 0 {
 							let redirect_key = Key::new(k.key.clone());
@@ -179,7 +188,7 @@ impl Dict {
 		None
 	}
 	
-	fn call(&self, arg: ::Val, pstruct: ::Val) -> ::Val {
+	fn call(&self, arg: ::Val) -> ::Val {
 		let arg = arg.get();
 		let that = match arg.downcast_ref::<Dict>() {
 			Some(dict) => dict,
@@ -191,7 +200,6 @@ impl Dict {
 		source.extend(self.source().iter().cloned());
 		
 		let child = ::Val::new(Dict{
-			parent_structural: pstruct,
 			parent_lexical:
 				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
@@ -205,16 +213,20 @@ impl Dict {
 			let dict = child.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			
-			for &Source{ref parent, ref almost} in dict.source() {
-				match almost.complete(parent.clone(), child.clone()) {
+			for s in dict.source() {
+				let pstruct = ::Val::new(ParentSplitter{
+					parent: child.clone(),
+					grandparent: s.parent_structual.clone(),
+				});
+				match s.almost.complete(s.parent_lexical.clone(), pstruct.clone()) {
 					DictPair::Known(k, v) => {
 						match dict.prv.borrow_mut().data.entry(k) {
 							Entry::Occupied(mut e) => {
 								let sup_val = v.val().unwrap();
 								let sub_val = e.get().val().unwrap();
 								e.insert(DictVal::Pub(
-									Thunk::new(vec![sup_val, sub_val, child.clone()], |r|
-										override_(r[0].clone(), r[1].clone(), r[2].clone()))));
+									Thunk::new(vec![sup_val, sub_val], |r|
+										override_(r[0].clone(), r[1].clone()))));
 							},
 							Entry::Vacant(e) => {
 								e.insert(v);
@@ -232,10 +244,10 @@ impl Dict {
 	}
 }
 
-fn override_(sup: ::Val, sub: ::Val, pstruct: ::Val) -> ::Val {
+fn override_(sup: ::Val, sub: ::Val) -> ::Val {
 	let sup = sup.get();
 	match sup.downcast_ref::<Dict>() {
-		Some(sup_dict) => sup_dict.call(sub, pstruct),
+		Some(sup_dict) => sup_dict.call(sub),
 		None => sub,
 	}
 }
@@ -257,7 +269,7 @@ impl fmt::Debug for Dict {
 				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
 				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
 				DictVal::Local(_v) => {
-					write!(f, "redir {:?}={:?}", k, _v)?;
+					// write!(f, "redir {:?}={:?}", k, _v)?;
 				},
 			}
 		}
@@ -302,12 +314,10 @@ impl ::Value for Dict {
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
 		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
-		let v = match depth {
-			0 => match self.index(key) {
-				Some(element) => Some(element.val().unwrap()),
-				None => None
-			},
-			other => self.parent_structural.structural_lookup(other-1, key),
+		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
+		let v = match self.index(key) {
+			Some(element) => Some(element.val().unwrap()),
+			None => None
 		};
 		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
@@ -337,7 +347,7 @@ impl ::Value for Dict {
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
-		self.call(arg, self.parent_structural.clone())
+		self.call(arg)
 	}
 	
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
@@ -494,6 +504,26 @@ impl ::Value for ADict {
 }
 
 impl ::SameOps for ADict { }
+
+#[derive(Clone,Debug,Trace)]
+struct ParentSplitter {
+	parent: ::Val,
+	grandparent: ::Val,
+}
+
+impl ::Value for ParentSplitter {
+	fn type_str(&self) -> &'static str { "parentsplitter" }
+	
+	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
+		match depth {
+			0 => self.parent.structural_lookup(0, key),
+			n => self.grandparent.structural_lookup(n-1, key),
+		}
+	}
+}
+
+impl ::SameOps for ParentSplitter { }
 
 #[cfg(test)]
 mod tests {

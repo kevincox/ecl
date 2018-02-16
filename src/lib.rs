@@ -53,7 +53,11 @@ pub trait Value:
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
 	fn lookup(&self, _key: &str) -> Val { err::Err::new(format!("Can't lookup in {:?}", self)) }
-	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> { None }
+	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> {
+		// eprintln!("structural_lookup({}, {:?}) in {:?}", _depth, _key, self);
+		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
+		None
+	}
 	fn find(&self, _k: &str) -> (usize, dict::Key, Val) { panic!("Can't lookup in {:?}", self) }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }

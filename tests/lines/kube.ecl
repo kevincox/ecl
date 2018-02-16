@@ -1,6 +1,6 @@
 {
 	App = {
-		name = "defaultapname"
+		name = "default app name"
 		
 		default-deployment = {
 			ns = name
@@ -12,7 +12,7 @@
 		ns = deployments.foo.ns
 	}
 	
-	app = App:{
+	MyApp = App:{
 		name = "my app name"
 		derive-marker-for-debugging = true
 		default-deployment = {}
@@ -20,4 +20,4 @@
 			foo = default-deployment:{ name = "foo" }
 		}
 	}
-}.app.ns
+}.MyApp.ns
