@@ -347,6 +347,7 @@ pub enum Almost {
 	Nil,
 	Num(f64),
 	Ref(grammar::Loc, String),
+	StructRef(grammar::Loc, usize, String),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
@@ -390,6 +391,15 @@ impl Almost {
 				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
 				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
 				v.annotate(loc, "Error value referenced")
+			},
+			Almost::StructRef(loc, depth, ref id) => {
+				let dictkey = dict::Key::new(id.clone());
+				// eprintln!("StructRef: {:?} {:?} {:?}", depth, id, dictkey);
+				pstruct.structural_lookup(depth, &dictkey)
+					.map(|v| v.annotate(loc, "Error value referenced"))
+					.unwrap_or_else(||
+						err::Err::new_at(
+							loc, format!("Invalid reference {:?}", format_ref(depth, id))))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -443,6 +453,7 @@ impl fmt::Debug for Almost {
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
+			Almost::StructRef(_, d, ref id) => write!(f, "StructRef({})", format_ref(d, id)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "\""));
 				for part in parts {
@@ -547,6 +558,10 @@ pub fn format_key(s: &str) -> String {
 	} else {
 		escape_string(s)
 	}
+}
+
+fn format_ref(depth: usize, ident: &str) -> String {
+	".".repeat(depth+1) + ident
 }
 
 #[cfg(test)]

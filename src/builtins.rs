@@ -21,6 +21,7 @@ pub fn get(key: &str) -> ::Val {
 		"error" => new("error", |msg|
 			::err::Err::new(format!("Error: {:?}", msg.get()))),
 		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
+		"false" => ::bool::get_false(),
 		"foldl" => new("foldl",
 			|f| Builtin::new("foldl:func", f,
 				|f, accum| Builtin::new("foldl:func:accum", Two(f.clone(), accum.clone()),
@@ -44,7 +45,7 @@ pub fn get(key: &str) -> ::Val {
 		"panic" => new("panic", |msg|
 			panic!("Script called panic: {:?}", msg.get())),
 		"true" => ::bool::get_true(),
-		"false" => ::bool::get_false(),
+		"type" => new("type", |v| ::Val::new(v.type_str().to_owned())),
 		"_testing_assert_cache_eval" => {
 			let unevaluated = Cell::new(true);
 			let func = move |r| {

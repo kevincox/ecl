@@ -8,7 +8,11 @@ pub struct Err {
 
 impl Err {
 	pub fn new(msg: String) -> ::Val {
-		Self::new_from(::nil::get(), ::grammar::Loc{line: 0, col: 0}, msg)
+		Self::new_at(::grammar::Loc{line: 0, col: 0}, msg)
+	}
+	
+	pub fn new_at(loc: ::grammar::Loc, msg: String) -> ::Val {
+		Self::new_from(::nil::get(), loc, msg)
 	}
 	
 	pub fn new_from(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {

@@ -31,6 +31,7 @@ pub enum Token {
 	Eq,
 	Func,
 	Ident(String),
+	StructIdent(usize, String),
 	ListClose,
 	ListOpen,
 	Num(f64),
@@ -115,8 +116,8 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		c.is_alphanumeric() || c == '-' || c == '_'
 	}
 	
-	fn ident(&mut self, first: char) -> Token {
-		if !Self::ident_start_char(first) { return Token::Unexpected(first) }
+	fn ident_str(&mut self, first: char) -> Result<String,Token> {
+		if !Self::ident_start_char(first) { return Err(self.unexpected(first)) }
 		
 		let mut s = String::new();
 		s.push(first);
@@ -129,7 +130,11 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			s.push(c);
 		}
 		
-		Token::Ident(s)
+		Ok(s)
+	}
+	
+	fn ident(&mut self, first: char) -> Token {
+		self.ident_str(first).map(Token::Ident).unwrap_or_else(|t| t)
 	}
 	
 	fn next_is_ident(&mut self) -> bool {
@@ -288,6 +293,20 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		Token::Num(n)
 	}
 	
+	fn relative_reference(&mut self) -> Token {
+		let mut up = 1;
+		loop {
+			match self.next() {
+				Some('.') => up += 1,
+				Some(c) =>
+					return self.ident_str(c)
+						.map(|i| Token::StructIdent(up, i))
+						.unwrap_or_else(|t| t),
+				None => return Token::Unfinished,
+			}
+		}
+	}
+	
 	fn lex_code(&mut self, c: char) -> Option<Token> {
 		Some(match c {
 			'+' => Token::Add,
@@ -313,7 +332,10 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 						self.state.push(LexerMode::Path);
 						Token::StrOpen(StrType::Parent)
 					}
-					Some(c) => self.unexpected(c),
+					Some(c) => {
+						self.unget(c);
+						self.relative_reference()
+					}
 					None => Token::Unfinished,
 				},
 				Some(c) => { self.unget(c); Token::Dot },
@@ -711,6 +733,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			(Token::DictOpen, _) => self.dict_items(),
 			(Token::Func, _) => self.func(),
 			(Token::Ident(s), loc) => Ok(::Almost::Ref(loc, s)),
+			(Token::StructIdent(d, s), loc) => Ok(::Almost::StructRef(loc, d, s)),
 			(Token::ListOpen, _) => self.list_items(),
 			(Token::Num(n), _) => Ok(::Almost::Num(n)),
 			(Token::ParenOpen, _) => {
