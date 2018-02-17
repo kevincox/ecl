@@ -31,21 +31,25 @@ fn serialize_val_with(val: ecl::Val, format: &str, compact: bool)
 }
 
 fn main() {
+	let formatarg = clap::Arg::from_usage("-f --format [format] 'Output format'")
+		.possible_values(&["json", "lines", "yaml"])
+		.default_value("json")
+		.global(true);
+	let compactarg = clap::Arg::from_usage("-c, --compact 'Format for robots.'");
 	let matches = clap::App::new("ecl")
 		.about("Convert ecl configs into data files.")
 		.author("Kevin Cox <kevincox@kevincox.ca>")
 		.setting(clap::AppSettings::SubcommandRequired)
-		.arg(clap::Arg::from_usage("-f --format [format] 'Output format'")
-			.possible_values(&["json", "lines", "yaml"])
-			.default_value("json")
-			.global(true))
-		.arg(clap::Arg::from_usage("-c, --compact 'Format for robots.'").global(true))
 		.subcommand(clap::SubCommand::with_name("load")
 			.arg_from_usage("<file> 'ecl config to load'")
 			.arg_from_usage("-a --args [args] 'Call the config with the given arguments'")
-			.arg_from_usage("-s --select [code] 'Run given code with the result as `r`'"))
+			.arg_from_usage("-s --select [code] 'Run given code with the result as `r`'")
+			.arg(formatarg.clone())
+			.arg(compactarg.clone()))
 		.subcommand(clap::SubCommand::with_name("eval")
-			.arg_from_usage("<code> 'The code to evaluate'"))
+			.arg_from_usage("<code> 'The code to evaluate'")
+			.arg(formatarg)
+			.arg(compactarg))
 		.get_matches();
 	
 	match matches.subcommand() {
