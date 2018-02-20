@@ -134,7 +134,11 @@ impl Val {
 	
 	fn deref(&self) -> &Value { &*self.0 }
 	
-	fn annotate(&self, loc: grammar::Loc, msg: &str) -> Val {
+	fn annotate(&self, msg: &str) -> Val {
+		self.annotate_at(::grammar::Loc{line: 0, col: 0}, msg)
+	}
+	
+	fn annotate_at(&self, loc: grammar::Loc, msg: &str) -> Val {
 		let v = self.get();
 		if v.is_err() {
 			err::Err::new_from(v, loc, msg.to_owned())
@@ -357,15 +361,15 @@ impl Almost {
 		match *self {
 			Almost::Add(loc, ref l, ref r) => {
 				let l = l.complete(plex.clone(), pstruct.clone())
-					.annotate(loc, "Left side of add")?;
+					.annotate_at(loc, "Left side of add")?;
 				let r = r.complete(plex, pstruct)
-					.annotate(loc, "Right side of add")?;
+					.annotate_at(loc, "Right side of add")?;
 				l.add(r)
 			}
 			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
 			Almost::Call(loc, ref f, ref a) => {
 				let f = f.complete(plex.clone(), pstruct.clone())
-					.annotate(loc, "Calling error as function")?;
+					.annotate_at(loc, "Calling error as function")?;
 				// Note, allow calling function with an error.
 				f.call(a.complete(plex, pstruct))
 			},
@@ -377,10 +381,10 @@ impl Almost {
 			Almost::Func(ref fd) => func::Func::new(plex, fd.clone()),
 			Almost::Index(loc, ref o, ref k) => {
 				let o = o.complete(plex.clone(), pstruct.clone())
-					.annotate(loc, "Indexing error value")?;
+					.annotate_at(loc, "Indexing error value")?;
 				let k = k.complete(plex, pstruct)
-					.annotate(loc, "Indexing with error as key")?;
-				o.index(k).annotate(loc, "Error returned from index")
+					.annotate_at(loc, "Indexing with error as key")?;
+				o.index(k).annotate_at(loc, "Error returned from index")
 			},
 			Almost::List(ref items) => list::List::new(plex, pstruct, items),
 			Almost::Nil => nil::get(),
@@ -390,13 +394,13 @@ impl Almost {
 				let (depth, dictkey, val) = plex.value()?.find(id);
 				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
 				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
-				v.annotate(loc, "Error value referenced")
+				v.annotate_at(loc, "Error value referenced")
 			},
 			Almost::StructRef(loc, depth, ref id) => {
 				let dictkey = dict::Key::new(id.clone());
 				// eprintln!("StructRef: {:?} {:?} {:?}", depth, id, dictkey);
 				pstruct.structural_lookup(depth, &dictkey)
-					.map(|v| v.annotate(loc, "Error value referenced"))
+					.map(|v| v.annotate_at(loc, "Error value referenced"))
 					.unwrap_or_else(||
 						err::Err::new_at(
 							loc, format!("Invalid reference {:?}", format_ref(depth, id))))

@@ -6,6 +6,8 @@ func-eval.dict-passed	NUM	13
 func-eval	DICT	}
 list-eval	NUM	6
 template-eval	DICT	{
-template-eval.var	STR	"ok"
+template-eval.merged	DICT	{
+template-eval.merged	DICT	}
+template-eval.not-merged	STR	"ok"
 template-eval	DICT	}
 	DICT	}

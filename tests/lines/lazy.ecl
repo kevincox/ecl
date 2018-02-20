@@ -22,6 +22,14 @@ func-eval = {
 local list = [ panic:"Unused list head" 6 panic:"Unused list tail" ]
 list-eval = index:list:1
 
-# TODO: This is a hack to avoid evaluation, it shouldn't be necessary.
-local template = { var = [ panic: "Overridden value." ] }
-template-eval = template:{ var = "ok" }
+local template = {
+	not-merged = panic: "Overridden value."
+	
+	# This indirection is required because we need to check if a value is a
+	# dict to merge the parent and child values.
+	merged = [ panic: "Overridden value." ]
+}
+template-eval = template:{
+	not-merged = "ok"
+	merged = {}
+}

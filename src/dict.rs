@@ -188,13 +188,7 @@ impl Dict {
 		None
 	}
 	
-	fn call(&self, arg: ::Val) -> ::Val {
-		let arg = arg.get();
-		let that = match arg.downcast_ref::<Dict>() {
-			Some(dict) => dict,
-			None => return ::err::Err::new(format!("Can't call dict with {:?}", arg)),
-		};
-		
+	fn call(&self, that: &Dict) -> ::Val {
 		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
 		source.extend(that.source().iter().cloned());
 		source.extend(self.source().iter().cloned());
@@ -245,11 +239,15 @@ impl Dict {
 }
 
 fn override_(sup: ::Val, sub: ::Val) -> ::Val {
-	let sup = sup.get();
-	match sup.downcast_ref::<Dict>() {
-		Some(sup_dict) => sup_dict.call(sub),
-		None => sub,
+	let sub = sub.get();
+	if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
+		let sup = sup.get()
+			.annotate("overriding error value")?;
+		if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
+			return sup_dict.call(sub_dict)
+		}
 	}
+	return sub
 }
 
 impl fmt::Debug for Dict {
@@ -347,7 +345,11 @@ impl ::Value for Dict {
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
-		self.call(arg)
+		let arg = arg.get();
+		match arg.downcast_ref::<Dict>() {
+			Some(dict) => self.call(dict),
+			None => ::err::Err::new(format!("Can't call dict with {:?}", arg)),
+		}
 	}
 	
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
