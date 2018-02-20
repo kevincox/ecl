@@ -5,6 +5,19 @@ base.base-thing.name	STR	"base name"
 base.base-thing	DICT	}
 base.name	STR	"base name"
 base	DICT	}
+func-dict-val	DICT	{
+func-dict-val.x	NUM	1
+func-dict-val.x2	NUM	1
+func-dict-val.y	NUM	2
+func-dict-val	DICT	}
+func-list-val	DICT	{
+func-list-val.x	NUM	1
+func-list-val.x2	NUM	1
+func-list-val.y	NUM	2
+func-list-val	DICT	}
+func-one-val	DICT	{
+func-one-val.x	NUM	5
+func-one-val	DICT	}
 sub	DICT	{
 sub.base-thing	DICT	{
 sub.base-thing.name	STR	"base name"

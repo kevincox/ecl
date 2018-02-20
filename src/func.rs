@@ -39,7 +39,8 @@ impl fmt::Debug for Arg {
 
 #[derive(Trace)]
 pub struct Func {
-	parent: ::Val,
+	plex: ::Val,
+	pstruct: ::Val,
 	#[unsafe_ignore_trace]
 	data: Rc<FuncData>,
 }
@@ -50,8 +51,8 @@ pub struct FuncData {
 }
 
 impl Func {
-	pub fn new(p: ::Val, data: Rc<FuncData>) -> ::Val {
-		::Val::new(Func { parent: p, data: data })
+	pub fn new(plex: ::Val, pstruct: ::Val, data: Rc<FuncData>) -> ::Val {
+		::Val::new(Func {plex, pstruct, data})
 	}
 }
 
@@ -60,12 +61,15 @@ impl ::Value for Func {
 	
 	fn call(&self, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
-			Arg::One(ref s) => dict::ADict::new(self.parent.clone(), s.clone(), arg),
+			Arg::One(ref s) => dict::ADict::new(self.plex.clone(), s.clone(), arg),
 			Arg::Dict(ref args) => {
-				let val = ::dict::Dict::new(self.parent.clone(), ::nil::get(), &[]);
-				
+				let scope = ::dict::Dict::new(self.plex.clone(), self.pstruct.clone(), &[]);
+				let pstruct = ::Val::new(::dict::ParentSplitter{
+					parent: scope.clone(),
+					grandparent: self.pstruct.clone(),
+				});
 				{
-					let dict = val.downcast_ref::<::dict::Dict>();
+					let dict = scope.downcast_ref::<::dict::Dict>();
 					let mut passed_used = 0;
 					for &(ref k, required, ref default) in args {
 						let passed = arg.index_str(&k);
@@ -75,7 +79,7 @@ impl ::Value for Func {
 						} else if required {
 							panic!("Error: required argument {:?} not found.", k);
 						} else {
-							let default = default.complete(val.clone(), ::nil::get());
+							let default = default.complete(scope.clone(), pstruct.clone());
 							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Prv(default));
 						}
 					}
@@ -83,13 +87,17 @@ impl ::Value for Func {
 					assert_eq!(passed_used, arg.len());
 				}
 				
-				val
+				scope
 			},
 			Arg::List(ref args) => {
-				let val = ::dict::Dict::new(self.parent.clone(), ::nil::get(), &[]);
+				let scope = ::dict::Dict::new(self.plex.clone(), ::nil::get(), &[]);
+				let pstruct = ::Val::new(::dict::ParentSplitter{
+					parent: scope.clone(),
+					grandparent: self.pstruct.clone(),
+				});
 				
 				{
-					let dict = val.downcast_ref::<::dict::Dict>().unwrap();
+					let dict = scope.downcast_ref::<::dict::Dict>().unwrap();
 					
 					let arg_len = arg.len();
 					if arg_len > args.len() {
@@ -114,17 +122,21 @@ impl ::Value for Func {
 									destructure {:?}.",
 									k));
 						} else {
-							let default = default.complete(val.clone(), ::nil::get());
+							let default = default.complete(scope.clone(), pstruct.clone());
 							dict._set_val(k.clone(), ::dict::DictVal::Prv(default));
 						}
 					}
 				}
 				
-				val
+				scope
 			},
 		};
+		let pstruct = ::Val::new(::dict::ParentSplitter{
+			parent: scope.clone(),
+			grandparent: self.pstruct.clone(),
+		});
 		
-		self.data.body.complete(scope, ::nil::get())
+		self.data.body.complete(scope, pstruct)
 	}
 }
 

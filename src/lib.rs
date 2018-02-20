@@ -58,6 +58,11 @@ pub trait Value:
 		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
 		None
 	}
+	fn relative_lookup(&self, _depth: usize, _key: &str) -> Option<Val> {
+		eprintln!("relative_lookup({}, {:?}) in {:?}", _depth, _key, self);
+		eprintln!("relative_lookup({}, {:?}) -> None", _depth, _key);
+		None
+	}
 	fn find(&self, _k: &str) -> (usize, dict::Key, Val) { panic!("Can't lookup in {:?}", self) }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
@@ -200,6 +205,11 @@ impl Val {
 	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {
 		// println!("Lookup {:?} in {:?}", key, self);
 		self.deref().structural_lookup(depth, key)
+	}
+	
+	fn relative_lookup(&self, depth: usize, key: &str) -> Option<Val> {
+		// println!("Lookup {:?} in {:?}", key, self);
+		self.deref().relative_lookup(depth, key)
 	}
 	
 	fn add(&self, that: Val) -> Val {
@@ -378,7 +388,7 @@ impl Almost {
 				let r = r.complete(plex, pstruct);
 				bool::get(l == r)
 			},
-			Almost::Func(ref fd) => func::Func::new(plex, fd.clone()),
+			Almost::Func(ref fd) => func::Func::new(plex, pstruct, fd.clone()),
 			Almost::Index(loc, ref o, ref k) => {
 				let o = o.complete(plex.clone(), pstruct.clone())
 					.annotate_at(loc, "Indexing error value")?;
@@ -396,14 +406,13 @@ impl Almost {
 				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
 				v.annotate_at(loc, "Error value referenced")
 			},
-			Almost::StructRef(loc, depth, ref id) => {
-				let dictkey = dict::Key::new(id.clone());
-				// eprintln!("StructRef: {:?} {:?} {:?}", depth, id, dictkey);
-				pstruct.structural_lookup(depth, &dictkey)
+			Almost::StructRef(loc, depth, ref key) => {
+				// eprintln!("StructRef: {:?} {:?}", depth, key);
+				pstruct.relative_lookup(depth, key)
 					.map(|v| v.annotate_at(loc, "Error value referenced"))
 					.unwrap_or_else(||
 						err::Err::new_at(
-							loc, format!("Invalid reference {:?}", format_ref(depth, id))))
+							loc, format!("Invalid reference {:?}", format_ref(depth, key))))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -510,7 +519,7 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)),
 	};
 	
-	func::Func::new(nil::get(), rc::Rc::new(func::FuncData{
+	func::Func::new(nil::get(), nil::get(), rc::Rc::new(func::FuncData{
 		arg: func::Arg::One(name),
 		body: almost,
 	}))

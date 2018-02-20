@@ -321,6 +321,22 @@ impl ::Value for Dict {
 		v
 	}
 	
+	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
+		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
+		let mut key = Key::new(key.to_owned());
+		// let dbg_key = key.clone();
+		// eprintln!("Find {:?} in {:?}", dbg_key, self);
+		self.index(&key)
+			.map(|element| match element {
+				DictVal::Pub(ref v) => v.clone(),
+				DictVal::Prv(ref v) => v.clone(),
+				DictVal::Local(ns) => {
+					key.namespace = ns;
+					self.index(&key).unwrap().val().unwrap()
+				}
+			})
+	}
+	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
 		let mut key = Key::new(k.to_owned());
 		// let dbg_key = key.clone();
@@ -487,6 +503,24 @@ impl ::Value for ADict {
 		}
 	}
 	
+	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+		assert_eq!(depth, 0, "ADict.structural_lookup({:?}, {:?})", depth, key);
+		if key.namespace == 0 && key.key == self.key {
+			Some(self.val.clone())
+		} else {
+			None
+		}
+	}
+	
+	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
+		assert_eq!(depth, 0, "ADict.relative_lookup({:?}, {:?})", depth, key);
+		if key == self.key {
+			Some(self.val.clone())
+		} else {
+			None
+		}
+	}
+	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
 		if self.key == k {
 			(0, Key::new(k.to_owned()), self.val.clone())
@@ -494,7 +528,6 @@ impl ::Value for ADict {
 			self.parent.deref().find(k)
 		}
 	}
-	
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
@@ -508,9 +541,9 @@ impl ::Value for ADict {
 impl ::SameOps for ADict { }
 
 #[derive(Clone,Debug,Trace)]
-struct ParentSplitter {
-	parent: ::Val,
-	grandparent: ::Val,
+pub struct ParentSplitter {
+	pub parent: ::Val,
+	pub grandparent: ::Val,
 }
 
 impl ::Value for ParentSplitter {
@@ -521,6 +554,14 @@ impl ::Value for ParentSplitter {
 		match depth {
 			0 => self.parent.structural_lookup(0, key),
 			n => self.grandparent.structural_lookup(n-1, key),
+		}
+	}
+	
+	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
+		// eprintln!("relative_lookup({}, {:?}) in {:?}", depth, key, self);
+		match depth {
+			0 => self.parent.relative_lookup(0, key),
+			n => self.grandparent.relative_lookup(n-1, key),
 		}
 	}
 }
