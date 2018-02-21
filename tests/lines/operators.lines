@@ -1,4 +1,16 @@
 	DICT	{
+cmp-eq-false	BOOL	false
+cmp-eq-true	BOOL	true
+cmp-ge-eq	BOOL	true
+cmp-ge-false	BOOL	false
+cmp-ge-true	BOOL	true
+cmp-gt-false	BOOL	false
+cmp-gt-true	BOOL	true
+cmp-le-eq	BOOL	true
+cmp-le-false	BOOL	false
+cmp-le-true	BOOL	true
+cmp-lt-false	BOOL	false
+cmp-lt-true	BOOL	true
 index	NUM	10
 math	NUM	30
 	DICT	}

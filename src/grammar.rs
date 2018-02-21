@@ -30,16 +30,21 @@ pub enum Token {
 	Dot,
 	Eq,
 	Func,
+	Great,
+	GreatEq,
 	Ident(String),
-	StructIdent(usize, String),
+	Less,
+	LessEq,
 	ListClose,
 	ListOpen,
+	Neg,
 	Num(f64),
-	ParenOpen,
 	ParenClose,
-	StrOpen(StrType),
+	ParenOpen,
 	StrChunk(String),
 	StrClose,
+	StrOpen(StrType),
+	StructIdent(usize, String),
 	Unexpected(char),
 	Unfinished,
 }
@@ -202,6 +207,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'd' => self.num_base(10, '0'),
 			'x' => self.num_base(16, '0'),
 			c@'0'...'9' => self.num_base(10, c),
+			'.' => self.num_base(10, '0'),
 		).unwrap_or(Token::Num(0.0))
 	}
 	
@@ -318,9 +324,20 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				Some(c) => { self.unget(c); Token::Assign },
 				None => Token::Assign,
 			},
+			'<' => match self.next() {
+				Some('=') => Token::LessEq,
+				Some(c) => { self.unget(c); Token::Less },
+				None => Token::Less,
+			}
+			'>' => match self.next() {
+				Some('=') => Token::GreatEq,
+				Some(c) => { self.unget(c); Token::Great },
+				None => Token::Great,
+			}
 			'-' => match self.next() {
 				Some('>') => Token::Func,
-				_ => self.unexpected('-'),
+				Some(c) => { self.unget(c); Token::Neg },
+				None => Token::Neg,
 			},
 			'.' => match self.next() {
 				Some('/') => {
@@ -677,6 +694,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		loop {
 			match self.next() {
 				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Great, _)) => r = ::Almost::Great(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::GreatEq, _)) => r = ::Almost::GreatEq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Less, _)) => r = ::Almost::Less(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::LessEq, _)) => r = ::Almost::LessEq(Box::new(r), Box::new(self.expr_ops()?)),
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
@@ -686,12 +707,15 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	}
 	
 	fn expr_ops(&mut self) -> ParseResult {
-		let mut r = self.expr_call()?;
+		let mut r = self.expr_unary()?;
 		
 		loop {
 			match self.next() {
 				Some((Token::Add, l)) => {
-					r = ::Almost::Add(l, Box::new(r), Box::new(self.expr_call()?))
+					r = ::Almost::Add(l, Box::new(r), Box::new(self.expr_unary()?))
+				},
+				Some((Token::Neg, l)) => {
+					r = ::Almost::Sub(l, Box::new(r), Box::new(self.expr_unary()?))
 				},
 				Some(other) => { self.unget(other); break },
 				None => break,
@@ -701,13 +725,19 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		Ok(r)
 	}
 	
+	fn expr_unary(&mut self) -> ParseResult {
+		match self.consume(Token::Neg) {
+			Some(loc) => Ok(::Almost::Neg(loc, Box::new(self.expr_call()?))),
+			None => self.expr_call(),
+		}
+	}
+	
 	fn expr_call(&mut self) -> ParseResult {
 		let mut r = self.expr_index()?;
 		
 		while let Some(loc) = self.consume(Token::Call) {
 			r = ::Almost::Call(loc, Box::new(r), Box::new(self.expr_index()?));
 		}
-		
 		
 		Ok(r)
 	}
@@ -809,6 +839,7 @@ mod tests {
 		assert_eq!(::parse("<str>", "(1M)"), Ok(::Val::new(1_000_000.0)));
 		assert_eq!(::parse("<str>", "(1ki)"), Ok(::Val::new(1024.0)));
 		assert_eq!(::parse("<str>", "(4u)"), Ok(::Val::new(0.000_004)));
+		assert_eq!(::parse("<str>", "(2 - 1)"), Ok(::Val::new(1.0)));
 	}
 	
 	#[test]

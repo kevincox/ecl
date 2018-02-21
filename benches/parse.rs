@@ -6,7 +6,7 @@ extern crate test;
 #[bench]
 fn parse_list(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse(r###"
+		ecl::parse("<str>", r###"
 			[
 				1
 				1 + 2
@@ -28,7 +28,7 @@ fn parse_list(b: &mut test::Bencher) {
 #[bench]
 fn parse_dict(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse(r###"
+		ecl::parse("<str>", r###"
 			{
 				a = 1
 				b = 2
@@ -51,7 +51,7 @@ fn parse_dict(b: &mut test::Bencher) {
 #[bench]
 fn parse_dict_implicit(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse(r###"
+		ecl::parse("<str>", r###"
 			a = 1
 			b = 2
 			c = 3
@@ -72,7 +72,7 @@ fn parse_dict_implicit(b: &mut test::Bencher) {
 #[bench]
 fn parse_dict_computed(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse(r###"
+		ecl::parse("<str>", r###"
 			{
 				"abc" = "val"
 				"a-${abc}-c" = 5

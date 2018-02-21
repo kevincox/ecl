@@ -71,6 +71,7 @@ pub trait Value:
 	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
+	fn neg(&self) -> Val { err::Err::new(format!("Can't negate {:?}", self)) }
 	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
@@ -80,14 +81,21 @@ pub trait Value:
 
 pub trait SameOps: fmt::Debug {
 	fn add(&self, that: &Self) -> Val { err::Err::new(format!("Can't add {:?} and {:?}", self, that)) }
+	fn subtract(&self, that: &Self) -> Val { err::Err::new(format!("Can't subtract {:?} and {:?}", self, that)) }
 	fn eq(&self, that: &Self) -> Val { err::Err::new(format!("Can't compare {:?} and {:?}", self, that)) }
+	
+	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,Val> {
+		Err(err::Err::new(format!("Can't compare {:?} and {:?}", self, that)))
+	}
 }
 
 pub trait SameOpsTrait {
 	fn as_any(&self) -> &any::Any;
 	
 	fn add(&self, that: &Value) -> Val;
+	fn subtract(&self, that: &Value) -> Val;
 	fn eq(&self, that: &Value) -> Val;
+	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val>;
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
@@ -101,11 +109,27 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		}
 	}
 	
+	fn subtract(&self, that: &Value) -> Val {
+		if self.type_str() as *const str == that.type_str() as *const str {
+			SameOps::subtract(self, that.as_any().downcast_ref::<Self>().unwrap())
+		} else {
+			err::Err::new(format!("Can't subtract {:?} and {:?}", self, that))
+		}
+	}
+	
 	fn eq(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
 			bool::get_false()
+		}
+	}
+	
+	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
+		if self.type_str() as *const str == that.type_str() as *const str {
+			SameOps::cmp(self, that.as_any().downcast_ref::<Self>().unwrap())
+		} else {
+			Err(err::Err::new(format!("Can't compare values of different types {:?} and {:?}", self, that)))
 		}
 	}
 }
@@ -214,6 +238,18 @@ impl Val {
 	
 	fn add(&self, that: Val) -> Val {
 		self.value()?.add(that.value()?)
+	}
+	
+	fn subtract(&self, that: Val) -> Val {
+		self.value()?.subtract(that.value()?)
+	}
+	
+	fn neg(&self) -> Val {
+		self.value()?.neg()
+	}
+	
+	fn cmp(&self, that: ::Val) -> Result<std::cmp::Ordering,Val> {
+		self.value()?.cmp(that.value()?)
 	}
 	
 	pub fn call(&self, arg: Val) -> Val {
@@ -353,11 +389,17 @@ impl serde::Serialize for Val {
 pub enum Almost {
 	Dict(Vec<dict::AlmostDictElement>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
+	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
 	Call(grammar::Loc, Box<Almost>, Box<Almost>),
 	Eq(Box<Almost>, Box<Almost>),
+	Great(Box<Almost>, Box<Almost>),
+	GreatEq(Box<Almost>, Box<Almost>),
+	Less(Box<Almost>, Box<Almost>),
+	LessEq(Box<Almost>, Box<Almost>),
 	Func(rc::Rc<func::FuncData>),
 	Index(grammar::Loc, Box<Almost>, Box<Almost>),
 	List(Vec<rc::Rc<Almost>>),
+	Neg(grammar::Loc, Box<Almost>),
 	Nil,
 	Num(f64),
 	Ref(grammar::Loc, String),
@@ -376,6 +418,13 @@ impl Almost {
 					.annotate_at(loc, "Right side of add")?;
 				l.add(r)
 			}
+			Almost::Sub(loc, ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone())
+					.annotate_at(loc, "Left side of subtraction")?;
+				let r = r.complete(plex, pstruct)
+					.annotate_at(loc, "Right side of subtraction")?;
+				l.subtract(r)
+			}
 			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
 			Almost::Call(loc, ref f, ref a) => {
 				let f = f.complete(plex.clone(), pstruct.clone())
@@ -388,6 +437,26 @@ impl Almost {
 				let r = r.complete(plex, pstruct);
 				bool::get(l == r)
 			},
+			Almost::Great(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				bool::get(l.cmp(r)? == std::cmp::Ordering::Greater)
+			},
+			Almost::GreatEq(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				bool::get(l.cmp(r)? != std::cmp::Ordering::Less)
+			},
+			Almost::Less(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				bool::get(l.cmp(r)? == std::cmp::Ordering::Less)
+			},
+			Almost::LessEq(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				bool::get(l.cmp(r)? != std::cmp::Ordering::Greater)
+			},
 			Almost::Func(ref fd) => func::Func::new(plex, pstruct, fd.clone()),
 			Almost::Index(loc, ref o, ref k) => {
 				let o = o.complete(plex.clone(), pstruct.clone())
@@ -397,6 +466,11 @@ impl Almost {
 				o.index(k).annotate_at(loc, "Error returned from index")
 			},
 			Almost::List(ref items) => list::List::new(plex, pstruct, items),
+			Almost::Neg(loc, ref v) => {
+				v.complete(plex.clone(), pstruct.clone())
+					.annotate_at(loc, "Negating value")?
+					.neg()
+			},
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
 			Almost::Ref(loc, ref id) => {
@@ -445,6 +519,7 @@ impl fmt::Debug for Almost {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Almost::Add(_, ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
+			Almost::Sub(_, ref lhs, ref rhs) => write!(f, "({:?} - {:?})", lhs, rhs),
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "{{"));
 				for i in &**items {
@@ -454,6 +529,10 @@ impl fmt::Debug for Almost {
 			},
 			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
+			Almost::Great(ref l, ref r) => write!(f, "({:?} > {:?})", l, r),
+			Almost::GreatEq(ref l, ref r) => write!(f, "({:?} >= {:?})", l, r),
+			Almost::Less(ref l, ref r) => write!(f, "({:?} < {:?})", l, r),
+			Almost::LessEq(ref l, ref r) => write!(f, "({:?} <= {:?})", l, r),
 			Almost::Func(ref fd) => write!(f, "(->{:?} {:?})", fd.arg, fd.body),
 			Almost::Index(_, ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
 			Almost::List(ref items) => {
@@ -463,6 +542,7 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, "]")
 			},
+			Almost::Neg(_, ref v) => write!(f, "-({:?})", v),
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
