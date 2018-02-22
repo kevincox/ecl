@@ -21,8 +21,22 @@ struct Source {
 pub struct Dict {
 	parent_lexical: ::Val,
 	prv: gc::GcCell<DictData>,
-	source: gc::GcCell<Vec<Source>>,
 }
+
+#[derive(Trace)]
+struct DictData {
+	data: BTreeMap<Key,DictVal>,
+	source: Vec<Source>,
+}
+
+// unsafe impl gc::Trace for DictData {
+// 	gc::custom_trace!(this, {
+// 		for (_, v) in &this.data {
+// 			mark(v);
+// 		}
+// 	});
+// }
+
 
 // TODO: Switch from enum to struct with visibility member.
 #[derive(Clone,Eq,Ord,PartialEq,PartialOrd,Trace)]
@@ -69,33 +83,14 @@ impl DictVal {
 	}
 }
 
-#[derive(Debug,PartialEq,Trace)]
-struct DictUneval(::Val,DictVal);
-
-#[derive(PartialEq)]
-pub struct DictData {
-	data: BTreeMap<Key,DictVal>,
-	unevaluated: Vec<(DictUneval)>,
-}
-
-unsafe impl gc::Trace for DictData {
-	gc::custom_trace!(this, {
-		for (_, v) in &this.data {
-			mark(v);
-		}
-		mark(&this.unevaluated);
-	});
-}
-
 impl Dict {
 	pub fn new(plex: ::Val, pstruct: ::Val, items: &[AlmostDictElement]) -> ::Val {
 		let this = ::Val::new(Dict{
 			parent_lexical: plex,
-			prv: gc::GcCell::new(DictData {
+			prv: gc::GcCell::new(DictData{
 				data: BTreeMap::new(),
-				unevaluated: Vec::new(),
+				source: Vec::with_capacity(items.len()),
 			}),
-			source: gc::GcCell::new(Vec::new()),
 		});
 		
 		let this_pstruct = ::Val::new(ParentSplitter{
@@ -104,10 +99,11 @@ impl Dict {
 		});
 		
 		{
-			let dict = this.clone();
-			let dict = dict.downcast_ref::<Dict>().unwrap();
+			let dict = this.downcast_ref::<Dict>().unwrap();
+			let mut prv = dict.prv.borrow_mut();
+			
 			for item in items {
-				dict.source.borrow_mut().push(Source{
+				prv.source.push(Source{
 					parent_lexical: this.clone(),
 					parent_structual: pstruct.clone(),
 					almost: item.clone()
@@ -116,76 +112,36 @@ impl Dict {
 					DictPair::Known(k, v) => {
 						if k.namespace != 0 {
 							let redirect_key = Key::new(k.key.clone());
-							match dict.prv.borrow_mut().data.entry(redirect_key) {
+							match prv.data.entry(redirect_key) {
 								Entry::Occupied(e) =>
 									panic!("Multiple entries for key {:?}", e.key()),
 								Entry::Vacant(e) => e.insert(DictVal::Local(k.namespace)),
 							};
 						}
 						
-						match dict.prv.borrow_mut().data.entry(k) {
+						match prv.data.entry(k) {
 							Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
 							Entry::Vacant(e) => e.insert(v),
 						};
 					},
-					DictPair::Unknown(k, v) => {
-						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));
-					},
 				}
 			}
 		}
+		
 		this
 	}
 	
 	fn source(&self) -> &[Source] {
-		::i_promise_this_will_stay_alive(&*self.source.borrow()).as_slice()
+		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
 	pub fn _set_val(&self, key: String, val: DictVal) {
 		self.prv.borrow_mut().data.insert(Key::new(key), val);
 	}
 	
-	fn eval_next(&self) -> Option<(String,DictVal)> {
-		let DictUneval(ref k, ref v) = match self.prv.borrow_mut().unevaluated.pop() {
-			Some(t) => t,
-			None => return None,
-		};
-		
-		{
-			let strkey = k.to_string().get_str().unwrap().to_owned();
-			let mut prv = self.prv.borrow_mut();
-			match prv.data.entry(Key::new(strkey)) {
-				Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-				Entry::Vacant(e) => { e.insert(v.clone()); },
-			};
-		}
-		
-		Some((k.to_string().get_str().unwrap().to_owned(), v.clone()))
-	}
-	
-	fn eval(&self) {
-		while let Some(_) = self.eval_next() { }
-	}
-	
 	fn index(&self, key: &Key) -> Option<DictVal> {
-		{
-			let prv = self.prv.borrow();
-			if let Some(v) = prv.data.get(key) {
-				return Some(v.clone())
-			}
-			
-			if prv.unevaluated.is_empty() {
-				return None
-			}
-		}
-		
-		while let Some((k, v)) = self.eval_next() {
-			if k == key.key {
-				return Some(v)
-			}
-		}
-		
-		None
+		let prv = self.prv.borrow();
+		prv.data.get(key).map(|v| v.clone())
 	}
 	
 	fn call(&self, that: &Dict) -> ::Val {
@@ -198,9 +154,8 @@ impl Dict {
 				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
 				data: BTreeMap::new(),
-				unevaluated: Vec::new(),
+				source: source,
 			}),
-			source: gc::GcCell::new(source),
 		});
 		
 		{
@@ -227,9 +182,6 @@ impl Dict {
 							},
 						}
 					},
-					DictPair::Unknown(k, v) => {
-						dict.prv.borrow_mut().unevaluated.push(DictUneval(k, v));
-					},
 				}
 			}
 		}
@@ -254,7 +206,7 @@ impl fmt::Debug for Dict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let prv = self.prv.borrow();
 		
-		if prv.data.is_empty() && prv.unevaluated.is_empty() {
+		if prv.data.is_empty() {
 			return write!(f, "{{}}")
 		}
 		
@@ -272,11 +224,6 @@ impl fmt::Debug for Dict {
 			}
 		}
 		
-		let unevaluated = prv.unevaluated.len();
-		if unevaluated > 0 {
-			writeln!(f, "...{} unevaluated", unevaluated)?;
-		}
-		
 		write!(f, "}}")
 	}
 }
@@ -286,13 +233,13 @@ impl ::Value for Dict {
 	
 	fn len(&self) -> usize {
 		let prv = self.prv.borrow();
-		prv.data.len() + prv.unevaluated.len()
+		prv.data.len()
 	}
 	
 	fn is_empty(&self) -> bool {
 		// Check if any of our un-evaluated elements are "public"
 		let prv = self.prv.borrow();
-		prv.data.values().all(|e| !e.public()) && prv.unevaluated.iter().all(|e| !e.1.public())
+		prv.data.values().all(|e| !e.public())
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
@@ -369,8 +316,6 @@ impl ::Value for Dict {
 	}
 	
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
-		self.eval();
-		
 		// This is fine because the dict has been fully evaluated.
 		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
 		
@@ -387,10 +332,7 @@ impl ::Value for Dict {
 	
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
-		self.eval();
-		
 		let prv = self.prv.borrow();
-		assert_eq!(prv.unevaluated.len(), 0);
 		
 		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
 		for (k, i) in &prv.data {
@@ -407,24 +349,17 @@ impl ::SameOps for Dict { }
 
 #[derive(Clone)]
 pub enum AlmostDictElement {
-	Unknown(Rc<::Almost>, Rc<::Almost>),
 	Known(Key, Rc<::Almost>),
 	Priv(Key, Rc<::Almost>),
 }
 
 enum DictPair {
 	Known(Key,DictVal),
-	Unknown(::Val,DictVal),
 }
 
 impl AlmostDictElement {
 	fn complete(&self, plex: ::Val, pstruct: ::Val) -> DictPair {
 		match self {
-			&AlmostDictElement::Unknown(ref k, ref v) => {
-				DictPair::Unknown(
-					Thunk::lazy(plex.clone(), pstruct.clone(), k.clone()),
-					DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
-			},
 			&AlmostDictElement::Known(ref k, ref v) => {
 				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
 			},
@@ -438,9 +373,6 @@ impl AlmostDictElement {
 impl fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			&AlmostDictElement::Unknown(ref k, ref v) => {
-				write!(f, "pub   {:?} = {:?}", k, v)
-			},
 			&AlmostDictElement::Known(ref k, ref v) => {
 				write!(f, "pub   {:?} = {:?}", k, v)
 			},
@@ -583,10 +515,5 @@ mod tests {
 		let v = parse("<str>", "{a=4 b=a}").unwrap();
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(4.0));
-	}
-	
-	#[test]
-	fn dict_recurse_key() {
-		assert_eq!(parse("<str>", "{\"${b}\"=5 b=\"a\"}.a"), Ok(::Val::new(5.0)));
 	}
 }

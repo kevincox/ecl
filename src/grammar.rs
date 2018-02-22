@@ -615,11 +615,6 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				dict::AlmostDictElement::Known(
 					::dict::Key::new(s), Rc::new(val))
 			},
-			(Token::StrOpen(t), _) => {
-				let key = self.string(t)?;
-				let val = self.dict_val()?;
-				dict::AlmostDictElement::Unknown(Rc::new(key), Rc::new(val))
-			},
 		};
 		
 		Ok(ade)

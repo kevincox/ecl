@@ -68,16 +68,3 @@ fn parse_dict_implicit(b: &mut test::Bencher) {
 		"###).unwrap()
 	)
 }
-
-#[bench]
-fn parse_dict_computed(b: &mut test::Bencher) {
-	b.iter(||
-		ecl::parse("<str>", r###"
-			{
-				"abc" = "val"
-				"a-${abc}-c" = 5
-				"${a-val-c}-${abc}" = false
-			}
-		"###).unwrap()
-	)
-}
