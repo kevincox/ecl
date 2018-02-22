@@ -52,7 +52,6 @@ pub trait Value:
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
-	fn lookup(&self, _key: &str) -> Val { err::Err::new(format!("Can't lookup in {:?}", self)) }
 	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> {
 		// eprintln!("structural_lookup({}, {:?}) in {:?}", _depth, _key, self);
 		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
@@ -219,11 +218,6 @@ impl Val {
 	
 	pub fn index_str(&self, key: &str) -> Val {
 		self.value().unwrap().index_str(key)
-	}
-	
-	fn lookup(&self, key: &str) -> Val {
-		// println!("Lookup {:?} in {:?}", key, self);
-		self.value()?.lookup(key)
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {

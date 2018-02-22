@@ -27,10 +27,6 @@ impl ::Value for Nil {
 		false
 	}
 	
-	fn lookup(&self, key: &str) -> ::Val {
-		builtins::get(key)
-	}
-	
 	fn find(&self, k: &str) -> (usize, ::dict::Key, ::Val) {
 		(0, ::dict::Key::local(1, String::new()), builtins::get(k))
 	}

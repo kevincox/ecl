@@ -615,6 +615,14 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				dict::AlmostDictElement::Known(
 					::dict::Key::new(s), Rc::new(val))
 			},
+			(Token::StrOpen(StrType::String), _) => {
+				let s = expect_next!{self: "parsing quoted dict key", (Token::StrChunk(s), _) => s};
+				expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
+				
+				let val = self.dict_val()?;
+				dict::AlmostDictElement::Known(
+					::dict::Key::new(s), Rc::new(val))
+			},
 		};
 		
 		Ok(ade)
@@ -623,7 +631,14 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	fn dict_val(&mut self) -> ParseResult {
 		expect_next!{self: "parsing dict key",
 			(Token::Dot, _) => {
-				let k = expect_next!{self: "parsing dict key", (Token::Ident(k), _) => k};
+				let k = expect_next!{self: "parsing dict key",
+					(Token::Ident(k), _) => k,
+					(Token::StrOpen(StrType::String), _) => {
+						let s = expect_next!{self: "parsing quoted dict key", (Token::StrChunk(s), _) => s};
+						expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
+						s
+					},
+				};
 				let v = self.dict_val()?;
 				Ok(::Almost::ADict(k, Rc::new(v)))
 			},

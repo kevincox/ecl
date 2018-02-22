@@ -133,14 +133,14 @@ mod tests {
 	
 	#[test]
 	fn assert_once_once() {
-		let v = nil::Nil.lookup("_testing_assert_cache_eval");
+		let v = nil::Nil.find("_testing_assert_cache_eval").2;
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 	}
 	
 	#[test]
 	#[should_panic(expected="Called twice")]
 	fn assert_once_twice() {
-		let v = nil::Nil.lookup("_testing_assert_cache_eval");
+		let v = nil::Nil.find("_testing_assert_cache_eval").2;
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 	}

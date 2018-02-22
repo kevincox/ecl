@@ -258,7 +258,6 @@ impl ::Value for Dict {
 	}
 	
 	fn is_empty(&self) -> bool {
-		// Check if any of our un-evaluated elements are "public"
 		let prv = self.prv.borrow();
 		prv.data.values().all(|e| !e.public())
 	}
@@ -268,13 +267,6 @@ impl ::Value for Dict {
 			Some(DictVal::Pub(ref v)) => v.clone(),
 			Some(_) => ::err::Err::new(format!("Attempt to access private member {:?}", key)),
 			None => ::nil::get(),
-		}
-	}
-	
-	fn lookup(&self, key: &str) -> ::Val {
-		match self.index(&Key::new(key.to_owned())) {
-			Some(element) => element.val().unwrap(),
-			None => self.parent_lexical.lookup(key),
 		}
 	}
 	

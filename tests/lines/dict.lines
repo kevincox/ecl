@@ -12,5 +12,11 @@ dict.a	NUM	1
 dict.b	NUM	2
 dict.c	NUM	3
 dict	DICT	}
+dotted	DICT	{
+dotted.auto	DICT	{
+dotted.auto.dict	NUM	5
+dotted.auto	DICT	}
+dotted	DICT	}
 other	NUM	2
+quoted	NUM	4
 	DICT	}
