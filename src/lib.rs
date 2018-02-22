@@ -387,7 +387,7 @@ impl serde::Serialize for Val {
 }
 
 pub enum Almost {
-	ADict(String,Box<Almost>),
+	ADict(String,std::rc::Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -427,8 +427,7 @@ impl Almost {
 				l.subtract(r)
 			}
 			Almost::ADict(ref k, ref item) => {
-				let v = item.complete(plex.clone(), pstruct);
-				dict::ADict::new(plex, k.clone(), v)
+				dict::Dict::new_adict(plex, pstruct, k.clone(), item.clone())
 			},
 			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
 			Almost::Call(loc, ref f, ref a) => {

@@ -131,6 +131,27 @@ impl Dict {
 		this
 	}
 	
+	pub fn new_adict(plex: ::Val, pstruct: ::Val, k: String, item: Rc<::Almost>) -> ::Val {
+		let key = Key::new(k);
+		
+		let source = Source{
+			parent_lexical: plex.clone(),
+			parent_structual: pstruct.clone(),
+			almost: AlmostDictElement::Known(key.clone(), item.clone()),
+		};
+		
+		let mut data = BTreeMap::new();
+		data.insert(key, DictVal::Pub(item.complete(plex.clone(), pstruct)));
+		
+		::Val::new(Dict{
+			parent_lexical: plex,
+			prv: gc::GcCell::new(DictData{
+				data: data,
+				source: vec![source],
+			}),
+		})
+	}
+	
 	fn source(&self) -> &[Source] {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
@@ -382,95 +403,6 @@ impl fmt::Debug for AlmostDictElement {
 		}
 	}
 }
-
-#[derive(Trace)]
-pub struct ADict {
-	parent: ::Val,
-	key: String,
-	val: ::Val,
-}
-
-impl ADict {
-	pub fn new(p: ::Val, key: String, val: ::Val) -> ::Val {
-		::Val::new(ADict {
-			parent: p,
-			key: key,
-			val: val,
-		})
-	}
-}
-
-impl serde::Serialize for ADict {
-	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(),S::Error> {
-		let mut state = try!(s.serialize_map(Some(1)));
-		try!(s.serialize_map_key(&mut state, &self.key));
-		try!(s.serialize_map_value(&mut state, &self.val));
-		s.serialize_map_end(state)
-	}
-}
-
-impl fmt::Debug for ADict {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "ADict{{ {} = {:?} }}", ::format_key(&self.key), self.val)
-	}
-}
-
-impl ::Value for ADict {
-	fn type_str(&self) -> &'static str { "adict" }
-	fn is_empty(&self) -> bool { false }
-	
-	fn index_str(&self, key: &str) -> ::Val {
-		if self.key == key {
-			self.val.clone()
-		} else {
-			::nil::get()
-		}
-	}
-	
-	fn lookup(&self, key: &str) -> ::Val {
-		if self.key == key {
-			self.val.clone()
-		} else {
-			self.parent.lookup(key)
-		}
-	}
-	
-	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
-		assert_eq!(depth, 0, "ADict.structural_lookup({:?}, {:?})", depth, key);
-		if key.namespace == 0 && key.key == self.key {
-			Some(self.val.clone())
-		} else {
-			None
-		}
-	}
-	
-	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
-		assert_eq!(depth, 0, "ADict.relative_lookup({:?}, {:?})", depth, key);
-		if key == self.key {
-			Some(self.val.clone())
-		} else {
-			None
-		}
-	}
-	
-	fn find(&self, k: &str) -> (usize, Key, ::Val) {
-		if self.key == k {
-			(0, Key::new(k.to_owned()), self.val.clone())
-		} else {
-			self.parent.deref().find(k)
-		}
-	}
-	
-	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
-		-> Result<(),erased_serde::Error> {
-		let mut state = try!(s.erased_serialize_map(Some(1)));
-		try!(s.erased_serialize_map_key(&mut state, &self.key));
-		try!(s.erased_serialize_map_value(&mut state, &self.val.rec_ser(visited)));
-		s.erased_serialize_map_end(state)
-	}
-}
-
-impl ::SameOps for ADict { }
 
 #[derive(Clone,Debug,Trace)]
 pub struct ParentSplitter {

@@ -61,7 +61,12 @@ impl ::Value for Func {
 	
 	fn call(&self, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
-			Arg::One(ref s) => dict::ADict::new(self.plex.clone(), s.clone(), arg),
+			Arg::One(ref s) => {
+				let scope = dict::Dict::new(self.plex.clone(), self.pstruct.clone(), &[]);
+				scope.downcast_ref::<::dict::Dict>().unwrap()
+					._set_val(s.clone(), ::dict::DictVal::Prv(arg));
+				scope
+			},
 			Arg::Dict(ref args) => {
 				let scope = ::dict::Dict::new(self.plex.clone(), self.pstruct.clone(), &[]);
 				let pstruct = ::Val::new(::dict::ParentSplitter{
@@ -69,18 +74,18 @@ impl ::Value for Func {
 					grandparent: self.pstruct.clone(),
 				});
 				{
-					let dict = scope.downcast_ref::<::dict::Dict>();
+					let dict = scope.downcast_ref::<::dict::Dict>().unwrap();
 					let mut passed_used = 0;
 					for &(ref k, required, ref default) in args {
 						let passed = arg.index_str(&k);
 						if passed != ::nil::get() {
 							passed_used += 1;
-							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Prv(passed));
+							dict._set_val(k.clone(), ::dict::DictVal::Prv(passed));
 						} else if required {
 							panic!("Error: required argument {:?} not found.", k);
 						} else {
 							let default = default.complete(scope.clone(), pstruct.clone());
-							dict.unwrap()._set_val(k.clone(), ::dict::DictVal::Prv(default));
+							dict._set_val(k.clone(), ::dict::DictVal::Prv(default));
 						}
 					}
 					
