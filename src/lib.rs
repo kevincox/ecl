@@ -387,6 +387,7 @@ impl serde::Serialize for Val {
 }
 
 pub enum Almost {
+	ADict(String,Box<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -425,6 +426,10 @@ impl Almost {
 					.annotate_at(loc, "Right side of subtraction")?;
 				l.subtract(r)
 			}
+			Almost::ADict(ref k, ref item) => {
+				let v = item.complete(plex.clone(), pstruct);
+				dict::ADict::new(plex, k.clone(), v)
+			},
 			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
 			Almost::Call(loc, ref f, ref a) => {
 				let f = f.complete(plex.clone(), pstruct.clone())
@@ -520,6 +525,9 @@ impl fmt::Debug for Almost {
 		match *self {
 			Almost::Add(_, ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
 			Almost::Sub(_, ref lhs, ref rhs) => write!(f, "({:?} - {:?})", lhs, rhs),
+			Almost::ADict(ref key, ref item) => {
+				write!(f, "Adict{{{:?} = {:?}}}", key, item)
+			},
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "{{"));
 				for i in &**items {

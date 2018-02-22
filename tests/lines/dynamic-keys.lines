@@ -1,9 +1,0 @@
-	DICT	{
-a	DICT	{
-a."foo.bar"	DICT	{
-a."foo.bar".baz	NUM	4
-a."foo.bar"	DICT	}
-a	DICT	}
-k4	NUM	9
-y	NUM	4
-	DICT	}

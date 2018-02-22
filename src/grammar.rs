@@ -611,24 +611,29 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					_ => {},
 				}
 				
-				let val = expect_next!{self: "parsing dict key",
-					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
-					(Token::Assign, _) => self.expr()?,
-				};
+				let val = self.dict_val()?;
 				dict::AlmostDictElement::Known(
 					::dict::Key::new(s), Rc::new(val))
 			},
 			(Token::StrOpen(t), _) => {
 				let key = self.string(t)?;
-				let val = expect_next!{self: "parsing dict key",
-					(Token::Dot, _) => ::Almost::Dict(vec![self.dict_item()?]),
-					(Token::Assign, _) => self.expr()?,
-				};
+				let val = self.dict_val()?;
 				dict::AlmostDictElement::Unknown(Rc::new(key), Rc::new(val))
 			},
 		};
 		
 		Ok(ade)
+	}
+	
+	fn dict_val(&mut self) -> ParseResult {
+		expect_next!{self: "parsing dict key",
+			(Token::Dot, _) => {
+				let k = expect_next!{self: "parsing dict key", (Token::Ident(k), _) => k};
+				let v = self.dict_val()?;
+				Ok(::Almost::ADict(k, Box::new(v)))
+			},
+			(Token::Assign, _) => self.expr(),
+		}
 	}
 	
 	fn list_items(&mut self) -> ParseResult {
