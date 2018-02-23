@@ -270,31 +270,25 @@ impl ::Value for Dict {
 		}
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+	fn structural_lookup(&self, depth: usize, key: &Key, private: bool) -> Option<::Val> {
 		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
-		let v = match self.index(key) {
-			Some(element) => Some(element.val().unwrap()),
-			None => None
-		};
-		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
-		v
-	}
-	
-	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
-		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
-		let mut key = Key::new(key.to_owned());
-		// let dbg_key = key.clone();
-		// eprintln!("Find {:?} in {:?}", dbg_key, self);
-		self.index(&key)
+		let v = self.index(&key)
 			.map(|element| match element {
 				DictVal::Pub(ref v) => v.clone(),
 				DictVal::Prv(ref v) => v.clone(),
 				DictVal::Local(ns) => {
-					key.namespace = ns;
-					self.index(&key).unwrap().val().unwrap()
+					if private {
+						let mut key = key.clone();
+						key.namespace = ns;
+						self.index(&key).unwrap().val().unwrap()
+					} else {
+						::err::Err::new(format!("Attempt to access local {:?}", key.key))
+					}
 				}
-			})
+			});
+		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
+		v
 	}
 	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
@@ -405,19 +399,11 @@ pub struct ParentSplitter {
 impl ::Value for ParentSplitter {
 	fn type_str(&self) -> &'static str { "parentsplitter" }
 	
-	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+	fn structural_lookup(&self, depth: usize, key: &Key, private: bool) -> Option<::Val> {
 		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		match depth {
-			0 => self.parent.structural_lookup(0, key),
-			n => self.grandparent.structural_lookup(n-1, key),
-		}
-	}
-	
-	fn relative_lookup(&self, depth: usize, key: &str) -> Option<::Val> {
-		// eprintln!("relative_lookup({}, {:?}) in {:?}", depth, key, self);
-		match depth {
-			0 => self.parent.relative_lookup(0, key),
-			n => self.grandparent.relative_lookup(n-1, key),
+			0 => self.parent.structural_lookup(0, key, private),
+			n => self.grandparent.structural_lookup(n-1, key, private),
 		}
 	}
 }

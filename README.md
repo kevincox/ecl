@@ -42,7 +42,7 @@ require-signed-cookies = true
 
 ```
 local webapp = {
-	time-zone = panic:"Time zone must be set"
+	time-zone = err:"Time zone must be set"
 	
 	option database-host = "localhost"
 	option database-port = 1234

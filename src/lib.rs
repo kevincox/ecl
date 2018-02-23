@@ -52,14 +52,9 @@ pub trait Value:
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
-	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> {
+	fn structural_lookup(&self, _depth: usize, _key: &dict::Key, _private: bool) -> Option<Val> {
 		// eprintln!("structural_lookup({}, {:?}) in {:?}", _depth, _key, self);
 		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
-		None
-	}
-	fn relative_lookup(&self, _depth: usize, _key: &str) -> Option<Val> {
-		eprintln!("relative_lookup({}, {:?}) in {:?}", _depth, _key, self);
-		eprintln!("relative_lookup({}, {:?}) -> None", _depth, _key);
 		None
 	}
 	fn find(&self, _k: &str) -> (usize, dict::Key, Val) { panic!("Can't lookup in {:?}", self) }
@@ -220,14 +215,9 @@ impl Val {
 		self.value().unwrap().index_str(key)
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {
+	fn structural_lookup(&self, depth: usize, key: &dict::Key, private: bool) -> Option<Val> {
 		// println!("Lookup {:?} in {:?}", key, self);
-		self.deref().structural_lookup(depth, key)
-	}
-	
-	fn relative_lookup(&self, depth: usize, key: &str) -> Option<Val> {
-		// println!("Lookup {:?} in {:?}", key, self);
-		self.deref().relative_lookup(depth, key)
+		self.deref().structural_lookup(depth, key, private)
 	}
 	
 	fn add(&self, that: Val) -> Val {
@@ -398,7 +388,7 @@ pub enum Almost {
 	Nil,
 	Num(f64),
 	Ref(grammar::Loc, String),
-	StructRef(grammar::Loc, usize, String),
+	StructRef(grammar::Loc, usize, dict::Key),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
@@ -475,16 +465,16 @@ impl Almost {
 				// eprintln!("Evaluating ref: {:?} {:?}", loc, id);
 				let (depth, dictkey, val) = plex.value()?.find(id);
 				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
-				let v = pstruct.structural_lookup(depth, &dictkey).unwrap_or(val);
+				let v = pstruct.structural_lookup(depth, &dictkey, false).unwrap_or(val);
 				v.annotate_at(loc, "Error value referenced")
 			},
 			Almost::StructRef(loc, depth, ref key) => {
 				// eprintln!("StructRef: {:?} {:?}", depth, key);
-				pstruct.relative_lookup(depth, key)
+				pstruct.structural_lookup(depth, key, true)
 					.map(|v| v.annotate_at(loc, "Error value referenced"))
 					.unwrap_or_else(||
 						err::Err::new_at(
-							loc, format!("Invalid reference {:?}", format_ref(depth, key))))
+							loc, format!("Invalid reference {:?}", format_ref(depth, &key.key))))
 			},
 			Almost::Str(ref c) => {
 				let mut r = String::new();
@@ -547,7 +537,7 @@ impl fmt::Debug for Almost {
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
-			Almost::StructRef(_, d, ref id) => write!(f, "StructRef({})", format_ref(d, id)),
+			Almost::StructRef(_, d, ref key) => write!(f, "StructRef({})", format_ref(d, &key.key)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "\""));
 				for part in parts {
