@@ -2,8 +2,7 @@ extern crate erased_serde;
 extern crate gc;
 extern crate serde;
 
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
+use std;
 use std::fmt;
 use std::rc::Rc;
 
@@ -25,29 +24,20 @@ pub struct Dict {
 
 #[derive(Trace)]
 struct DictData {
-	data: BTreeMap<Key,DictVal>,
+	data: Vec<DictPair>,
 	source: Vec<Source>,
 }
 
-// unsafe impl gc::Trace for DictData {
-// 	gc::custom_trace!(this, {
-// 		for (_, v) in &this.data {
-// 			mark(v);
-// 		}
-// 	});
-// }
-
-
-// TODO: Switch from enum to struct with visibility member.
 #[derive(Clone,Eq,Ord,PartialEq,PartialOrd,Trace)]
 pub struct Key {
-	pub namespace: usize,
 	pub key: String,
+	pub namespace: usize,
 }
 
 impl Key {
 	pub fn new(key: String) -> Self { Key{namespace: 0, key: key} }
 	pub fn local(ns: usize, key: String) -> Self { Key{namespace: ns, key: key} }
+	fn is_local(&self) -> bool { self.namespace != 0 }
 }
 
 impl fmt::Debug for Key {
@@ -88,7 +78,7 @@ impl Dict {
 		let this = ::Val::new(Dict{
 			parent_lexical: plex,
 			prv: gc::GcCell::new(DictData{
-				data: BTreeMap::new(),
+				data: Vec::with_capacity(items.len()),
 				source: Vec::with_capacity(items.len()),
 			}),
 		});
@@ -108,23 +98,15 @@ impl Dict {
 					parent_structual: pstruct.clone(),
 					almost: item.clone()
 				});
-				match item.complete(this.clone(), this_pstruct.clone()) {
-					DictPair::Known(k, v) => {
-						if k.namespace != 0 {
-							let redirect_key = Key::new(k.key.clone());
-							match prv.data.entry(redirect_key) {
-								Entry::Occupied(e) =>
-									panic!("Multiple entries for key {:?}", e.key()),
-								Entry::Vacant(e) => e.insert(DictVal::Local(k.namespace)),
-							};
-						}
-						
-						match prv.data.entry(k) {
-							Entry::Occupied(e) => panic!("Multiple entries for key {:?}", e.key()),
-							Entry::Vacant(e) => e.insert(v),
-						};
-					},
+				let pair = item.complete(this.clone(), this_pstruct.clone());
+				if pair.key.is_local() {
+					let redirect_key = Key::new(pair.key.key.clone());
+					prv.data.push(DictPair{
+						key: redirect_key,
+						val: DictVal::Local(pair.key.namespace),
+					});
 				}
+				prv.data.push(pair);
 			}
 		}
 		
@@ -137,11 +119,14 @@ impl Dict {
 		let source = Source{
 			parent_lexical: plex.clone(),
 			parent_structual: pstruct.clone(),
-			almost: AlmostDictElement::Known(key.clone(), item.clone()),
+			almost: AlmostDictElement{
+				key: key.clone(),
+				val: item.clone(),
+			},
 		};
 		
-		let mut data = BTreeMap::new();
-		data.insert(key, DictVal::Pub(item.complete(plex.clone(), pstruct)));
+		let data = vec![
+			DictPair{key, val: DictVal::Pub(item.complete(plex.clone(), pstruct))}];
 		
 		::Val::new(Dict{
 			parent_lexical: plex,
@@ -157,61 +142,93 @@ impl Dict {
 	}
 	
 	pub fn _set_val(&self, key: String, val: DictVal) {
-		self.prv.borrow_mut().data.insert(Key::new(key), val);
+		let key = Key::new(key);
+		let mut prv = self.prv.borrow_mut();
+		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
+			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
+			Err(i) => prv.data.insert(i, DictPair{key, val}),
+		}
 	}
 	
 	fn index(&self, key: &Key) -> Option<DictVal> {
 		let prv = self.prv.borrow();
-		prv.data.get(key).map(|v| v.clone())
+		prv.data.binary_search_by(|pair| pair.key.cmp(key))
+			.map(|i| prv.data[i].val.clone()).ok()
 	}
 	
 	fn call(&self, that: &Dict) -> ::Val {
-		let mut source = Vec::with_capacity(that.source().len() + self.source().len());
-		source.extend(that.source().iter().cloned());
-		source.extend(self.source().iter().cloned());
-		
-		let child = ::Val::new(Dict{
+		let this = ::Val::new(Dict{
 			parent_lexical:
 				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
-				data: BTreeMap::new(),
-				source: source,
+				data: Vec::new(),
+				source: Vec::new(),
 			}),
 		});
 		
 		{
-			let dict = child.clone();
+			let dict = this.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
+			let mut prv = dict.prv.borrow_mut();
+			let DictData{ref mut source, ref mut data} = *prv;
 			
-			for s in dict.source() {
+			let mut left = self.source();
+			let mut right = that.source();
+			
+			loop {
+				let ord = match (left.first(), right.first()) {
+					(Some(l), Some(r)) => l.almost.key.cmp(&r.almost.key),
+					(Some(_), None) => std::cmp::Ordering::Less,
+					(None, Some(_)) => std::cmp::Ordering::Greater,
+					(None, None) => break,
+				};
+				
+				let s = if ord == std::cmp::Ordering::Greater {
+					let v = right[0].clone();
+					right = &right[1..];
+					v
+				} else {
+					let v = left[0].clone();
+					left = &left[1..];
+					v
+				};
+				
 				let pstruct = ::Val::new(ParentSplitter{
-					parent: child.clone(),
+					parent: this.clone(),
 					grandparent: s.parent_structual.clone(),
 				});
-				match s.almost.complete(s.parent_lexical.clone(), pstruct.clone()) {
-					DictPair::Known(k, v) => {
-						match dict.prv.borrow_mut().data.entry(k) {
-							Entry::Occupied(mut e) => {
-								let sup_val = v.val().unwrap();
-								let sub_val = e.get().val().unwrap();
-								e.insert(DictVal::Pub(
-									Thunk::new(vec![sup_val, sub_val], |r|
-										override_(r[0].clone(), r[1].clone()))));
-							},
-							Entry::Vacant(e) => {
-								e.insert(v);
-							},
+				
+				let pair = s.almost.complete(s.parent_lexical.clone(), pstruct);
+				if pair.key.is_local() {
+					let redirect_key = Key::new(pair.key.key.clone());
+					data.push(DictPair{
+						key: redirect_key,
+						val: DictVal::Local(pair.key.namespace),
+					})
+				}
+				source.push(s);
+				if Some(&pair.key) == data.last().map(|p| &p.key) {
+					match pair.val {
+						DictVal::Local(_) => unreachable!(),
+						DictVal::Prv(_) => unreachable!(),
+						DictVal::Pub(ref val) => {
+							let inherited = override_(
+								data.last().unwrap().val.val().unwrap(),
+								val.clone());
+							data.last_mut().unwrap().val = DictVal::Pub(inherited);
 						}
-					},
+					}
+				} else {
+					data.push(pair);
 				}
 			}
 		}
 		
-		child
+		this
 	}
 }
 
-fn override_(sup: ::Val, sub: ::Val) -> ::Val {
+pub fn override_(sup: ::Val, sub: ::Val) -> ::Val {
 	let sub = sub.get();
 	if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
 		let sup = sup.get()
@@ -232,14 +249,14 @@ impl fmt::Debug for Dict {
 		}
 		
 		let mut leader = '{';
-		for (k, v) in &prv.data {
+		for pair in &prv.data {
 			write!(f, "{}", leader)?;
 			leader = ' ';
 			
-			match *v {
-				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", k, v)?,
-				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", k, v)?,
-				DictVal::Local(_v) => {
+			match pair.val {
+				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", pair.key.key, v)?,
+				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", pair.key.key, v)?,
+				DictVal::Local(ref _v) => {
 					// write!(f, "redir {:?}={:?}", k, _v)?;
 				},
 			}
@@ -259,7 +276,7 @@ impl ::Value for Dict {
 	
 	fn is_empty(&self) -> bool {
 		let prv = self.prv.borrow();
-		prv.data.values().all(|e| !e.public())
+		prv.data.iter().all(|pair| !pair.val.public())
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
@@ -329,10 +346,10 @@ impl ::Value for Dict {
 		Some(Box::new(
 			data
 				.iter()
-				.filter(|&(_, v)| v.public())
-				.map(|(k, v)| {
-					let k = ::Val::new(k.key.clone());
-					let data = vec![k, v.val().unwrap()];
+				.filter(|pair| pair.val.public())
+				.map(|pair| {
+					let k = ::Val::new(pair.key.key.clone());
+					let data = vec![k, pair.val.val().unwrap()];
 					::list::List::of_vals(data)
 				})))
 	}
@@ -342,9 +359,9 @@ impl ::Value for Dict {
 		let prv = self.prv.borrow();
 		
 		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
-		for (k, i) in &prv.data {
-			if let DictVal::Pub(ref v) = *i {
-				s.erased_serialize_map_key(&mut state, &k.key)?;
+		for pair in &prv.data {
+			if let DictVal::Pub(ref v) = pair.val {
+				s.erased_serialize_map_key(&mut state, &pair.key.key)?;
 				s.erased_serialize_map_value(&mut state, &v.rec_ser(visited))?;
 			}
 		}
@@ -355,38 +372,35 @@ impl ::Value for Dict {
 impl ::SameOps for Dict { }
 
 #[derive(Clone)]
-pub enum AlmostDictElement {
-	Known(Key, Rc<::Almost>),
-	Priv(Key, Rc<::Almost>),
+pub struct AlmostDictElement {
+	pub key: Key,
+	pub val: Rc<::Almost>,
 }
 
-enum DictPair {
-	Known(Key,DictVal),
+#[derive(Trace)]
+struct DictPair {
+	key: Key,
+	val: DictVal,
+}
+
+impl DictPair {
+	fn new(key: Key, val: DictVal) -> Self {
+		DictPair{key, val}
+	}
 }
 
 impl AlmostDictElement {
 	fn complete(&self, plex: ::Val, pstruct: ::Val) -> DictPair {
-		match self {
-			&AlmostDictElement::Known(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Pub(Thunk::lazy(plex, pstruct, v.clone())))
-			},
-			&AlmostDictElement::Priv(ref k, ref v) => {
-				DictPair::Known(k.to_owned(), DictVal::Prv(Thunk::lazy(plex, pstruct, v.clone())))
-			},
-		}
+		let val = Thunk::lazy(plex, pstruct, self.val.clone());
+		let dictval = if self.key.is_local() { DictVal::Prv(val) } else { DictVal::Pub(val) };
+		DictPair::new(self.key.clone(), dictval)
 	}
 }
 
 impl fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			&AlmostDictElement::Known(ref k, ref v) => {
-				write!(f, "pub   {:?} = {:?}", k, v)
-			},
-			&AlmostDictElement::Priv(ref k, ref v) => {
-				write!(f, "local {:?} = {:?}", k, v)
-			},
-		}
+		let local = if self.key.is_local() { "local" } else { "pub  " };
+		write!(f, "{} {:?} = {:?}", local, self.key, self.val)
 	}
 }
 

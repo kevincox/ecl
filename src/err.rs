@@ -12,10 +12,10 @@ impl Err {
 	}
 	
 	pub fn new_at(loc: ::grammar::Loc, msg: String) -> ::Val {
-		Self::new_from(::nil::get(), loc, msg)
+		Self::new_from_at(::nil::get(), loc, msg)
 	}
 	
-	pub fn new_from(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
+	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
 		::Val::new(Err{msg: msg, loc: loc, chained: chained})
 	}
 }

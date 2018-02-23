@@ -581,6 +581,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while self.peek().is_some() {
 			items.push(self.dict_item()?);
 		}
+		items.sort_by(|l, r| l.key.cmp(&r.key));
 		Ok(::Almost::Dict(items))
 	}
 	
@@ -589,6 +590,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while !self.consume(Token::DictClose).is_some() {
 			items.push(self.dict_item()?);
 		}
+		items.sort_by(|l, r| l.key.cmp(&r.key));
 		
 		Ok(::Almost::Dict(items))
 	}
@@ -602,8 +604,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 							let val = Rc::new(self.expr()?);
 							let ns = val.as_ref() as *const ::Almost as usize;
-							let key = ::dict::Key::local(ns, s);
-							return Ok(dict::AlmostDictElement::Priv(key, val))
+							return Ok(dict::AlmostDictElement{
+								key: ::dict::Key::local(ns, s),
+								val: val,
+							})
 						},
 						Some(t) => self.unget(t),
 						None => {},
@@ -612,16 +616,20 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				}
 				
 				let val = self.dict_val()?;
-				dict::AlmostDictElement::Known(
-					::dict::Key::new(s), Rc::new(val))
+				dict::AlmostDictElement{
+					key: ::dict::Key::new(s),
+					val: Rc::new(val),
+				}
 			},
 			(Token::StrOpen(StrType::String), _) => {
 				let s = expect_next!{self: "parsing quoted dict key", (Token::StrChunk(s), _) => s};
 				expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
 				
 				let val = self.dict_val()?;
-				dict::AlmostDictElement::Known(
-					::dict::Key::new(s), Rc::new(val))
+				dict::AlmostDictElement{
+					key: ::dict::Key::new(s),
+					val: Rc::new(val),
+				}
 			},
 		};
 		

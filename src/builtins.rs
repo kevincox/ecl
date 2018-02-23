@@ -34,7 +34,7 @@ pub fn get(key: &str) -> ::Val {
 			if path.is_err() { return path }
 			match path.get_str() {
 				Ok(s) => ::parse_file(s),
-				Err(e) => ::err::Err::new_from(e,
+				Err(e) => ::err::Err::new_from_at(e,
 					::grammar::Loc{line:0, col: 0},
 					format!("load expects string argument, got {:?}", path)),
 			}

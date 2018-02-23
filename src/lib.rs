@@ -164,7 +164,7 @@ impl Val {
 	fn annotate_at(&self, loc: grammar::Loc, msg: &str) -> Val {
 		let v = self.get();
 		if v.is_err() {
-			err::Err::new_from(v, loc, msg.to_owned())
+			err::Err::new_from_at(v, loc, msg.to_owned())
 		} else {
 			v
 		}
@@ -373,6 +373,7 @@ impl serde::Serialize for Val {
 pub enum Almost {
 	ADict(String,std::rc::Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
+	Inherit(std::rc::Rc<Almost>, std::rc::Rc<Almost>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
 	Call(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -414,6 +415,11 @@ impl Almost {
 				dict::Dict::new_adict(plex, pstruct, k.clone(), item.clone())
 			},
 			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
+			Almost::Inherit(ref l, ref r) => {
+				let l = l.complete(plex.clone(), pstruct.clone());
+				let r = r.complete(plex, pstruct);
+				::dict::override_(l, r)
+			},
 			Almost::Call(loc, ref f, ref a) => {
 				let f = f.complete(plex.clone(), pstruct.clone())
 					.annotate_at(loc, "Calling error as function")?;
@@ -518,6 +524,7 @@ impl fmt::Debug for Almost {
 				}
 				write!(f, "}}")
 			},
+			Almost::Inherit(ref l, ref r) => write!(f, "Inherit({:?}, {:?})", l, r),
 			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
 			Almost::Great(ref l, ref r) => write!(f, "({:?} > {:?})", l, r),
