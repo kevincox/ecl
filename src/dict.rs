@@ -152,8 +152,10 @@ impl Dict {
 	
 	fn index(&self, key: &Key) -> Option<DictVal> {
 		let prv = self.prv.borrow();
-		prv.data.binary_search_by(|pair| pair.key.cmp(key))
-			.map(|i| prv.data[i].val.clone()).ok()
+		prv.data.iter().position(|pair| pair.key == *key)
+			.map(|i| prv.data[i].val.clone())
+		// prv.data.binary_search_by(|pair| pair.key.cmp(key))
+		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
 	
 	fn call(&self, that: &Dict) -> ::Val {
