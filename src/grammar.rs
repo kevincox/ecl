@@ -836,7 +836,15 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			}
 		}
 		
-		Ok(::Almost::Str(pieces))
+		if let &[::StringPart::Lit(_)] = pieces.as_slice() {
+			if let ::StringPart::Lit(s) = pieces.pop().unwrap() {
+				Ok(::Almost::StrStatic(s))
+			} else {
+				unreachable!();
+			}
+		} else {
+			Ok(::Almost::Str(pieces))
+		}
 	}
 }
 
