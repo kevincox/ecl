@@ -295,7 +295,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 					}
 				}
 			}
-			compile(ctx, body);
+			compile(ctx, body)?;
 			ctx.scope_close();
 			
 			ctx.set_jump(jump);
@@ -350,7 +350,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 				Err(format!("{:?} Invalid reference {:?}", loc, name))
 			}
 		}
-		::Almost::StructRef(loc, depth, key) => {
+		::Almost::StructRef(_, depth, key) => {
 			if let Some(id) = ctx.scope_find_at(&key.key, depth) {
 				let off = ctx.write_op(OP_REF);
 				ctx.write_str(&key.key); // TODO: remove this.
@@ -438,10 +438,6 @@ impl Module {
 		self.read_usize(START_OFFSET)
 	}
 	
-	fn read_u8(&self, i: usize) -> u8 {
-		self.code[i]
-	}
-	
 	fn read_u64(&self, i: usize) -> u64 {
 		EclByteOrder::read_u64(&self.code[i..(i+8)])
 	}
@@ -485,7 +481,7 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	eprintln!("Executing @ {}", pc);
 	let mut cursor = std::io::Cursor::new(&module.code[..]);
-	cursor.seek(std::io::SeekFrom::Start(pc as u64));
+	cursor.seek(std::io::SeekFrom::Start(pc as u64)).unwrap();
 	
 	let mut stack = Vec::new();
 	loop {
@@ -638,7 +634,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 			}
 			OP_JUMP_FUNC | OP_JUMP_LAZY => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
-				cursor.seek(std::io::SeekFrom::Start(target));
+				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 			}
 			OP_LIST => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
@@ -688,7 +684,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 
 pub fn decompile(code: &[u8]) -> Result<String,String> {
 	let mut cursor = std::io::Cursor::new(code);
-	cursor.seek(std::io::SeekFrom::Start(START_END as u64));
+	cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
 	let mut out = String::with_capacity(code.len() * 8);
 	
 	while let Ok(op) = cursor.read_u8() {
@@ -761,7 +757,7 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 			}
 			OP_JUMP_FUNC => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
-				writeln!(out, "{:08} OP_JUMP_FUNC @{:08}", cursor.position(), target);
+				writeln!(out, "{:08} OP_JUMP_FUNC @{:08}", cursor.position(), target).unwrap();
 				// TODO: Recompile rather than seek over.
 				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 			}
