@@ -577,6 +577,16 @@ pub fn parse(source: &str, doc: &str) -> Result<Val, grammar::ParseError> {
 	Ok(almost.complete(nil::get(), nil::get()))
 }
 
+pub fn eval(source: &str, doc: &str) -> Val {
+	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
+	grammar::parse(source, doc.chars())
+		.map(|ast| {
+			let compiled = bytecode::compile_to_vec(ast);
+			bytecode::eval(compiled)
+		})
+		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse string: {:?}", e)))
+}
+
 pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
 	let file = match std::fs::File::open(path) {
 		Ok(file) => file,

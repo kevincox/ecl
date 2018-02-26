@@ -1,0 +1,6 @@
+	DICT	{
+add	NUM	3
+neg	NUM	-2
+sub	NUM	4
+sub-net	NUM	-5.5
+	DICT	}

@@ -5,12 +5,12 @@ extern crate test;
 
 #[bench]
 fn fib_func_rec(b: &mut test::Bencher) {
-	let fib = ecl::parse("<fib-str>", r###"
+	let fib = ecl::eval("<fib-str>", r###"
 		{
 			fib = ->i cond:[i <= 2 1 fib:(i - 1) + fib:(i - 2)]
 		}.fib
-	"###).unwrap();
-	let num = ecl::parse("<num-str>", "(20)").unwrap();
+	"###);
+	let num = ecl::eval("<num-str>", "(20)");
 	let fib_num = || fib.call(num.clone()).get_num();
 	
 	assert_eq!(fib_num(), Some(6765.0));
@@ -20,7 +20,7 @@ fn fib_func_rec(b: &mut test::Bencher) {
 
 #[bench]
 fn fib_func_iter(b: &mut test::Bencher) {
-	let fib = ecl::parse("<fib-str>", r###"
+	let fib = ecl::eval("<fib-str>", r###"
 		{
 			fib-part = ->i cond:[
 				i <= 2 [1 1]
@@ -32,8 +32,8 @@ fn fib_func_iter(b: &mut test::Bencher) {
 				}.part]
 			fib = ->i index:(fib-part:i):1
 		}.fib
-	"###).unwrap();
-	let num = ecl::parse("<num-str>", "(80)").unwrap();
+	"###);
+	let num = ecl::eval("<num-str>", "(80)");
 	let fib_num = || fib.call(num.clone()).get_num();
 	
 	assert_eq!(fib_num(), Some(23416728348467685.0));

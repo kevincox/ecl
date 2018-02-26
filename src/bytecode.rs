@@ -32,6 +32,7 @@ iota! {
 		| OP_REF
 		| OP_REF_REL
 		| OP_STR
+		| OP_SUB
 }
 
 iota! {
@@ -386,6 +387,12 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			ctx.write_str(&s);
 			Ok(off)
 		}
+		::Almost::Sub(_, left, right) => {
+			let off = compile_expr(ctx, *left)?;
+			compile_expr(ctx, *right)?;
+			ctx.write_op(OP_SUB);
+			Ok(off)
+		}
 		other => unimplemented!("compile({:?})", other),
 	}
 }
@@ -479,14 +486,14 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 }
 
 pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
-	eprintln!("Executing @ {}", pc);
+	// eprintln!("Executing @ {}", pc);
 	let mut cursor = std::io::Cursor::new(&module.code[..]);
 	cursor.seek(std::io::SeekFrom::Start(pc as u64)).unwrap();
 	
 	let mut stack = Vec::new();
 	loop {
 		let op = cursor.read_u8().unwrap();
-		eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
+		// eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
 		match op {
 			OP_RET => {
 				assert_eq!(stack.len(), 1);
@@ -677,6 +684,11 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let s = cursor.read_str();
 				stack.push(::Val::new(s));
 			}
+			OP_SUB => {
+				let right = stack.pop().expect("One item in stack for add");
+				let left = stack.pop().expect("No items in stack for add");
+				stack.push(left.subtract(right));
+			}
 			unknown => panic!("Unknown opcode 0x{:02x}", unknown),
 		}
 	}
@@ -795,6 +807,9 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 			OP_STR => {
 				let s = cursor.read_str();
 				writeln!(out, "{:08} STR {:?}", cursor.position(), s).unwrap();
+			}
+			OP_SUB => {
+				writeln!(out, "{:08} SUB", cursor.position()).unwrap();
 			}
 			other => {
 				writeln!(out, "ERR unknown opcode 0x{:02x}", other).unwrap();
