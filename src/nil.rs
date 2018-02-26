@@ -1,7 +1,5 @@
 extern crate erased_serde;
 
-use builtins;
-
 #[derive(Debug,Trace)]
 pub struct Nil;
 
@@ -25,10 +23,6 @@ impl ::Value for Nil {
 	
 	fn to_bool(&self) -> bool {
 		false
-	}
-	
-	fn find(&self, k: &str) -> (usize, ::dict::Key, ::Val) {
-		(0, ::dict::Key::local(1, String::new()), builtins::get(k))
 	}
 }
 

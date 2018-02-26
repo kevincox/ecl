@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use dict;
 
+#[derive(PartialEq)]
 pub enum Arg {
 	One(String),
 	Dict(Vec<(String,bool,::Almost)>),
@@ -45,7 +46,7 @@ pub struct Func {
 	data: Rc<FuncData>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub struct FuncData {
 	pub arg: Arg,
 	pub body: ::Almost,

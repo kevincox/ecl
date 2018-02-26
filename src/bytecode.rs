@@ -126,7 +126,6 @@ impl CompileContext {
 	}
 	
 	fn write_op(&mut self, op: u8) -> usize {
-		// eprintln!("OP 0x{:02x} written", op);
 		self.write(Some(op))
 	}
 	
@@ -148,7 +147,6 @@ impl CompileContext {
 }
 
 fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String> {
-	// eprintln!("Compiling at {}: {:?}", ctx.bytes.len(), ast);
 	match ast {
 		::Almost::Add(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
@@ -431,6 +429,7 @@ pub fn compile_to_vec(ast: ::Almost) -> Vec<u8> {
 	ctx.bytes
 }
 
+#[derive(PartialEq)]
 pub struct Module {
 	file: std::path::PathBuf,
 	code: Vec<u8>,

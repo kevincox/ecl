@@ -57,13 +57,6 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	}),
 ];
 
-pub fn get(key: &str) -> ::Val {
-	BUILTINS.iter()
-		.find(|p| p.0 == key)
-		.map(|p| p.1())
-		.unwrap_or_else(|| ::err::Err::new(format!("No global {:?}", key)))
-}
-
 pub fn builtin_id(key: &str) -> Option<usize> {
 	BUILTINS.iter().position(|p| p.0 == key)
 }
@@ -129,31 +122,37 @@ fn cond(args: &[::Val]) -> ::Val {
 
 #[cfg(test)]
 mod tests {
-	use ::Value;
 	use super::*;
+	
+	fn get(key: &str) -> ::Val {
+		BUILTINS.iter()
+			.find(|p| p.0 == key)
+			.map(|p| p.1())
+			.unwrap_or_else(|| ::err::Err::new(format!("No global {:?}", key)))
+	}
 	
 	#[test]
 	#[should_panic(expected="Baby\\'s first error")]
 	fn panic() {
-		let v = ::parse("<str>", r###"
+		let v = ::eval("<str>", r###"
 			{
 				msg = "Baby's first" + " error"
 				boom = panic:msg
 			}.boom
-		"###).unwrap().get();
+		"###).get();
 		println!("Returned value: {:?}", v);
 	}
 	
 	#[test]
 	fn assert_once_once() {
-		let v = nil::Nil.find("_testing_assert_cache_eval").2;
+		let v = get("_testing_assert_cache_eval");
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 	}
 	
 	#[test]
 	#[should_panic(expected="Called twice")]
 	fn assert_once_twice() {
-		let v = nil::Nil.find("_testing_assert_cache_eval").2;
+		let v = get("_testing_assert_cache_eval");
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
 	}

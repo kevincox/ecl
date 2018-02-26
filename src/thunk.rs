@@ -34,14 +34,13 @@ impl Thunk {
 			almost.complete(plex, pstruct)
 		} else {
 			Self::new(vec![plex, pstruct],
-				move |refs| almost.complete(refs[0].clone(), refs[1].clone()))
+				move |refs| almost.complete(refs[0].clone(), refs[1].clone()).get())
 		}
 	}
 	
 	fn eval(&self) -> ::Val {
-		match *self.0.borrow_mut() {
-			State::Val(ref v) => return v.clone(),
-			_ => {},
+		if let State::Val(ref v) = *self.0.borrow_mut() {
+			return v.clone()
 		}
 		
 		let state = mem::replace(&mut*self.0.borrow_mut(), State::Working);

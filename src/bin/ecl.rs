@@ -56,8 +56,7 @@ fn main() {
 		("load", Some(load)) => {
 			let mut val = ecl::eval_file(&load.value_of("file").unwrap());
 			if let Some(code) = load.value_of("args") {
-				let args = ecl::parse("<select>", code)
-					.expect("Failed to parse --args");
+				let args = ecl::eval("<select>", code);
 				val = val.call(args)
 			}
 			if let Some(code) = load.value_of("select") {
@@ -70,8 +69,7 @@ fn main() {
 		},
 		("eval", Some(eval)) => {
 			let source = eval.value_of("code").unwrap();
-			let val = ecl::parse("<command-line>", source)
-				.expect("Failed to parse expression.");
+			let val = ecl::eval("<command-line>", source);
 			serialize_val_with(val,
 				eval.value_of("format").unwrap(),
 				eval.is_present("compact"));

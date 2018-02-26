@@ -308,26 +308,6 @@ impl ::Value for Dict {
 		v
 	}
 	
-	fn find(&self, k: &str) -> (usize, Key, ::Val) {
-		let mut key = Key::new(k.to_owned());
-		let v = match self.index(&key) {
-			Some(element) => match element {
-				DictVal::Pub(ref v) => (0, key, v.clone()),
-				DictVal::Prv(ref v) => (0, key, v.clone()),
-				DictVal::Local(ns) => {
-					key.namespace = ns;
-					let v = self.index(&key).unwrap().val().unwrap();
-					(0, key, v)
-				}
-			},
-			None => {
-				let (depth, k, v) = self.parent_lexical.deref().find(k);
-				(depth+1, k, v)
-			},
-		};
-		return v
-	}
-	
 	fn call(&self, arg: ::Val) -> ::Val {
 		let arg = arg.get();
 		match arg.downcast_ref::<Dict>() {
@@ -368,7 +348,7 @@ impl ::Value for Dict {
 
 impl ::SameOps for Dict { }
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct AlmostDictElement {
 	pub key: Key,
 	pub val: Rc<::Almost>,
@@ -426,13 +406,13 @@ mod tests {
 	
 	#[test]
 	fn dict() {
-		assert!(parse("<str>", "{}").unwrap().is_empty());
+		assert!(eval("<str>", "{}").is_empty());
 		
-		let v = parse("<str>", "{a=4 b = 0}").unwrap();
+		let v = eval("<str>", "{a=4 b = 0}");
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(0.0));
 		
-		let v = parse("<str>", "{a=4 b=a}").unwrap();
+		let v = eval("<str>", "{a=4 b=a}");
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(4.0));
 	}

@@ -60,7 +60,6 @@ pub trait Value:
 		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
 		None
 	}
-	fn find(&self, _k: &str) -> (usize, dict::Key, Val) { panic!("Can't lookup in {:?}", self) }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
@@ -138,18 +137,15 @@ unsafe impl Sync for Val { }
 
 impl Val {
 	fn new<T: Value + Sized>(v: T) -> Val {
-		// println!("Allocating {:?}", v);
 		Val(gc::Gc::new(v))
 	}
 	
 	fn get(&self) -> Val {
-		// println!("getting {:?}", self.0.type_str());
 		let mut v = self.clone();
 		
 		while let Some(ref vn) = Value::get(v.deref()) {
 			v = vn.clone();
 		}
-		// println!("got {:?}", v);
 		
 		v
 	}
@@ -373,6 +369,7 @@ impl serde::Serialize for Val {
 	}
 }
 
+#[derive(PartialEq)]
 pub enum Almost {
 	ADict(String,std::rc::Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
@@ -472,12 +469,8 @@ impl Almost {
 			},
 			Almost::Nil => nil::get(),
 			Almost::Num(n) => Val::new(n),
-			Almost::Ref(loc, ref id) => {
-				// eprintln!("Evaluating ref: {:?} {:?}", loc, id);
-				let (depth, dictkey, val) = plex.value()?.find(id);
-				// eprintln!("Struct key: {:?} {:?} {:?}", depth, dictkey, val);
-				let v = pstruct.structural_lookup(depth, &dictkey, false).unwrap_or(val);
-				v.annotate_at(loc, "Error value referenced")
+			Almost::Ref(_, _) => {
+				unimplemented!("Almost::ref is not executed.")
 			},
 			Almost::StructRef(loc, depth, ref key) => {
 				// eprintln!("StructRef: {:?} {:?}", depth, key);
@@ -571,12 +564,6 @@ impl fmt::Debug for Almost {
 	}
 }
 
-pub fn parse(source: &str, doc: &str) -> Result<Val, grammar::ParseError> {
-	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
-	let almost = grammar::parse("", doc.chars())?;
-	Ok(almost.complete(nil::get(), nil::get()))
-}
-
 pub fn eval(source: &str, doc: &str) -> Val {
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	grammar::parse(source, doc.chars())
@@ -631,7 +618,7 @@ pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
 	Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum StringPart { Lit(String), Exp(Almost) }
 
 fn do_escape_string_contents(s: &str, r: &mut String) {
@@ -692,31 +679,31 @@ mod tests {
 	
 	#[test]
 	fn list() {
-		assert!(parse("<str>", "[]").unwrap().is_empty());
-		let v = parse("<str>", "[0d29 0b1.1]").unwrap();
+		assert!(eval("<str>", "[]").is_empty());
+		let v = eval("<str>", "[0d29 0b1.1]");
 		assert_eq!(v.index_int(0), Val::new(29.0));
 		assert_eq!(v.index_int(1), Val::new(1.5));
 	}
 	
 	#[test]
 	fn ident() {
-		assert_eq!(parse("<str>","{b = 4}.b").unwrap(), Val::new(4.0));
+		assert_eq!(eval("<str>","{b = 4}.b"), Val::new(4.0));
 	}
 	
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion() {
-		parse("<str>" ,"{b = b}").unwrap().index_str("b").get_num();
+		eval("<str>" ,"{b = b}").index_str("b").get_num();
 	}
 	
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion_multi_step() {
-		parse("<str>", "{
+		eval("<str>", "{
 			a = b
 			b = c
 			c = d
 			d = b
-		}").unwrap().index_str("a").get_num();
+		}").index_str("a").get_num();
 	}
 }

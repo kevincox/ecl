@@ -6,7 +6,7 @@ extern crate test;
 #[bench]
 fn parse_list(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse("<str>", r###"
+		::ecl::grammar::parse("<str>", r###"
 			[
 				1
 				1 + 2
@@ -21,14 +21,14 @@ fn parse_list(b: &mut test::Bencher) {
 				true
 				false
 			]
-		"###).unwrap()
+		"###.chars())
 	)
 }
 
 #[bench]
 fn parse_dict(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse("<str>", r###"
+		ecl::grammar::parse("<str>", r###"
 			{
 				a = 1
 				b = 2
@@ -44,14 +44,14 @@ fn parse_dict(b: &mut test::Bencher) {
 					d = 4
 				}
 			}
-		"###).unwrap()
+		"###.chars())
 	)
 }
 
 #[bench]
 fn parse_dict_implicit(b: &mut test::Bencher) {
 	b.iter(||
-		ecl::parse("<str>", r###"
+		ecl::grammar::parse("<str>", r###"
 			a = 1
 			b = 2
 			c = 3
@@ -65,6 +65,6 @@ fn parse_dict_implicit(b: &mut test::Bencher) {
 				c = 3
 				d = 4
 			}
-		"###).unwrap()
+		"###.chars())
 	)
 }
