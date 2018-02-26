@@ -753,7 +753,7 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 				writeln!(out, "{:08} INDEX", cursor.position()).unwrap();
 			}
 			OP_INTERPOLATE => {
-				writeln!(out, "{:08} INDEX", cursor.position()).unwrap();
+				writeln!(out, "{:08} OP_INTERPOLATE", cursor.position()).unwrap();
 			}
 			OP_JUMP_FUNC => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
