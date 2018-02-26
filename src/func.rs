@@ -45,6 +45,7 @@ pub struct Func {
 	data: Rc<FuncData>,
 }
 
+#[derive(Debug)]
 pub struct FuncData {
 	pub arg: Arg,
 	pub body: ::Almost,

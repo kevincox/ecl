@@ -54,7 +54,7 @@ fn main() {
 	
 	match matches.subcommand() {
 		("load", Some(load)) => {
-			let mut val = ecl::parse_file(&load.value_of("file").unwrap());
+			let mut val = ecl::eval_file(&load.value_of("file").unwrap());
 			if let Some(code) = load.value_of("args") {
 				let args = ecl::parse("<select>", code)
 					.expect("Failed to parse --args");

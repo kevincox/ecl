@@ -15,48 +15,61 @@ struct Empty;
 #[derive(PartialEq,Trace)]
 struct Two(::Val, ::Val);
 
+static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
+	("nil", &|| nil::get()),
+	("cond", &|| new("if", |v| cond(v.to_slice()))),
+	("error", &|| new("error", |msg|
+		::err::Err::new(format!("Error: {:?}", msg.get())))),
+	("index", &|| new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i)))),
+	("false", &|| ::bool::get_false()),
+	("foldl", &|| new("foldl",
+		|f| Builtin::new("foldl:func", f,
+			|f, accum| Builtin::new("foldl:func:accum", Two(f.clone(), accum.clone()),
+				|&Two(ref f, ref accum), o| o.foldl(f.clone(), accum.clone()))))),
+	("foldr", &|| new("foldr",
+		|f| Builtin::new("foldr:func", f,
+			|f, accum| Builtin::new("foldr:func:accum", Two(f.clone(), accum.clone()),
+				|&Two(ref f, ref accum), o| o.foldr(f.clone(), accum.clone()))))),
+	("load", &|| new("load", |path| {
+		if path.is_err() { return path }
+		match path.get_str() {
+			Ok(s) => ::eval_file(s),
+			Err(e) => ::err::Err::new_from_at(e,
+				::grammar::Loc{line:0, col: 0},
+				format!("load expects string argument, got {:?}", path)),
+		}
+	})),
+	("map", &|| new("index", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone())))),
+	("nil", &|| nil::get()),
+	("reverse", &|| new("reverse", |v| v.reverse())),
+	("panic", &|| new("panic", |msg|
+		panic!("Script called panic: {:?}", msg.get()))),
+	("true", &|| ::bool::get_true()),
+	("type", &|| new("type", |v| ::Val::new(v.type_str().to_owned()))),
+	("_testing_assert_cache_eval", &|| {
+		let unevaluated = Cell::new(true);
+		let func = move |r| {
+			assert!(unevaluated.get(), "Called twice");
+			unevaluated.set(false);
+			r
+		};
+		new("_testing_assert_eval_once", func)
+	}),
+];
+
 pub fn get(key: &str) -> ::Val {
-	match key {
-		"cond" => new("if", |v| cond(v.to_slice())),
-		"error" => new("error", |msg|
-			::err::Err::new(format!("Error: {:?}", msg.get()))),
-		"index" => new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i))),
-		"false" => ::bool::get_false(),
-		"foldl" => new("foldl",
-			|f| Builtin::new("foldl:func", f,
-				|f, accum| Builtin::new("foldl:func:accum", Two(f.clone(), accum.clone()),
-					|&Two(ref f, ref accum), o| o.foldl(f.clone(), accum.clone())))),
-		"foldr" => new("foldr",
-			|f| Builtin::new("foldr:func", f,
-				|f, accum| Builtin::new("foldr:func:accum", Two(f.clone(), accum.clone()),
-					|&Two(ref f, ref accum), o| o.foldr(f.clone(), accum.clone())))),
-		"load" => new("load", |path| {
-			if path.is_err() { return path }
-			match path.get_str() {
-				Ok(s) => ::parse_file(s),
-				Err(e) => ::err::Err::new_from_at(e,
-					::grammar::Loc{line:0, col: 0},
-					format!("load expects string argument, got {:?}", path)),
-			}
-		}),
-		"map" => new("index", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone()))),
-		"nil" => nil::get(),
-		"reverse" => new("reverse", |v| v.reverse()),
-		"panic" => new("panic", |msg|
-			panic!("Script called panic: {:?}", msg.get())),
-		"true" => ::bool::get_true(),
-		"type" => new("type", |v| ::Val::new(v.type_str().to_owned())),
-		"_testing_assert_cache_eval" => {
-			let unevaluated = Cell::new(true);
-			let func = move |r| {
-				assert!(unevaluated.get(), "Called twice");
-				unevaluated.set(false);
-				r
-			};
-			new("_testing_assert_eval_once", func)
-		},
-		other => ::err::Err::new(format!("Undefined variable {:?}", other)),
-	}
+	BUILTINS.iter()
+		.find(|p| p.0 == key)
+		.map(|p| p.1())
+		.unwrap_or_else(|| ::err::Err::new(format!("No global {:?}", key)))
+}
+
+pub fn builtin_id(key: &str) -> Option<usize> {
+	BUILTINS.iter().position(|p| p.0 == key)
+}
+
+pub fn get_id(id: usize) -> ::Val {
+	BUILTINS[id].1()
 }
 
 #[derive(Trace)]

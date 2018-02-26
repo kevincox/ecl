@@ -257,7 +257,7 @@ impl fmt::Debug for Dict {
 			
 			match pair.val {
 				DictVal::Pub(ref v) => write!(f, "{:?}={:?}", pair.key.key, v)?,
-				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", pair.key.key, v)?,
+				DictVal::Prv(ref v) => write!(f, "local {:?}={:?}", pair.key, v)?,
 				DictVal::Local(ref _v) => {
 					// write!(f, "redir {:?}={:?}", k, _v)?;
 				},
@@ -290,7 +290,6 @@ impl ::Value for Dict {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key, private: bool) -> Option<::Val> {
-		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
 		let v = self.index(&key)
 			.map(|element| match element {
@@ -306,14 +305,11 @@ impl ::Value for Dict {
 					}
 				}
 			});
-		// eprintln!("structural_lookup({}, {:?}) -> {:?}", depth, key, v);
 		v
 	}
 	
 	fn find(&self, k: &str) -> (usize, Key, ::Val) {
 		let mut key = Key::new(k.to_owned());
-		// let dbg_key = key.clone();
-		// eprintln!("Find {:?} in {:?}", dbg_key, self);
 		let v = match self.index(&key) {
 			Some(element) => match element {
 				DictVal::Pub(ref v) => (0, key, v.clone()),
@@ -329,7 +325,6 @@ impl ::Value for Dict {
 				(depth+1, k, v)
 			},
 		};
-		// eprintln!("Find {:?} in {:?} -> {:?}", dbg_key, self, v);
 		return v
 	}
 	
@@ -416,7 +411,6 @@ impl ::Value for ParentSplitter {
 	fn type_str(&self) -> &'static str { "parentsplitter" }
 	
 	fn structural_lookup(&self, depth: usize, key: &Key, private: bool) -> Option<::Val> {
-		// eprintln!("structural_lookup({}, {:?}) in {:?}", depth, key, self);
 		match depth {
 			0 => self.parent.structural_lookup(0, key, private),
 			n => self.grandparent.structural_lookup(n-1, key, private),

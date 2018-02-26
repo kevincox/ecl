@@ -6,9 +6,11 @@
 #![feature(stmt_expr_attributes)]
 #![feature(try_trait)]
 
+extern crate byteorder;
 extern crate erased_serde;
 #[macro_use] extern crate gc;
 #[macro_use] extern crate gc_derive;
+#[macro_use] extern crate iota;
 #[macro_use] extern crate lazy_static;
 extern crate regex;
 extern crate serde;
@@ -22,6 +24,7 @@ use std::rc;
 
 mod builtins;
 mod bool;
+pub mod bytecode;
 mod err;
 mod dict;
 mod func;
@@ -216,7 +219,7 @@ impl Val {
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &dict::Key, private: bool) -> Option<Val> {
-		// println!("Lookup {:?} in {:?}", key, self);
+		// eprintln!("Lookup {:?} in {:?}", key, self);
 		self.deref().structural_lookup(depth, key, private)
 	}
 	
@@ -392,6 +395,8 @@ pub enum Almost {
 	StructRef(grammar::Loc, usize, dict::Key),
 	Str(Vec<StringPart>),
 	StrStatic(String),
+	
+	Bytecode(std::rc::Rc<bytecode::Module>, usize),
 }
 
 impl Almost {
@@ -486,7 +491,6 @@ impl Almost {
 				let mut r = String::new();
 				for part in c {
 					match part {
-						&StringPart::Esc(s) => r.push(s),
 						&StringPart::Exp(ref e) =>
 							r += e.complete(plex.clone(), pstruct.clone())
 								.to_string().get_str()?,
@@ -496,6 +500,8 @@ impl Almost {
 				Val::new(r)
 			},
 			Almost::StrStatic(ref s) => Val::new(s.clone()),
+			
+			Almost::Bytecode(ref module, pc) => bytecode::eval_at(module.clone(), pc, pstruct)
 		}
 	}
 	
@@ -546,19 +552,21 @@ impl fmt::Debug for Almost {
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
 			Almost::StructRef(_, d, ref key) => write!(f, "StructRef({})", format_ref(d, &key.key)),
 			Almost::Str(ref parts) => {
-				try!(write!(f, "\""));
+				try!(write!(f, "Str(\""));
 				for part in parts {
 					match *part {
-						StringPart::Esc(s)     => try!(write!(f, "{}", s)),
 						StringPart::Exp(ref s) => try!(write!(f, "${{{:?}}}", s)),
 						StringPart::Lit(ref s) => try!(write!(f, "{}", escape_string_contents(&s))),
 					}
 				}
-				write!(f, "\"")
+				write!(f, "\"))")
 			},
 			Almost::StrStatic(ref s) => {
 				write!(f, "{}", escape_string(&s))
 			},
+			Almost::Bytecode(ref module, ref pc) => {
+				write!(f, "Bytecode({:?}, {})", module, pc)
+			}
 		}
 	}
 }
@@ -569,10 +577,10 @@ pub fn parse(source: &str, doc: &str) -> Result<Val, grammar::ParseError> {
 	Ok(almost.complete(nil::get(), nil::get()))
 }
 
-pub fn parse_file(path: &str) -> Val {
+pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
 	let file = match std::fs::File::open(path) {
 		Ok(file) => file,
-		Err(e) => return err::Err::new(format!("Failed to open {:?}: {:?}", path, e)),
+		Err(e) => panic!("Failed to open {:?}: {:?}", path, e),
 	};
 	
 	let mut err = None;
@@ -580,12 +588,16 @@ pub fn parse_file(path: &str) -> Val {
 		.filter_map(|r| r.map_err(|e| err = Some(e)).ok())
 		.fuse();
 	
-	let almost = match grammar::parse(path, chars) {
-		Ok(almost) => almost,
-		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)),
-	};
-	
-	almost.complete(nil::get(), nil::get())
+	grammar::parse(path, chars)
+}
+
+pub fn eval_file(path: &str) -> Val {
+	parse_file(path)
+		.map(|ast| {
+			let compiled = bytecode::compile_to_vec(ast);
+			bytecode::eval(compiled)
+		})
+		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)))
 }
 
 pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
@@ -610,7 +622,7 @@ pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
 }
 
 #[derive(Debug)]
-pub enum StringPart { Esc(char), Lit(String), Exp(Almost) }
+pub enum StringPart { Lit(String), Exp(Almost) }
 
 fn do_escape_string_contents(s: &str, r: &mut String) {
 	for c in s.chars() {

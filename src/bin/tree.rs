@@ -8,7 +8,7 @@ use erased_serde::Serialize;
 
 fn main() {
 	for path in env::args() {
-		let val = ecl::parse_file(&path);
+		let val = ecl::eval_file(&path);
 		val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout())).unwrap();
 		println!("{:?}", val);
 	}

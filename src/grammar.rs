@@ -7,10 +7,16 @@ use rc::Rc;
 use dict;
 use func;
 
-#[derive(Clone,Copy,Debug,PartialEq)]
+#[derive(Clone,Copy,PartialEq)]
 pub struct Loc {
 	pub line: usize,
 	pub col: usize,
+}
+
+impl std::fmt::Debug for Loc {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{}.{}", self.line, self.col)
+	}
 }
 
 #[derive(Clone,Debug,PartialEq)]
