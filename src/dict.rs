@@ -8,7 +8,6 @@ use std::rc::Rc;
 
 #[derive(Clone,Debug,Trace)]
 struct Source {
-	parent_lexical: ::Val,
 	parent_structual: ::Val,
 	#[unsafe_ignore_trace]
 	key: Key,
@@ -17,7 +16,6 @@ struct Source {
 
 #[derive(Trace)]
 pub struct Dict {
-	parent_lexical: ::Val,
 	prv: gc::GcCell<DictData>,
 }
 
@@ -73,9 +71,8 @@ impl DictVal {
 }
 
 impl Dict {
-	pub fn new(plex: ::Val, pstruct: ::Val, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
+	pub fn new(pstruct: ::Val, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
 		let this = ::Val::new(Dict{
-			parent_lexical: plex,
 			prv: gc::GcCell::new(DictData{
 				data: Vec::with_capacity(items.len()),
 				source: Vec::with_capacity(items.len()),
@@ -93,7 +90,6 @@ impl Dict {
 			
 			for (key, item) in items {
 				prv.source.push(Source{
-					parent_lexical: this.clone(),
 					parent_structual: pstruct.clone(),
 					key: key.clone(),
 					almost: item.clone()
@@ -116,7 +112,7 @@ impl Dict {
 		this
 	}
 	
-	pub fn new_adict(plex: ::Val, pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
+	pub fn new_adict(pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
 		let key = Key::new(k.clone());
 		
 		let val = ::thunk::Thunk::bytecode(pstruct.clone(), item.clone());
@@ -124,14 +120,12 @@ impl Dict {
 			DictPair{key, val: DictVal::Pub(val)}];
 		
 		let source = Source{
-			parent_lexical: plex.clone(),
 			parent_structual: pstruct,
 			key: Key::new(k),
 			almost: item,
 		};
 		
 		::Val::new(Dict{
-			parent_lexical: plex,
 			prv: gc::GcCell::new(DictData{
 				data: data,
 				source: vec![source],
@@ -162,8 +156,6 @@ impl Dict {
 	
 	fn call(&self, that: &Dict) -> ::Val {
 		let this = ::Val::new(Dict{
-			parent_lexical:
-				::err::Err::new("Child dict doesn't have it's own lexical parent.".to_owned()),
 			prv: gc::GcCell::new(DictData {
 				data: Vec::new(),
 				source: Vec::new(),

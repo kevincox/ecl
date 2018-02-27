@@ -542,7 +542,6 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let key = cursor.read_str();
 				
 				stack.push(::dict::Dict::new_adict(
-					::err::Err::new("ADict plex".into()),
 					pstruct.clone(),
 					key,
 					Value::new(module.clone(), childoff)));
@@ -563,10 +562,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 					items.push((key, Value::new(module.clone(), offset)));
 				}
-				stack.push(::dict::Dict::new(
-					::err::Err::new("Butecode plex".into()),
-					pstruct.clone(),
-					items));
+				stack.push(::dict::Dict::new(pstruct.clone(), items));
 			}
 			OP_FUNC => {
 				let bodyoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
