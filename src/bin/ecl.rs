@@ -56,7 +56,7 @@ fn main() {
 		("load", Some(load)) => {
 			let mut val = ecl::eval_file(&load.value_of("file").unwrap());
 			if let Some(code) = load.value_of("args") {
-				let args = ecl::eval("<select>", code);
+				let args = ecl::eval("<args>", code);
 				val = val.call(args)
 			}
 			if let Some(code) = load.value_of("select") {
