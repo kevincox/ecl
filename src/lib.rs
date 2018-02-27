@@ -392,8 +392,6 @@ pub enum Almost {
 	StructRef(grammar::Loc, usize, dict::Key),
 	Str(Vec<StringPart>),
 	StrStatic(String),
-	
-	Bytecode(std::rc::Rc<bytecode::Module>, usize),
 }
 
 impl fmt::Debug for Almost {
@@ -403,14 +401,14 @@ impl fmt::Debug for Almost {
 			Almost::Sub(_, ref lhs, ref rhs) => write!(f, "({:?} - {:?})", lhs, rhs),
 			Almost::ADict(ref key, ref item) => {
 				write!(f, "Adict{{{:?} = {:?}}}", key, item)
-			},
+			}
 			Almost::Dict(ref items) => {
 				try!(writeln!(f, "{{"));
 				for i in &**items {
 					try!(writeln!(f, "\t{:?}", i));
 				}
 				write!(f, "}}")
-			},
+			}
 			Almost::Inherit(ref l, ref r) => write!(f, "Inherit({:?}, {:?})", l, r),
 			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
@@ -426,7 +424,7 @@ impl fmt::Debug for Almost {
 					writeln!(f, "\t{:?}", item)?;
 				}
 				write!(f, "]")
-			},
+			}
 			Almost::Neg(_, ref v) => write!(f, "-({:?})", v),
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
@@ -441,12 +439,9 @@ impl fmt::Debug for Almost {
 					}
 				}
 				write!(f, "\"))")
-			},
+			}
 			Almost::StrStatic(ref s) => {
 				write!(f, "{}", escape_string(&s))
-			},
-			Almost::Bytecode(ref module, ref pc) => {
-				write!(f, "Bytecode({:?}, {})", module, pc)
 			}
 		}
 	}
