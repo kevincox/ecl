@@ -18,6 +18,10 @@ impl List {
 	pub fn of_vals(data: Vec<::Val>) -> ::Val {
 		::Val::new(List{data})
 	}
+	
+	pub fn get(&self, i: usize) -> Option<::Val> {
+		self.data.get(i).map(|i| i.clone())
+	}
 }
 
 impl ::Value for List {

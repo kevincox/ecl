@@ -39,7 +39,7 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 				format!("load expects string argument, got {:?}", path)),
 		}
 	})),
-	("map", &|| new("index", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone())))),
+	("map", &|| new("map", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone())))),
 	("nil", &|| nil::get()),
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|

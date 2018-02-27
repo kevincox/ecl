@@ -348,10 +348,10 @@ pub struct AlmostDictElement {
 	pub val: Rc<::Almost>,
 }
 
-#[derive(Trace)]
-struct DictPair {
-	key: Key,
-	val: DictVal,
+#[derive(Debug,Trace)]
+pub struct DictPair {
+	pub key: Key,
+	pub val: DictVal,
 }
 
 impl fmt::Debug for AlmostDictElement {

@@ -628,8 +628,13 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				}
 			},
 			(Token::StrOpen(StrType::String), _) => {
-				let s = expect_next!{self: "parsing quoted dict key", (Token::StrChunk(s), _) => s};
-				expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
+				let s = expect_next!{self: "parsing quoted dict key",
+					(Token::StrChunk(s), _) => {
+						expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
+						s
+					},
+					(Token::StrClose, _) => "".to_owned(),
+				};
 				
 				let val = self.dict_val()?;
 				dict::AlmostDictElement{

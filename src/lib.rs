@@ -260,7 +260,7 @@ impl Val {
 		self.value().unwrap().to_bool()
 	}
 	
-	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
+	pub fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
 		i_promise_this_will_stay_alive(self.get().deref()).iter()
 	}
 	
@@ -396,107 +396,6 @@ pub enum Almost {
 	Bytecode(std::rc::Rc<bytecode::Module>, usize),
 }
 
-impl Almost {
-	fn complete(&self, plex: Val, pstruct: Val) -> Val {
-		match *self {
-			Almost::Add(loc, ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone())
-					.annotate_at(loc, "Left side of add")?;
-				let r = r.complete(plex, pstruct)
-					.annotate_at(loc, "Right side of add")?;
-				l.add(r)
-			}
-			Almost::Sub(loc, ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone())
-					.annotate_at(loc, "Left side of subtraction")?;
-				let r = r.complete(plex, pstruct)
-					.annotate_at(loc, "Right side of subtraction")?;
-				l.subtract(r)
-			}
-			Almost::ADict(_,_) => unimplemented!(),
-			Almost::Dict(_) => unimplemented!(),
-			Almost::Inherit(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				::dict::override_(l, r)
-			},
-			Almost::Call(loc, ref f, ref a) => {
-				let f = f.complete(plex.clone(), pstruct.clone())
-					.annotate_at(loc, "Calling error as function")?;
-				// Note, allow calling function with an error.
-				f.call(a.complete(plex, pstruct))
-			},
-			Almost::Eq(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				bool::get(l == r)
-			},
-			Almost::Great(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				bool::get(l.cmp(r)? == std::cmp::Ordering::Greater)
-			},
-			Almost::GreatEq(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				bool::get(l.cmp(r)? != std::cmp::Ordering::Less)
-			},
-			Almost::Less(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				bool::get(l.cmp(r)? == std::cmp::Ordering::Less)
-			},
-			Almost::LessEq(ref l, ref r) => {
-				let l = l.complete(plex.clone(), pstruct.clone());
-				let r = r.complete(plex, pstruct);
-				bool::get(l.cmp(r)? != std::cmp::Ordering::Greater)
-			},
-			Almost::Func(ref fd) => func::Func::new(plex, pstruct, fd.clone()),
-			Almost::Index(loc, ref o, ref k) => {
-				let o = o.complete(plex.clone(), pstruct.clone())
-					.annotate_at(loc, "Indexing error value")?;
-				let k = k.complete(plex, pstruct)
-					.annotate_at(loc, "Indexing with error as key")?;
-				o.index(k).annotate_at(loc, "Error returned from index")
-			},
-			Almost::List(_) => unreachable!(),
-			Almost::Neg(loc, ref v) => {
-				v.complete(plex.clone(), pstruct.clone())
-					.annotate_at(loc, "Negating value")?
-					.neg()
-			},
-			Almost::Nil => nil::get(),
-			Almost::Num(n) => Val::new(n),
-			Almost::Ref(_, _) => {
-				unimplemented!("Almost::ref is not executed.")
-			},
-			Almost::StructRef(loc, depth, ref key) => {
-				// eprintln!("StructRef: {:?} {:?}", depth, key);
-				pstruct.structural_lookup(depth, key, true)
-					.map(|v| v.annotate_at(loc, "Error value referenced"))
-					.unwrap_or_else(||
-						err::Err::new_at(
-							loc, format!("Invalid reference {:?}", format_ref(depth, &key.key))))
-			},
-			Almost::Str(ref c) => {
-				let mut r = String::new();
-				for part in c {
-					match part {
-						&StringPart::Exp(ref e) =>
-							r += e.complete(plex.clone(), pstruct.clone())
-								.to_string().get_str()?,
-						&StringPart::Lit(ref s) => r += &s,
-					}
-				}
-				Val::new(r)
-			},
-			Almost::StrStatic(ref s) => Val::new(s.clone()),
-			
-			Almost::Bytecode(ref module, pc) => bytecode::eval_at(module.clone(), pc, pstruct)
-		}
-	}
-}
-
 impl fmt::Debug for Almost {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
@@ -590,15 +489,16 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 {
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	
-	let almost = match grammar::parse(source, doc.chars()) {
-		Ok(almost) => almost,
-		Err(e) => return err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)),
-	};
-	
-	func::Func::new(nil::get(), nil::get(), rc::Rc::new(func::FuncData{
-		arg: func::Arg::One(name),
-		body: almost,
-	}))
+	grammar::parse(source, doc.chars())
+		.map(|ast| {
+			let func = ::Almost::Func(std::rc::Rc::new(func::FuncData{
+				arg: func::Arg::One(name),
+				body: ast,
+			}));
+			let compiled = bytecode::compile_to_vec(func);
+			bytecode::eval(compiled)
+		})
+		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {

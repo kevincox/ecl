@@ -566,54 +566,9 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 			}
 			OP_FUNC => {
 				let bodyoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-				let mut bodycursor = std::io::Cursor::new(&module.code[..]);
-				bodycursor.seek(std::io::SeekFrom::Start(bodyoff as u64)).unwrap();
-				let arg = match bodycursor.read_u8().unwrap() {
-					ARG_ONE => {
-						::func::Arg::One(bodycursor.read_str())
-					}
-					ARG_DICT => {
-						let len = bodycursor.read_u64::<EclByteOrder>().unwrap() as usize;
-						let mut args = Vec::with_capacity(len);
-						for _ in 0..len {
-							let k = bodycursor.read_str();
-							match bodycursor.read_u8().unwrap() {
-								ARG_REQ => args.push((k, true, ::Almost::Nil)),
-								ARG_OPT => {
-									let o = bodycursor.read_u64::<EclByteOrder>().unwrap() as usize;
-									args.push((k, false, ::Almost::Bytecode(module.clone(), o)));
-								}
-								other => panic!("Expected ARG_REQ or ARG_OPT got {}", other),
-							}
-						}
-						::func::Arg::Dict(args)
-					}
-					ARG_LIST => {
-						let len = bodycursor.read_u64::<EclByteOrder>().unwrap() as usize;
-						let mut args = Vec::with_capacity(len);
-						for _ in 0..len {
-							let k = bodycursor.read_str();
-							match bodycursor.read_u8().unwrap() {
-								ARG_REQ => args.push((k, true, ::Almost::Nil)),
-								ARG_OPT => {
-									let o = bodycursor.read_u64::<EclByteOrder>().unwrap() as usize;
-									args.push((k, false, ::Almost::Bytecode(module.clone(), o)));
-								}
-								other => panic!("Expected ARG_REQ or ARG_OPT got {}", other),
-							}
-						}
-						::func::Arg::List(args)
-					}
-					other => panic!("Unexpected arg type: {}", other),
-				};
-				let data = Rc::new(::func::FuncData{
-					arg: arg,
-					body: ::Almost::Bytecode(module.clone(), bodycursor.position() as usize),
-				});
 				stack.push(::func::Func::new(
-					::err::Err::new("func plex".into()),
 					pstruct.clone(),
-					data));
+					Func::new(module.clone(), bodyoff)));
 			}
 			OP_INDEX => {
 				let key = stack.pop().expect("No items in stack for index");
@@ -813,7 +768,7 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 #[derive(Clone,Debug,Trace)]
 pub struct Value {
 	#[unsafe_ignore_trace]
-	module: std::rc::Rc<Module>,
+	module: Rc<Module>,
 	offset: usize,
 }
 
@@ -824,6 +779,130 @@ impl Value {
 	
 	pub fn eval(&self, parent: ::Val) -> ::Val {
 		eval_at(self.module.clone(), self.offset, parent.clone())
+	}
+}
+
+#[derive(Clone,Debug,Trace)]
+pub struct Func {
+	#[unsafe_ignore_trace]
+	module: std::rc::Rc<Module>,
+	offset: usize,
+}
+
+impl Func {
+	fn new(module: Rc<Module>, offset: usize) -> Self {
+		Func{module, offset}
+	}
+	
+	pub fn call(&self, parent: ::Val, arg: ::Val) -> ::Val {
+		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
+		cursor.seek(std::io::SeekFrom::Start(self.offset as u64)).unwrap();
+		
+		let args = ::dict::Dict::new(parent.clone(), Vec::new());
+		let dict = args.clone();
+		let dict = dict.downcast_ref::<::dict::Dict>().unwrap();
+		
+		let parent = ::Val::new(::dict::ParentSplitter{
+			parent: args.clone(),
+			grandparent: parent,
+		});
+		
+		match cursor.read_u8().unwrap() {
+			ARG_ONE => {
+				let key = cursor.read_str();
+				dict._set_val(key, ::dict::DictVal::Pub(arg));
+			}
+			ARG_DICT => {
+				use Value;
+				
+				let sourcedict = match arg.downcast_ref::<::dict::Dict>() {
+					Some(d) => d,
+					None => return ::err::Err::new(format!(
+						"Function must be called with dict, called with {:?}",
+						arg)),
+				};
+				let mut unused_args = sourcedict.len();
+				
+				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+				for _ in 0..len {
+					let key = ::dict::Key::new(cursor.read_str());
+					let passed = sourcedict.structural_lookup(0, &key, false)
+						.map(|v| v.annotate("Looking up argument value"));
+					let val = match cursor.read_u8().unwrap() {
+						ARG_REQ => match passed {
+							Some(val) => {
+								unused_args -= 1;
+								val
+							}
+							None => return ::err::Err::new(format!(
+								"Required argument {:?} not set in {:?}",
+								key, sourcedict)),
+						}
+						ARG_OPT => {
+							let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+							match passed {
+								Some(v) => {
+									unused_args -= 1;
+									v
+								}
+								None => {
+									let value = self::Value::new(self.module.clone(), off);
+									::thunk::Thunk::bytecode(parent.clone(), value)
+								}
+							}
+						}
+						other => panic!("Unknown ARG op 0x{:02x}", other),
+					};
+					dict._set_val(key.key.clone(), ::dict::DictVal::Pub(val))
+				}
+				
+				if unused_args != 0 {
+					return ::err::Err::new(format!(
+						"Function called with {} unused arguments.", unused_args));
+				}
+			}
+			ARG_LIST => {
+				use Value;
+				
+				let list = match arg.downcast_ref::<::list::List>() {
+					Some(l) => l,
+					None => return ::err::Err::new(format!(
+						"Function must be called with list, called with {:?}",
+						arg)),
+				};
+				
+				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+				if list.len() > len {
+					return ::err::Err::new(format!(
+						"Function called with too many arguments, expected {} got {}",
+						len, list.len()))
+				}
+				
+				for i in 0..len {
+					let key = cursor.read_str();
+					let passed = list.get(i);
+					let val = match cursor.read_u8().unwrap() {
+						ARG_REQ => match passed {
+							Some(val) => val,
+							None => return ::err::Err::new(format!(
+								"Required argument {} not provided.", i)),
+						}
+						ARG_OPT => {
+							let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+							passed.unwrap_or_else(|| {
+								let value = self::Value::new(self.module.clone(), off);
+								::thunk::Thunk::bytecode(parent.clone(), value)
+							})
+						}
+						other => panic!("Unknown ARG op 0x{:02x}", other),
+					};
+					dict._set_val(key, ::dict::DictVal::Pub(val))
+				}
+			}
+			other => panic!("Unexpected func arg 0x{:02x}", other),
+		};
+		
+		eval_at(self.module.clone(), cursor.position() as usize, parent)
 	}
 }
 
