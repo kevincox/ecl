@@ -609,9 +609,8 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 						Some((Token::Ident(s),_)) => {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 							let val = Rc::new(self.expr()?);
-							let ns = val.as_ref() as *const ::Almost as usize;
 							return Ok(dict::AlmostDictElement{
-								key: ::dict::Key::local(ns, s),
+								key: ::dict::AlmostKey::Local(s),
 								val: val,
 							})
 						},
@@ -623,7 +622,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				
 				let val = self.dict_val()?;
 				dict::AlmostDictElement{
-					key: ::dict::Key::new(s),
+					key: ::dict::AlmostKey::Pub(s),
 					val: Rc::new(val),
 				}
 			},
@@ -638,7 +637,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				
 				let val = self.dict_val()?;
 				dict::AlmostDictElement{
-					key: ::dict::Key::new(s),
+					key: ::dict::AlmostKey::Pub(s),
 					val: Rc::new(val),
 				}
 			},
@@ -797,7 +796,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			(Token::DictOpen, _) => self.dict_items(),
 			(Token::Func, _) => self.func(),
 			(Token::Ident(s), loc) => Ok(::Almost::Ref(loc, s)),
-			(Token::StructIdent(d, s), loc) => Ok(::Almost::StructRef(loc, d, dict::Key::new(s))),
+			(Token::StructIdent(d, s), loc) => Ok(::Almost::StructRef(loc, d, s)),
 			(Token::ListOpen, _) => self.list_items(),
 			(Token::Num(n), _) => Ok(::Almost::Num(n)),
 			(Token::ParenOpen, _) => {

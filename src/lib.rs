@@ -55,11 +55,7 @@ pub trait Value:
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
-	fn structural_lookup(&self, _depth: usize, _key: &dict::Key, _private: bool) -> Option<Val> {
-		// eprintln!("structural_lookup({}, {:?}) in {:?}", _depth, _key, self);
-		// eprintln!("structural_lookup({}, {:?}) -> None", _depth, _key);
-		None
-	}
+	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> { None }
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
@@ -214,9 +210,9 @@ impl Val {
 		self.value().unwrap().index_str(key)
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &dict::Key, private: bool) -> Option<Val> {
-		// eprintln!("Lookup {:?} in {:?}", key, self);
-		self.deref().structural_lookup(depth, key, private)
+	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {
+		// eprintln!("Lookup {} {:?} in {:?}", depth, key, self);
+		self.deref().structural_lookup(depth, key)
 	}
 	
 	fn add(&self, that: Val) -> Val {
@@ -389,7 +385,7 @@ pub enum Almost {
 	Nil,
 	Num(f64),
 	Ref(grammar::Loc, String),
-	StructRef(grammar::Loc, usize, dict::Key),
+	StructRef(grammar::Loc, usize, String),
 	Str(Vec<StringPart>),
 	StrStatic(String),
 }
@@ -429,7 +425,7 @@ impl fmt::Debug for Almost {
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
-			Almost::StructRef(_, d, ref key) => write!(f, "StructRef({})", format_ref(d, &key.key)),
+			Almost::StructRef(_, d, ref key) => write!(f, "StructRef({})", format_ref(d, &key)),
 			Almost::Str(ref parts) => {
 				try!(write!(f, "Str(\""));
 				for part in parts {

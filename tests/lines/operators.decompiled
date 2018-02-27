@@ -102,7 +102,7 @@
 00000729 ADD
 00000730 RET
 00000739 DICT 15 items
-     ... LOCAL 0001 "a" @ 00000182
+     ... LOCAL 0001 @ 00000182
      ... PUB   "cmp-eq-false" @ 00000210
      ... PUB   "cmp-eq-true" @ 00000231
      ... PUB   "cmp-ge-eq" @ 00000251
@@ -117,4 +117,4 @@
      ... PUB   "cmp-lt-true" @ 00000435
      ... PUB   "index" @ 00000455
      ... PUB   "math" @ 00000553
-00001146 RET
+00001137 RET

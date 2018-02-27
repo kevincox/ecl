@@ -204,8 +204,10 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			
 			ctx.scope_open();
 			
-			let ids = elements.iter().map(|element|
-				ctx.scope_add(element.key.key.clone(), element.key.namespace != 0))
+			let ids = elements.iter().map(|element| match element.key {
+					::dict::AlmostKey::Pub(ref k) => ctx.scope_add(k.clone(), false),
+					::dict::AlmostKey::Local(ref k) => ctx.scope_add(k.clone(), true),
+				})
 				.collect::<Vec<_>>();
 			
 			let mut offsets = Vec::with_capacity(elements.len());
@@ -222,12 +224,15 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			let off = ctx.write_op(OP_DICT);
 			ctx.write_u64(offsets.len() as u64);
 			for (key, id, offset) in offsets {
-				ctx.write_str(&key.key);
-				if key.namespace == 0 {
-					ctx.write_u8(DI_PUB);
-				} else {
-					ctx.write_u8(DI_LOCAL);
-					ctx.write_usize(id);
+				match key {
+					::dict::AlmostKey::Pub(ref k) => {
+						ctx.write_u8(DI_PUB);
+						ctx.write_str(k);
+					}
+					::dict::AlmostKey::Local(_) => {
+						ctx.write_u8(DI_LOCAL);
+						ctx.write_usize(id);
+					}
 				}
 				ctx.write_usize(offset);
 			}
@@ -350,15 +355,15 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			}
 		}
 		::Almost::StructRef(_, depth, key) => {
-			if let Some(id) = ctx.scope_find_at(&key.key, depth) {
+			if let Some(id) = ctx.scope_find_at(&key, depth) {
 				let off = ctx.write_op(OP_REF);
-				ctx.write_str(&key.key); // TODO: remove this.
+				ctx.write_str(&key); // TODO: remove this.
 				ctx.write_usize(depth);
 				ctx.write_usize(id);
 				Ok(off)
 			} else {
 				let off = ctx.write_op(OP_REF_REL);
-				ctx.write_str(&key.key); // TODO: remove this.
+				ctx.write_str(&key); // TODO: remove this.
 				ctx.write_usize(depth);
 				Ok(off)
 			}
@@ -550,15 +555,15 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
-					let mut key = ::dict::Key::new(cursor.read_str());
-					match cursor.read_u8().unwrap() {
-						DI_PUB => {},
+					let key = match cursor.read_u8().unwrap() {
+						DI_PUB => ::dict::Key::Pub(cursor.read_str()),
 						DI_LOCAL => {
-							key.namespace = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-							key.namespace += module.unique_id();
+							let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+							id += module.unique_id();
+							::dict::Key::Local(id)
 						},
 						other => panic!("Unknown dict item type 0x{:02x}", other),
-					}
+					};
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 					items.push((key, Value::new(module.clone(), offset)));
 				}
@@ -610,18 +615,20 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-				if id != 0 {
+				let key = if id == 0 {
+					::dict::Key::Pub(key)
+				} else {
 					id += module.unique_id();
-				}
-				let key = ::dict::Key::local(id, key);
-				stack.push(pstruct.structural_lookup(depth, &key, false)
+					::dict::Key::Local(id)
+				};
+				stack.push(pstruct.structural_lookup(depth, &key)
 					.expect("Ref lookup failed"));
 			}
 			OP_REF_REL => {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-				let key = ::dict::Key::new(key);
-				stack.push(pstruct.structural_lookup(depth, &key, false)
+				let key = ::dict::Key::Pub(key);
+				stack.push(pstruct.structural_lookup(depth, &key)
 					.expect("Ref lookup failed"));
 			}
 			OP_STR => {
@@ -685,12 +692,14 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 				writeln!(out, "{:08} DICT {} items", cursor.position(), len).unwrap();
 				for _ in 0..len {
 					write!(out, "     ... ").unwrap();
-					let mut key = cursor.read_str();
 					match cursor.read_u8().unwrap() {
-						DI_PUB => write!(out, "PUB   {:?}", key).unwrap(),
+						DI_PUB => {
+							let key = cursor.read_str();
+							write!(out, "PUB   {:?}", key).unwrap()
+						}
 						DI_LOCAL => {
-							let mut namespace = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-							write!(out, "LOCAL {:04x} {:?}", namespace, key).unwrap();
+							let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+							write!(out, "LOCAL {:04x}", id).unwrap();
 						},
 						other => {
 							writeln!(out, "ERR unknown dict item type 0x{:02x}", other).unwrap();
@@ -825,8 +834,8 @@ impl Func {
 				
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				for _ in 0..len {
-					let key = ::dict::Key::new(cursor.read_str());
-					let passed = sourcedict.structural_lookup(0, &key, false)
+					let key = cursor.read_str();
+					let passed = sourcedict.structural_lookup(0, &::dict::Key::Pub(key.clone()))
 						.map(|v| v.annotate("Looking up argument value"));
 					let val = match cursor.read_u8().unwrap() {
 						ARG_REQ => match passed {
@@ -853,7 +862,7 @@ impl Func {
 						}
 						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
-					dict._set_val(key.key.clone(), ::dict::DictVal::Pub(val))
+					dict._set_val(key, ::dict::DictVal::Pub(val))
 				}
 				
 				if unused_args != 0 {
