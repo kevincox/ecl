@@ -413,10 +413,8 @@ impl Almost {
 					.annotate_at(loc, "Right side of subtraction")?;
 				l.subtract(r)
 			}
-			Almost::ADict(ref k, ref item) => {
-				dict::Dict::new_adict(plex, pstruct, k.clone(), item.clone())
-			},
-			Almost::Dict(ref items) => dict::Dict::new(plex, pstruct, &items),
+			Almost::ADict(_,_) => unimplemented!(),
+			Almost::Dict(_) => unimplemented!(),
 			Almost::Inherit(ref l, ref r) => {
 				let l = l.complete(plex.clone(), pstruct.clone());
 				let r = r.complete(plex, pstruct);
@@ -461,7 +459,7 @@ impl Almost {
 					.annotate_at(loc, "Indexing with error as key")?;
 				o.index(k).annotate_at(loc, "Error returned from index")
 			},
-			Almost::List(ref items) => list::List::new(plex, pstruct, items),
+			Almost::List(_) => unreachable!(),
 			Almost::Neg(loc, ref v) => {
 				v.complete(plex.clone(), pstruct.clone())
 					.annotate_at(loc, "Negating value")?
@@ -495,15 +493,6 @@ impl Almost {
 			Almost::StrStatic(ref s) => Val::new(s.clone()),
 			
 			Almost::Bytecode(ref module, pc) => bytecode::eval_at(module.clone(), pc, pstruct)
-		}
-	}
-	
-	fn is_cheep(&self) -> bool {
-		match *self {
-			Almost::Nil |
-			Almost::Num(_) |
-			Almost::StrStatic(_) => true,
-			_ => false,
 		}
 	}
 }

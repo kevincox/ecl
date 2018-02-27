@@ -1,9 +1,6 @@
 extern crate erased_serde;
 
-use std::fmt;
-use std::rc::Rc;
-
-use thunk::Thunk;
+use std;
 
 #[derive(Trace,PartialEq)]
 pub struct List {
@@ -11,10 +8,10 @@ pub struct List {
 }
 
 impl List {
-	pub fn new(plex: ::Val, pstruct: ::Val, items: &[Rc<::Almost>]) -> ::Val {
+	pub fn new(pstruct: ::Val, items: Vec<::bytecode::Value>) -> ::Val {
 		::Val::new(List {
-			data: items.iter().map(|a|
-				Thunk::lazy(plex.clone(), pstruct.clone(), a.clone())).collect(),
+			data: items.iter().map(|item|
+				::thunk::Thunk::bytecode(pstruct.clone(), item.clone())).collect(),
 		})
 	}
 	
@@ -72,8 +69,8 @@ impl ::SameOps for List {
 	}
 }
 
-impl fmt::Debug for List {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for List {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		self.data.fmt(f)
 	}
 }

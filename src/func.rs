@@ -64,13 +64,13 @@ impl ::Value for Func {
 	fn call(&self, arg: ::Val) -> ::Val {
 		let scope = match self.data.arg {
 			Arg::One(ref s) => {
-				let scope = dict::Dict::new(self.plex.clone(), self.pstruct.clone(), &[]);
+				let scope = dict::Dict::new(self.plex.clone(), self.pstruct.clone(), Vec::new());
 				scope.downcast_ref::<::dict::Dict>().unwrap()
 					._set_val(s.clone(), ::dict::DictVal::Prv(arg));
 				scope
 			},
 			Arg::Dict(ref args) => {
-				let scope = ::dict::Dict::new(self.plex.clone(), self.pstruct.clone(), &[]);
+				let scope = ::dict::Dict::new(self.plex.clone(), self.pstruct.clone(), Vec::new());
 				let pstruct = ::Val::new(::dict::ParentSplitter{
 					parent: scope.clone(),
 					grandparent: self.pstruct.clone(),
@@ -97,7 +97,7 @@ impl ::Value for Func {
 				scope
 			},
 			Arg::List(ref args) => {
-				let scope = ::dict::Dict::new(self.plex.clone(), ::nil::get(), &[]);
+				let scope = ::dict::Dict::new(self.plex.clone(), ::nil::get(), Vec::new());
 				let pstruct = ::Val::new(::dict::ParentSplitter{
 					parent: scope.clone(),
 					grandparent: self.pstruct.clone(),

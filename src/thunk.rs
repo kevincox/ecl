@@ -3,7 +3,6 @@ extern crate gc;
 use std::boxed::FnBox;
 use std::fmt;
 use std::mem;
-use std::rc::Rc;
 
 enum State {
 	Code(Vec<::Val>, Box<FnBox(Vec<::Val>) -> ::Val>),
@@ -29,13 +28,10 @@ impl Thunk {
 		::Val::new(Thunk(gc::GcCell::new(State::Code(refs, Box::new(code)))))
 	}
 	
-	pub fn lazy(plex: ::Val, pstruct: ::Val, almost: Rc<::Almost>) -> ::Val {
-		if almost.is_cheep() {
-			almost.complete(plex, pstruct)
-		} else {
-			Self::new(vec![plex, pstruct],
-				move |refs| almost.complete(refs[0].clone(), refs[1].clone()).get())
-		}
+	pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> ::Val {
+		// TODO: just evaluate cheap things on the spot.
+		Self::new(vec![pstruct],
+			move |mut refs| code.eval(refs.pop().unwrap()))
 	}
 	
 	fn eval(&self) -> ::Val {
@@ -50,7 +46,7 @@ impl Thunk {
 				return ::err::Err::new("Dependency cycle detected.".to_owned()),
 			State::Code(refs, code) => (refs, code),
 		};
-		let v = code(refs);
+		let v = code(refs).get();
 		mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
 		v
 	}

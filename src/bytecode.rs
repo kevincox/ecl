@@ -545,7 +545,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 					::err::Err::new("ADict plex".into()),
 					pstruct.clone(),
 					key,
-					Rc::new(::Almost::Bytecode(module.clone(), childoff))));
+					Value::new(module.clone(), childoff)));
 			}
 			OP_DICT => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
@@ -561,15 +561,12 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 						other => panic!("Unknown dict item type 0x{:02x}", other),
 					}
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-					items.push(::dict::AlmostDictElement{
-						key: key,
-						val: Rc::new(::Almost::Bytecode(module.clone(), offset)),
-					});
+					items.push((key, Value::new(module.clone(), offset)));
 				}
 				stack.push(::dict::Dict::new(
 					::err::Err::new("Butecode plex".into()),
 					pstruct.clone(),
-					&items));
+					items));
 			}
 			OP_FUNC => {
 				let bodyoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
@@ -647,12 +644,9 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-					items.push(Rc::new(::Almost::Bytecode(module.clone(), offset)));
+					items.push(Value::new(module.clone(), offset));
 				}
-				stack.push(::list::List::new(
-					::err::Err::new("Butecode plex".into()),
-					pstruct.clone(),
-					&items));
+				stack.push(::list::List::new(pstruct.clone(), items));
 			}
 			OP_NEG => {
 				let v = stack.pop().expect("No items in stack for neg");
@@ -818,6 +812,23 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 	}
 	
 	return Ok(out)
+}
+
+#[derive(Clone,Debug,Trace)]
+pub struct Value {
+	#[unsafe_ignore_trace]
+	module: std::rc::Rc<Module>,
+	offset: usize,
+}
+
+impl Value {
+	fn new(module: Rc<Module>, offset: usize) -> Self {
+		Value{module, offset}
+	}
+	
+	pub fn eval(&self, parent: ::Val) -> ::Val {
+		eval_at(self.module.clone(), self.offset, parent.clone())
+	}
 }
 
 #[cfg(test)]

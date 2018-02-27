@@ -6,14 +6,13 @@ use std;
 use std::fmt;
 use std::rc::Rc;
 
-use thunk::Thunk;
-
 #[derive(Clone,Debug,Trace)]
 struct Source {
 	parent_lexical: ::Val,
 	parent_structual: ::Val,
 	#[unsafe_ignore_trace]
-	almost: AlmostDictElement,
+	key: Key,
+	almost: ::bytecode::Value,
 }
 
 #[derive(Trace)]
@@ -74,7 +73,7 @@ impl DictVal {
 }
 
 impl Dict {
-	pub fn new(plex: ::Val, pstruct: ::Val, items: &[AlmostDictElement]) -> ::Val {
+	pub fn new(plex: ::Val, pstruct: ::Val, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
 		let this = ::Val::new(Dict{
 			parent_lexical: plex,
 			prv: gc::GcCell::new(DictData{
@@ -92,41 +91,44 @@ impl Dict {
 			let dict = this.downcast_ref::<Dict>().unwrap();
 			let mut prv = dict.prv.borrow_mut();
 			
-			for item in items {
+			for (key, item) in items {
 				prv.source.push(Source{
 					parent_lexical: this.clone(),
 					parent_structual: pstruct.clone(),
+					key: key.clone(),
 					almost: item.clone()
 				});
-				let pair = item.complete(this.clone(), this_pstruct.clone());
-				if pair.key.is_local() {
-					let redirect_key = Key::new(pair.key.key.clone());
+				let val = ::thunk::Thunk::bytecode(this_pstruct.clone(), item);
+				let dictval = if key.is_local() {
+					let redirect_key = Key::new(key.key.clone());
 					prv.data.push(DictPair{
 						key: redirect_key,
-						val: DictVal::Local(pair.key.namespace),
+						val: DictVal::Local(key.namespace),
 					});
-				}
-				prv.data.push(pair);
+					DictVal::Prv(val)
+				} else {
+					DictVal::Pub(val)
+				};
+				prv.data.push(DictPair{key, val: dictval});
 			}
 		}
 		
 		this
 	}
 	
-	pub fn new_adict(plex: ::Val, pstruct: ::Val, k: String, item: Rc<::Almost>) -> ::Val {
-		let key = Key::new(k);
+	pub fn new_adict(plex: ::Val, pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
+		let key = Key::new(k.clone());
+		
+		let val = ::thunk::Thunk::bytecode(pstruct.clone(), item.clone());
+		let data = vec![
+			DictPair{key, val: DictVal::Pub(val)}];
 		
 		let source = Source{
 			parent_lexical: plex.clone(),
-			parent_structual: pstruct.clone(),
-			almost: AlmostDictElement{
-				key: key.clone(),
-				val: item.clone(),
-			},
+			parent_structual: pstruct,
+			key: Key::new(k),
+			almost: item,
 		};
-		
-		let data = vec![
-			DictPair{key, val: DictVal::Pub(item.complete(plex.clone(), pstruct))}];
 		
 		::Val::new(Dict{
 			parent_lexical: plex,
@@ -179,7 +181,7 @@ impl Dict {
 			
 			loop {
 				let ord = match (left.first(), right.first()) {
-					(Some(l), Some(r)) => l.almost.key.cmp(&r.almost.key),
+					(Some(l), Some(r)) => l.key.cmp(&r.key),
 					(Some(_), None) => std::cmp::Ordering::Less,
 					(None, Some(_)) => std::cmp::Ordering::Greater,
 					(None, None) => break,
@@ -195,34 +197,34 @@ impl Dict {
 					v
 				};
 				
+				if s.key.is_local() {
+					let redirect_key = Key::new(s.key.key.clone());
+					data.push(DictPair{
+						key: redirect_key,
+						val: DictVal::Local(s.key.namespace),
+					})
+				}
+				
 				let pstruct = ::Val::new(ParentSplitter{
 					parent: this.clone(),
 					grandparent: s.parent_structual.clone(),
 				});
 				
-				let pair = s.almost.complete(s.parent_lexical.clone(), pstruct);
-				if pair.key.is_local() {
-					let redirect_key = Key::new(pair.key.key.clone());
-					data.push(DictPair{
-						key: redirect_key,
-						val: DictVal::Local(pair.key.namespace),
-					})
+				let val = ::thunk::Thunk::bytecode(pstruct, s.almost.clone());
+				if Some(&s.key) == data.last().map(|p| &p.key) {
+					let inherited = override_(
+						data.last().unwrap().val.val().unwrap(),
+						val.clone());
+					data.last_mut().unwrap().val = DictVal::Pub(inherited);
+				} else {
+					let dictval = if s.key.is_local() {
+						DictVal::Prv(val)
+					} else {
+						DictVal::Pub(val)
+					};
+					data.push(DictPair{key: s.key.clone(), val: dictval});
 				}
 				source.push(s);
-				if Some(&pair.key) == data.last().map(|p| &p.key) {
-					match pair.val {
-						DictVal::Local(_) => unreachable!(),
-						DictVal::Prv(_) => unreachable!(),
-						DictVal::Pub(ref val) => {
-							let inherited = override_(
-								data.last().unwrap().val.val().unwrap(),
-								val.clone());
-							data.last_mut().unwrap().val = DictVal::Pub(inherited);
-						}
-					}
-				} else {
-					data.push(pair);
-				}
 			}
 		}
 		
@@ -358,20 +360,6 @@ pub struct AlmostDictElement {
 struct DictPair {
 	key: Key,
 	val: DictVal,
-}
-
-impl DictPair {
-	fn new(key: Key, val: DictVal) -> Self {
-		DictPair{key, val}
-	}
-}
-
-impl AlmostDictElement {
-	fn complete(&self, plex: ::Val, pstruct: ::Val) -> DictPair {
-		let val = Thunk::lazy(plex, pstruct, self.val.clone());
-		let dictval = if self.key.is_local() { DictVal::Prv(val) } else { DictVal::Pub(val) };
-		DictPair::new(self.key.clone(), dictval)
-	}
 }
 
 impl fmt::Debug for AlmostDictElement {
