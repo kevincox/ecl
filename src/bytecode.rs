@@ -62,12 +62,12 @@ impl CompileContext {
 		self.depth += 1;
 	}
 	
-	fn scope_add(&mut self, name: String, local: bool) -> usize {
-		let id = if local {
+	fn scope_add(&mut self, name: String, public: bool) -> usize {
+		let id = if public {
+			0
+		} else {
 			self.last_local += 1;
 			self.last_local
-		} else {
-			0
 		};
 		
 		self.scope.push((name, self.depth, id));
@@ -204,101 +204,115 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			
 			ctx.scope_open();
 			
-			let ids = elements.iter().map(|element| match element.key {
-					::dict::AlmostKey::Pub(ref k) => ctx.scope_add(k.clone(), false),
-					::dict::AlmostKey::Local(ref k) => ctx.scope_add(k.clone(), true),
+			let elements = elements.into_iter()
+				.map(|e| {
+					let id = ctx.scope_add(e.key.clone(), e.is_public());
+					(e.key, id, e.val)
 				})
 				.collect::<Vec<_>>();
 			
-			let mut offsets = Vec::with_capacity(elements.len());
-			for (element, id) in elements.into_iter().zip(ids) {
-				offsets.push((
-					element.key,
-					id,
-					compile(ctx, Rc::try_unwrap(element.val).unwrap())?));
-			}
+			let elements = elements.into_iter()
+				.map(|(key, id, val)| (key, id, compile(ctx, val)))
+				.collect::<Vec<_>>();
 			
 			ctx.scope_close();
 			
 			ctx.set_jump(jump);
 			let off = ctx.write_op(OP_DICT);
-			ctx.write_u64(offsets.len() as u64);
-			for (key, id, offset) in offsets {
-				match key {
-					::dict::AlmostKey::Pub(ref k) => {
+			ctx.write_u64(elements.len() as u64);
+			for (key, id, offset) in elements {
+				match id {
+					0 => {
 						ctx.write_u8(DI_PUB);
-						ctx.write_str(k);
+						ctx.write_str(&key);
 					}
-					::dict::AlmostKey::Local(_) => {
+					id => {
 						ctx.write_u8(DI_LOCAL);
 						ctx.write_usize(id);
 					}
 				}
-				ctx.write_usize(offset);
+				ctx.write_usize(offset?);
 			}
 			Ok(off)
 		}
 		::Almost::Func(data) => {
 			let jump = ctx.start_jump(OP_JUMP_FUNC);
-			let argoff;
 			
 			ctx.scope_open();
 			let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
-			match arg {
+			let argoff = match arg {
 				::func::Arg::One(arg) => {
-					argoff = ctx.write_u8(ARG_ONE);
-					ctx.write_str(&arg);
-					ctx.scope_add(arg.clone(), false);
+					let argoff = ctx.write_u8(ARG_ONE);
+					let id = ctx.scope_add(arg.clone(), false);
+					ctx.write_usize(id);
+					argoff
 				}
-				::func::Arg::Dict(mut args) => {
-					for arg in &args {
-						ctx.scope_add(arg.0.clone(), false);
-					}
-					let args = args.into_iter().map(|(k, req, v)| {
-							if req {
-								(k, req, 0)
-							} else {
-								(k, req, compile(ctx, v).unwrap())
-							}
-						}).collect::<Vec<_>>();
+				::func::Arg::Dict(args) => {
+					let args = args.into_iter()
+						.map(|(key, required, val)| {
+							ctx.scope_add(key.clone(), true);
+							(key, required, val)
+						})
+						.collect::<Vec<_>>();
 					
-					argoff = ctx.write_u8(ARG_DICT);
+					let args = args.into_iter().map(|(key, required, val)| {
+							if required {
+								(key, Ok(0))
+							} else {
+								(key, compile(ctx, val))
+							}
+						})
+						.collect::<Vec<_>>();
+					
+					let argoff = ctx.write_u8(ARG_DICT);
 					ctx.write_usize(args.len());
-					for (k, req, voff) in args {
-						ctx.write_str(&k);
-						if req {
+					for (key, off) in args {
+						let off = off?;
+						
+						ctx.write_str(&key);
+						if off == 0 {
 							ctx.write_u8(ARG_REQ);
 						} else {
 							ctx.write_u8(ARG_OPT);
-							ctx.write_usize(voff);
+							ctx.write_usize(off);
 						}
 					}
+					
+					argoff
 				}
 				::func::Arg::List(args) => {
-					for arg in &args {
-						ctx.scope_add(arg.0.clone(), false);
-					}
-					let args = args.into_iter().map(|(k, req, v)| {
-							if req {
-								(k, req, 0)
-							} else {
-								(k, req, compile(ctx, v).unwrap())
-							}
-						}).collect::<Vec<_>>();
+					let args = args.into_iter()
+						.map(|(key, required, val)| {
+							(ctx.scope_add(key, false), required, val)
+						})
+						.collect::<Vec<_>>();
 					
-					argoff = ctx.write_u8(ARG_LIST);
+					let args = args.into_iter().map(|(id, required, val)| {
+							if required {
+								(id, Ok(0))
+							} else {
+								(id, compile(ctx, val))
+							}
+						})
+						.collect::<Vec<_>>();
+					
+					let argoff = ctx.write_u8(ARG_LIST);
 					ctx.write_usize(args.len());
-					for (k, req, voff) in args {
-						ctx.write_str(&k);
-						if req {
+					for (id, off) in args {
+						let off = off?;
+						
+						ctx.write_usize(id);
+						if off == 0 {
 							ctx.write_u8(ARG_REQ);
 						} else {
 							ctx.write_u8(ARG_OPT);
-							ctx.write_usize(voff);
+							ctx.write_usize(off);
 						}
 					}
+					
+					argoff
 				}
-			}
+			};
 			compile(ctx, body)?;
 			ctx.scope_close();
 			
@@ -497,7 +511,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	let mut stack = Vec::new();
 	loop {
 		let op = cursor.read_u8().unwrap();
-		// eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
+		eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
 		match op {
 			OP_RET => {
 				assert_eq!(stack.len(), 1);
@@ -612,17 +626,18 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				stack.push(::Val::new(cursor.read_f64::<EclByteOrder>().unwrap()));
 			}
 			OP_REF => {
-				let key = cursor.read_str();
+				let strkey = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = if id == 0 {
-					::dict::Key::Pub(key)
+					::dict::Key::Pub(strkey.clone())
 				} else {
 					id += module.unique_id();
 					::dict::Key::Local(id)
 				};
 				stack.push(pstruct.structural_lookup(depth, &key)
-					.expect("Ref lookup failed"));
+					.unwrap_or_else(||
+						::err::Err::new(format!("Lookup of {:?} failed", strkey))));
 			}
 			OP_REF_REL => {
 				let key = cursor.read_str();
@@ -818,8 +833,9 @@ impl Func {
 		
 		match cursor.read_u8().unwrap() {
 			ARG_ONE => {
-				let key = cursor.read_str();
-				dict._set_val(key, arg);
+				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+				id += self.module.unique_id();
+				dict._set_val(::dict::Key::Local(id), arg);
 			}
 			ARG_DICT => {
 				use Value;
@@ -862,7 +878,7 @@ impl Func {
 						}
 						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
-					dict._set_val(key, val)
+					dict._set_val(::dict::Key::Pub(key), val)
 				}
 				
 				if unused_args != 0 {
@@ -888,7 +904,9 @@ impl Func {
 				}
 				
 				for i in 0..len {
-					let key = cursor.read_str();
+					let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
+					id += self.module.unique_id();
+					
 					let passed = list.get(i);
 					let val = match cursor.read_u8().unwrap() {
 						ARG_REQ => match passed {
@@ -905,7 +923,7 @@ impl Func {
 						}
 						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
-					dict._set_val(key, val)
+					dict._set_val(::dict::Key::Local(id), val)
 				}
 			}
 			other => panic!("Unexpected func arg 0x{:02x}", other),

@@ -4,7 +4,6 @@ extern crate serde;
 
 use std;
 use std::fmt;
-use std::rc::Rc;
 
 #[derive(Clone,Debug,Trace)]
 struct Source {
@@ -12,17 +11,6 @@ struct Source {
 	#[unsafe_ignore_trace]
 	key: Key,
 	almost: ::bytecode::Value,
-}
-
-#[derive(Trace)]
-pub struct Dict {
-	prv: gc::GcCell<DictData>,
-}
-
-#[derive(Trace)]
-struct DictData {
-	data: Vec<DictPair>,
-	source: Vec<Source>,
 }
 
 #[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd,Trace)]
@@ -38,6 +26,23 @@ impl Key {
 			_ => false,
 		}
 	}
+}
+
+#[derive(Trace)]
+pub struct Dict {
+	prv: gc::GcCell<DictData>,
+}
+
+#[derive(Trace)]
+struct DictData {
+	data: Vec<DictPair>,
+	source: Vec<Source>,
+}
+
+#[derive(Debug,Trace)]
+pub struct DictPair {
+	pub key: Key,
+	pub val: ::Val,
 }
 
 impl Dict {
@@ -97,8 +102,7 @@ impl Dict {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
-	pub fn _set_val(&self, key: String, val: ::Val) {
-		let key = Key::Pub(key);
+	pub fn _set_val(&self, key: Key, val: ::Val) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -270,37 +274,43 @@ impl ::Value for Dict {
 
 impl ::SameOps for Dict { }
 
-#[derive(Clone,PartialEq)]
+#[derive(Clone,Copy,Eq,Ord,PartialEq,PartialOrd)]
+pub enum Visibility {
+	Local, Pub
+}
+
+#[derive(PartialEq)]
 pub struct AlmostDictElement {
-	pub key: AlmostKey,
-	pub val: Rc<::Almost>,
+	pub visibility: Visibility,
+	pub key: String,
+	pub val: ::Almost,
 }
 
-#[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd)]
-pub enum AlmostKey {
-	Local(String),
-	Pub(String),
-}
-
-impl AlmostKey {
-	pub fn is_local(&self) -> bool {
-		match *self {
-			AlmostKey::Local(_) => true,
-			_ => false,
-		}
+impl AlmostDictElement {
+	pub fn local(key: String, val: ::Almost) -> Self {
+		AlmostDictElement{visibility: Visibility::Local, key, val}
 	}
-}
-
-#[derive(Debug,Trace)]
-pub struct DictPair {
-	pub key: Key,
-	pub val: ::Val,
+	
+	pub fn public(key: String, val: ::Almost) -> Self {
+		AlmostDictElement{visibility: Visibility::Pub, key, val}
+	}
+	
+	pub fn is_public(&self) -> bool {
+		self.visibility == Visibility::Pub
+	}
+	
+	pub fn sort_cmp(&self, that: &AlmostDictElement) -> std::cmp::Ordering {
+		(self.visibility, &self.key).cmp(&(that.visibility, &that.key))
+	}
 }
 
 impl fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let local = if self.key.is_local() { "local" } else { "pub  " };
-		write!(f, "{} {:?} = {:?}", local, self.key, self.val)
+		let vis = match self.visibility {
+			Visibility::Pub => "pub  ",
+			Visibility::Local => "local",
+		};
+		write!(f, "{} {:?} = {:?}", vis, self.key, self.val)
 	}
 }
 
