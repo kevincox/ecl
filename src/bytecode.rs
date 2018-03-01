@@ -819,7 +819,7 @@ impl Func {
 		match cursor.read_u8().unwrap() {
 			ARG_ONE => {
 				let key = cursor.read_str();
-				dict._set_val(key, ::dict::DictVal::Pub(arg));
+				dict._set_val(key, arg);
 			}
 			ARG_DICT => {
 				use Value;
@@ -862,7 +862,7 @@ impl Func {
 						}
 						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
-					dict._set_val(key, ::dict::DictVal::Pub(val))
+					dict._set_val(key, val)
 				}
 				
 				if unused_args != 0 {
@@ -905,7 +905,7 @@ impl Func {
 						}
 						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
-					dict._set_val(key, ::dict::DictVal::Pub(val))
+					dict._set_val(key, val)
 				}
 			}
 			other => panic!("Unexpected func arg 0x{:02x}", other),

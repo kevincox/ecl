@@ -32,31 +32,9 @@ pub enum Key {
 }
 
 impl Key {
-	pub fn is_local(&self) -> bool {
+	pub fn is_public(&self) -> bool {
 		match *self {
-			Key::Local(_) => true,
-			_ => false,
-		}
-	}
-}
-
-#[derive(Clone,Debug,PartialEq,Trace)]
-pub enum DictVal {
-	Pub(::Val),
-	Prv(::Val),
-}
-
-impl DictVal {
-	fn val(&self) -> ::Val {
-		match *self {
-			DictVal::Pub(ref v) => v.clone(),
-			DictVal::Prv(ref v) => v.clone(),
-		}
-	}
-	
-	fn public(&self) -> bool {
-		match *self {
-			DictVal::Pub(_) => true,
+			Key::Pub(_) => true,
 			_ => false,
 		}
 	}
@@ -87,12 +65,7 @@ impl Dict {
 					almost: item.clone()
 				});
 				let val = ::thunk::Thunk::bytecode(this_pstruct.clone(), item);
-				let dictval = if key.is_local() {
-					DictVal::Prv(val)
-				} else {
-					DictVal::Pub(val)
-				};
-				prv.data.push(DictPair{key, val: dictval});
+				prv.data.push(DictPair{key, val});
 			}
 		}
 		
@@ -104,7 +77,7 @@ impl Dict {
 		
 		let val = ::thunk::Thunk::bytecode(pstruct.clone(), item.clone());
 		let data = vec![
-			DictPair{key, val: DictVal::Pub(val)}];
+			DictPair{key, val: val}];
 		
 		let source = Source{
 			parent_structual: pstruct,
@@ -124,7 +97,7 @@ impl Dict {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
-	pub fn _set_val(&self, key: String, val: DictVal) {
+	pub fn _set_val(&self, key: String, val: ::Val) {
 		let key = Key::Pub(key);
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
@@ -133,10 +106,10 @@ impl Dict {
 		}
 	}
 	
-	fn index(&self, key: &Key) -> Option<DictVal> {
+	fn index(&self, key: &Key) -> Option<::Val> {
 		let prv = self.prv.borrow();
-		prv.data.iter().position(|pair| pair.key == *key)
-			.map(|i| prv.data[i].val.clone())
+		prv.data.iter().find(|pair| pair.key == *key)
+			.map(|pair| pair.val.clone())
 		// prv.data.binary_search_by(|pair| pair.key.cmp(key))
 		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
@@ -183,17 +156,10 @@ impl Dict {
 				
 				let val = ::thunk::Thunk::bytecode(pstruct, s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
-					let inherited = override_(
-						data.last().unwrap().val.val(),
-						val.clone());
-					data.last_mut().unwrap().val = DictVal::Pub(inherited);
+					let inherited = override_(data.last().unwrap().val.clone(), val);
+					data.last_mut().unwrap().val = inherited;
 				} else {
-					let dictval = if s.key.is_local() {
-						DictVal::Prv(val)
-					} else {
-						DictVal::Pub(val)
-					};
-					data.push(DictPair{key: s.key.clone(), val: dictval});
+					data.push(DictPair{key: s.key.clone(), val});
 				}
 				source.push(s);
 			}
@@ -229,8 +195,8 @@ impl fmt::Debug for Dict {
 			leader = ' ';
 			
 			match pair.key {
-				Key::Pub(ref k) => write!(f, "{:?}={:?}", k, pair.val.val())?,
-				Key::Local(id) => write!(f, "local {:?}={:?}", id, pair.val.val())?,
+				Key::Pub(ref k) => write!(f, "{:?}={:?}", k, pair.val)?,
+				Key::Local(id) => write!(f, "local {:?}={:?}", id, pair.val)?,
 			}
 		}
 		
@@ -248,25 +214,17 @@ impl ::Value for Dict {
 	
 	fn is_empty(&self) -> bool {
 		let prv = self.prv.borrow();
-		prv.data.iter().all(|pair| !pair.val.public())
+		prv.data.iter().all(|pair| !pair.key.is_public())
 	}
 	
 	fn index_str(&self, key: &str) -> ::Val {
-		match self.index(&Key::Pub(key.to_owned())) {
-			Some(DictVal::Pub(ref v)) => v.clone(),
-			Some(_) => ::err::Err::new(format!("Attempt to access private member {:?}", key)),
-			None => ::nil::get(),
-		}
+		self.index(&Key::Pub(key.to_owned()))
+			.unwrap_or_else(::nil::get)
 	}
 	
 	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
-		let v = self.index(&key)
-			.map(|element| match element {
-				DictVal::Pub(ref v) => v.clone(),
-				DictVal::Prv(ref v) => v.clone(),
-			});
-		v
+		self.index(key)
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
@@ -284,11 +242,11 @@ impl ::Value for Dict {
 		Some(Box::new(
 			data
 				.iter()
-				.filter(|pair| pair.val.public())
+				.filter(|pair| pair.key.is_public())
 				.filter_map(|pair| match pair.key {
 					Key::Pub(ref s) => {
 						let k = ::Val::new(s.clone());
-						let data = vec![k, pair.val.val()];
+						let data = vec![k, pair.val.clone()];
 						Some(::list::List::of_vals(data))
 					}
 					_ => None
@@ -303,7 +261,7 @@ impl ::Value for Dict {
 		for pair in &prv.data {
 			if let Key::Pub(ref k) = pair.key {
 				s.erased_serialize_map_key(&mut state, k)?;
-				s.erased_serialize_map_value(&mut state, &pair.val.val().rec_ser(visited))?;
+				s.erased_serialize_map_value(&mut state, &pair.val.rec_ser(visited))?;
 			}
 		}
 		s.erased_serialize_map_end(state)
@@ -336,7 +294,7 @@ impl AlmostKey {
 #[derive(Debug,Trace)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: DictVal,
+	pub val: ::Val,
 }
 
 impl fmt::Debug for AlmostDictElement {
