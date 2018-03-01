@@ -8,7 +8,7 @@ fn test_compile_lines() {
 		let ast = ecl::parse_file(&path.to_string_lossy()).unwrap();
 		let compiled = ecl::bytecode::compile_to_vec(ast);
 		let decompiled = ecl::bytecode::decompile(&compiled)
-			.unwrap_or_else(|d| panic!("decompile failed:\n{}", d));
+			.unwrap_or_else(|d| panic!("decompile failed:\n{:?}", d));
 		
 		utils::diff(&decompiled.as_bytes(), &path.with_extension("decompiled"));
 	}

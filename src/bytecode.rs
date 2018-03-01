@@ -9,6 +9,24 @@ const START_OFFSET: usize = 8;
 const START_LEN: usize = 8;
 const START_END: usize = START_OFFSET + START_LEN;
 
+macro_rules! codes {
+	( $type:ident $( $item:ident, )* ) => {
+		codes!{$type: u8 $( $item, )*}
+	};
+	( $type:ident : $repr:ident $first:ident , $( $item:ident, )* ) => {
+		#[derive(Debug)]
+		enum $type { $first = 0, $( $item ),* }
+		
+		impl $type {
+			fn from(i: $repr) -> Result<Self,::Val> {
+				if i == $type::$first as $repr { Ok($type::$first) }
+				$( else if i == $type::$item as $repr { Ok($type::$item) } )*
+				else { Err(::err::Err::new(format!("Unknown {} {:02x}", stringify!($type), i))) }
+			}
+		}
+	};
+}
+
 iota! {
 	const OP_RET: u8 = iota;
 		| OP_GLOBAL
@@ -35,9 +53,9 @@ iota! {
 		| OP_SUB
 }
 
-iota! {
-	const DI_PUB: u8 = iota;
-		| DI_LOCAL
+codes!{DictItem
+	Pub,
+	Local,
 }
 
 iota! {
@@ -223,11 +241,11 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 			for (key, id, offset) in elements {
 				match id {
 					0 => {
-						ctx.write_u8(DI_PUB);
+						ctx.write_u8(DictItem::Pub as u8);
 						ctx.write_str(&key);
 					}
 					id => {
-						ctx.write_u8(DI_LOCAL);
+						ctx.write_u8(DictItem::Local as u8);
 						ctx.write_usize(id);
 					}
 				}
@@ -569,14 +587,13 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
-					let key = match cursor.read_u8().unwrap() {
-						DI_PUB => ::dict::Key::Pub(cursor.read_str()),
-						DI_LOCAL => {
+					let key = match DictItem::from(cursor.read_u8().unwrap())? {
+						DictItem::Pub => ::dict::Key::Pub(cursor.read_str()),
+						DictItem::Local => {
 							let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 							id += module.unique_id();
 							::dict::Key::Local(id)
 						},
-						other => panic!("Unknown dict item type 0x{:02x}", other),
 					};
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 					items.push((key, Value::new(module.clone(), offset)));
@@ -660,7 +677,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	}
 }
 
-pub fn decompile(code: &[u8]) -> Result<String,String> {
+pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 	let mut cursor = std::io::Cursor::new(code);
 	cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
 	let mut out = String::with_capacity(code.len() * 8);
@@ -707,19 +724,15 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 				writeln!(out, "{:08} DICT {} items", cursor.position(), len).unwrap();
 				for _ in 0..len {
 					write!(out, "     ... ").unwrap();
-					match cursor.read_u8().unwrap() {
-						DI_PUB => {
+					match DictItem::from(cursor.read_u8().unwrap())? {
+						DictItem::Pub => {
 							let key = cursor.read_str();
 							write!(out, "PUB   {:?}", key).unwrap()
 						}
-						DI_LOCAL => {
+						DictItem::Local => {
 							let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 							write!(out, "LOCAL {:04x}", id).unwrap();
 						},
-						other => {
-							writeln!(out, "ERR unknown dict item type 0x{:02x}", other).unwrap();
-							return Err(out)
-						}
 					}
 					let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 					writeln!(out, " @ {:08}", off).unwrap();
@@ -781,7 +794,7 @@ pub fn decompile(code: &[u8]) -> Result<String,String> {
 			}
 			other => {
 				writeln!(out, "ERR unknown opcode 0x{:02x}", other).unwrap();
-				return Err(out)
+				return Err(::err::Err::new(out))
 			}
 		}
 	}
