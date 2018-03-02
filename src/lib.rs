@@ -50,6 +50,7 @@ pub trait Value:
 	fn type_str(&self) -> &'static str;
 	
 	fn get(&self) -> Option<Val> { None }
+	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
@@ -136,7 +137,7 @@ impl Val {
 		Val(gc::Gc::new(v))
 	}
 	
-	fn get(&self) -> Val {
+	pub fn get(&self) -> Val {
 		let mut v = self.clone();
 		
 		while let Some(ref vn) = Value::get(v.deref()) {
@@ -310,6 +311,12 @@ impl Val {
 		
 		SerializeVal { val: selfr, visited: RefCell::new(visited) }
 	}
+	
+	pub fn eval(&self) -> Result<Val,Val> {
+		let val = self.get()?;
+		val.deref().eval()?;
+		Ok(val)
+	}
 }
 
 impl PartialEq for Val {
@@ -446,11 +453,10 @@ impl fmt::Debug for Almost {
 pub fn eval(source: &str, doc: &str) -> Val {
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	grammar::parse(source, doc.chars())
-		.map(|ast| {
-			let compiled = bytecode::compile_to_vec(ast);
-			bytecode::eval(compiled)
-		})
-		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse string: {:?}", e)))
+		.map_err(|e| err::Err::new(format!("Failed to parse string: {:?}", e)))
+		.and_then(bytecode::compile_to_vec)
+		.map(bytecode::eval)
+		.unwrap_or_else(|e| e)
 }
 
 pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
@@ -469,11 +475,10 @@ pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
 
 pub fn eval_file(path: &str) -> Val {
 	parse_file(path)
-		.map(|ast| {
-			let compiled = bytecode::compile_to_vec(ast);
-			bytecode::eval(compiled)
-		})
-		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)))
+		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", path, e)))
+		.and_then(bytecode::compile_to_vec)
+		.map(bytecode::eval)
+		.unwrap_or_else(|e| e)
 }
 
 pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
@@ -481,15 +486,16 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
 	
 	grammar::parse(source, doc.chars())
+		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 		.map(|ast| {
-			let func = ::Almost::Func(std::rc::Rc::new(func::FuncData{
+			::Almost::Func(std::rc::Rc::new(func::FuncData{
 				arg: func::Arg::One(name),
 				body: ast,
-			}));
-			let compiled = bytecode::compile_to_vec(func);
-			bytecode::eval(compiled)
+			}))
 		})
-		.unwrap_or_else(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
+		.and_then(bytecode::compile_to_vec)
+		.map(bytecode::eval)
+		.unwrap_or_else(|e| e)
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {

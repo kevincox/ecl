@@ -211,6 +211,14 @@ impl fmt::Debug for Dict {
 impl ::Value for Dict {
 	fn type_str(&self) -> &'static str { "dict" }
 	
+	fn eval(&self) -> Result<(),::Val> {
+		for pair in &self.prv.borrow().data {
+			pair.val.eval()?;
+		}
+		
+		Ok(())
+	}
+	
 	fn len(&self) -> usize {
 		let prv = self.prv.borrow();
 		prv.data.len()

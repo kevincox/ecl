@@ -1,3 +1,7 @@
+extern crate serde_yaml;
+
+use std;
+
 #[derive(Trace)]
 pub struct Err {
 	msg: String,
@@ -17,6 +21,14 @@ impl Err {
 	
 	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
 		::Val::new(Err{msg: msg, loc: loc, chained: chained})
+	}
+	
+	fn from(e: &std::error::Error) -> ::Val {
+		if let Some(sub) = e.cause() {
+			Self::from(sub).annotate(e.description())
+		} else {
+			Err::new(e.description().to_string())
+		}
 	}
 }
 
@@ -38,5 +50,11 @@ impl ::fmt::Debug for Err {
 			write!(f, "{:?}", self.chained)?;
 		}
 		Ok(())
+	}
+}
+
+impl<E: std::error::Error> std::convert::From<E> for ::Val {
+	fn from(e: E) -> Self {
+		Err::from(&e)
 	}
 }

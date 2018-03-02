@@ -63,6 +63,13 @@ fn main() {
 				let select = ecl::hacky_parse_func("--select", "r".to_owned(), code);
 				val = select.call(val);
 			}
+			
+			let val = val.get();
+			if let Err(e) = val.eval() {
+				eprintln!("{:?}\nError occured.", e);
+				std::process::exit(1)
+			}
+			
 			serialize_val_with(val,
 				load.value_of("format").unwrap(),
 				load.is_present("compact"));

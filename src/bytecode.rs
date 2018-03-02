@@ -164,7 +164,7 @@ impl CompileContext {
 	}
 }
 
-fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String> {
+fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> {
 	match ast {
 		::Almost::Add(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
@@ -383,7 +383,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 				ctx.write_usize(id);
 				Ok(off)
 			} else {
-				Err(format!("{:?} Invalid reference {:?}", loc, name))
+				Err(::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
 			}
 		}
 		::Almost::StructRef(_, depth, key) => {
@@ -432,19 +432,19 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String>
 	}
 }
 
-fn compile_global(ctx: &mut CompileContext, global: usize) -> Result<usize,String> {
+fn compile_global(ctx: &mut CompileContext, global: usize) -> Result<usize,::Val> {
 	let off = ctx.write_op(OP_GLOBAL);
 	ctx.write_usize(global);
 	Ok(off)
 }
 
-fn compile(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,String> {
+fn compile(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> {
 	let off = compile_expr(ctx, ast)?;
 	ctx.write_op(OP_RET);
 	Ok(off)
 }
 
-pub fn compile_to_vec(ast: ::Almost) -> Vec<u8> {
+pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 	let mut ctx = CompileContext{
 		bytes: MAGIC.into_iter()
 			.chain(&[0; 8]) // Offset buffer.
@@ -453,7 +453,7 @@ pub fn compile_to_vec(ast: ::Almost) -> Vec<u8> {
 		depth: 0,
 		last_local: 0,
 	};
-	let start = compile(&mut ctx, ast).unwrap() as u64;
+	let start = compile(&mut ctx, ast)? as u64;
 	ctx.bytes[START_OFFSET+0] = (start >> 8*0) as u8;
 	ctx.bytes[START_OFFSET+1] = (start >> 8*1) as u8;
 	ctx.bytes[START_OFFSET+2] = (start >> 8*2) as u8;
@@ -463,7 +463,7 @@ pub fn compile_to_vec(ast: ::Almost) -> Vec<u8> {
 	ctx.bytes[START_OFFSET+6] = (start >> 8*6) as u8;
 	ctx.bytes[START_OFFSET+7] = (start >> 8*7) as u8;
 	
-	ctx.bytes
+	Ok(ctx.bytes)
 }
 
 #[derive(PartialEq)]
@@ -954,6 +954,6 @@ mod tests {
 	fn compile_global() {
 		assert_eq!(
 			compile_to_vec(::Almost::Nil),
-			b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0\x00")
+			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0\x00".as_ref().into()));
 	}
 }
