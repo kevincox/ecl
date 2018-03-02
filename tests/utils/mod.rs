@@ -36,6 +36,7 @@ pub fn diff(expected: &[u8], path: &std::path::Path) {
 	let mut f = match std::fs::File::open(path) {
 		Ok(f) => f,
 		Err(e) => {
+			if e.kind() == std::io::ErrorKind::NotFound && expected.is_empty() { return }
 			if regen(expected, path) { return }
 			panic!("reference file {:?} couldn't be opened: {:?}", path, e)
 		}
