@@ -27,30 +27,30 @@ macro_rules! codes {
 	};
 }
 
-iota! {
-	const OP_RET: u8 = iota;
-		| OP_GLOBAL
-		| OP_ADD
-		| OP_CALL
-		| OP_GE
-		| OP_GT
-		| OP_EQ
-		| OP_LT
-		| OP_LE
-		| OP_ADICT
-		| OP_DICT
-		| OP_FUNC
-		| OP_INDEX
-		| OP_INTERPOLATE
-		| OP_JUMP_LAZY
-		| OP_JUMP_FUNC
-		| OP_LIST
-		| OP_NEG
-		| OP_NUM
-		| OP_REF
-		| OP_REF_REL
-		| OP_STR
-		| OP_SUB
+codes!{Op
+	Ret,
+	Global,
+	Add,
+	Call,
+	Ge,
+	Gt,
+	Eq,
+	Lt,
+	Le,
+	ADict,
+	Dict,
+	Func,
+	Index,
+	Interpolate,
+	JumpLazy,
+	JumpFunc,
+	List,
+	Neg,
+	Num,
+	Ref,
+	RefRel,
+	Str,
+	Sub,
 }
 
 codes!{DictItem
@@ -58,12 +58,15 @@ codes!{DictItem
 	Local,
 }
 
-iota! {
-	const ARG_REQ: u8 = iota;
-		| ARG_OPT
-		| ARG_ONE
-		| ARG_DICT
-		| ARG_LIST
+codes!{ArgType
+	One,
+	Dict,
+	List,
+}
+
+codes!{ArgReq
+	Required,
+	Optional,
 }
 
 type EclByteOrder = byteorder::LittleEndian;
@@ -143,8 +146,8 @@ impl CompileContext {
 		self.write(buf.into_iter().cloned())
 	}
 	
-	fn write_op(&mut self, op: u8) -> usize {
-		self.write(Some(op))
+	fn write_op(&mut self, op: Op) -> usize {
+		self.write(Some(op as u8))
 	}
 	
 	fn write_str(&mut self, s: &str) -> usize {
@@ -153,8 +156,8 @@ impl CompileContext {
 		off
 	}
 	
-	fn start_jump(&mut self, typ: u8) -> usize {
-		self.write_op(typ);
+	fn start_jump(&mut self, op: Op) -> usize {
+		self.write_op(op);
 		return self.write_u64(0)
 	}
 	
@@ -169,56 +172,56 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		::Almost::Add(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_ADD);
+			ctx.write_op(Op::Add);
 			Ok(off)
 		}
 		::Almost::Call(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_CALL);
+			ctx.write_op(Op::Call);
 			Ok(off)
 		}
 		::Almost::GreatEq(left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_GE);
+			ctx.write_op(Op::Ge);
 			Ok(off)
 		}
 		::Almost::Great(left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_GT);
+			ctx.write_op(Op::Gt);
 			Ok(off)
 		}
 		::Almost::Eq(left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_EQ);
+			ctx.write_op(Op::Eq);
 			Ok(off)
 		}
 		::Almost::Less(left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_LT);
+			ctx.write_op(Op::Lt);
 			Ok(off)
 		}
 		::Almost::LessEq(left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_LE);
+			ctx.write_op(Op::Le);
 			Ok(off)
 		}
 		::Almost::ADict(key, element) => {
-			let jump = ctx.start_jump(OP_JUMP_LAZY);
+			let jump = ctx.start_jump(Op::JumpLazy);
 			let childoff = compile(ctx, Rc::try_unwrap(element).unwrap())?;
 			ctx.set_jump(jump);
-			let off = ctx.write_op(OP_ADICT);
+			let off = ctx.write_op(Op::ADict);
 			ctx.write_usize(childoff);
 			ctx.write_str(&key);
 			Ok(off)
 		}
 		::Almost::Dict(elements) => {
-			let jump = ctx.start_jump(OP_JUMP_LAZY);
+			let jump = ctx.start_jump(Op::JumpLazy);
 			
 			ctx.scope_open();
 			
@@ -236,7 +239,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 			ctx.scope_close();
 			
 			ctx.set_jump(jump);
-			let off = ctx.write_op(OP_DICT);
+			let off = ctx.write_op(Op::Dict);
 			ctx.write_u64(elements.len() as u64);
 			for (key, id, offset) in elements {
 				match id {
@@ -254,13 +257,13 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 			Ok(off)
 		}
 		::Almost::Func(data) => {
-			let jump = ctx.start_jump(OP_JUMP_FUNC);
+			let jump = ctx.start_jump(Op::JumpFunc);
 			
 			ctx.scope_open();
 			let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
 			let argoff = match arg {
 				::func::Arg::One(arg) => {
-					let argoff = ctx.write_u8(ARG_ONE);
+					let argoff = ctx.write_u8(ArgType::One as u8);
 					let id = ctx.scope_add(arg.clone(), false);
 					ctx.write_usize(id);
 					argoff
@@ -282,16 +285,16 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 						})
 						.collect::<Vec<_>>();
 					
-					let argoff = ctx.write_u8(ARG_DICT);
+					let argoff = ctx.write_u8(ArgType::Dict as u8);
 					ctx.write_usize(args.len());
 					for (key, off) in args {
 						let off = off?;
 						
 						ctx.write_str(&key);
 						if off == 0 {
-							ctx.write_u8(ARG_REQ);
+							ctx.write_u8(ArgReq::Required as u8);
 						} else {
-							ctx.write_u8(ARG_OPT);
+							ctx.write_u8(ArgReq::Optional as u8);
 							ctx.write_usize(off);
 						}
 					}
@@ -314,16 +317,16 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 						})
 						.collect::<Vec<_>>();
 					
-					let argoff = ctx.write_u8(ARG_LIST);
+					let argoff = ctx.write_u8(ArgType::List as u8);
 					ctx.write_usize(args.len());
 					for (id, off) in args {
 						let off = off?;
 						
 						ctx.write_usize(id);
 						if off == 0 {
-							ctx.write_u8(ARG_REQ);
+							ctx.write_u8(ArgReq::Required as u8);
 						} else {
-							ctx.write_u8(ARG_OPT);
+							ctx.write_u8(ArgReq::Optional as u8);
 							ctx.write_usize(off);
 						}
 					}
@@ -335,25 +338,25 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 			ctx.scope_close();
 			
 			ctx.set_jump(jump);
-			let off = ctx.write_op(OP_FUNC);
+			let off = ctx.write_op(Op::Func);
 			ctx.write_usize(argoff);
 			Ok(off)
 		}
 		::Almost::Index(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_INDEX);
+			ctx.write_op(Op::Index);
 			Ok(off)
 		}
 		::Almost::List(elements) => {
-			let jump = ctx.start_jump(OP_JUMP_LAZY);
+			let jump = ctx.start_jump(Op::JumpLazy);
 			
 			let offsets = elements.into_iter().map(|element| 
 				compile(ctx, Rc::try_unwrap(element).unwrap()))
 				.collect::<Vec<_>>();
 			
 			ctx.set_jump(jump);
-			let off = ctx.write_op(OP_LIST);
+			let off = ctx.write_op(Op::List);
 			ctx.write_usize(offsets.len());
 			for offset in offsets {
 				ctx.write_usize(offset?);
@@ -362,24 +365,24 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		},
 		::Almost::Neg(_, v) => {
 			let off = compile_expr(ctx, *v)?;
-			ctx.write_op(OP_NEG);
+			ctx.write_op(Op::Neg);
 			Ok(off)
 		}
 		::Almost::Nil => compile_global(ctx, 0),
 		::Almost::Num(n) => {
-			let off = ctx.write_op(OP_NUM);
+			let off = ctx.write_op(Op::Num);
 			ctx.write_f64(n);
 			Ok(off)
 		}
 		::Almost::Ref(loc, name) => {
 			if let Some((depth, id)) = ctx.scope_find(&name) {
-				let off = ctx.write_op(OP_REF);
+				let off = ctx.write_op(Op::Ref);
 				ctx.write_str(&name); // TODO: remove this.
 				ctx.write_usize(depth);
 				ctx.write_usize(id);
 				Ok(off)
 			} else if let Some(id) = ::builtins::builtin_id(&name) { // TODO get global.
-				let off = ctx.write_op(OP_GLOBAL);
+				let off = ctx.write_op(Op::Global);
 				ctx.write_usize(id);
 				Ok(off)
 			} else {
@@ -388,20 +391,20 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		}
 		::Almost::StructRef(_, depth, key) => {
 			if let Some(id) = ctx.scope_find_at(&key, depth) {
-				let off = ctx.write_op(OP_REF);
+				let off = ctx.write_op(Op::Ref);
 				ctx.write_str(&key); // TODO: remove this.
 				ctx.write_usize(depth);
 				ctx.write_usize(id);
 				Ok(off)
 			} else {
-				let off = ctx.write_op(OP_REF_REL);
+				let off = ctx.write_op(Op::RefRel);
 				ctx.write_str(&key); // TODO: remove this.
 				ctx.write_usize(depth);
 				Ok(off)
 			}
 		}
 		::Almost::Str(parts) => {
-			let off = ctx.write_op(OP_STR);
+			let off = ctx.write_op(Op::Str);
 			ctx.write_str("");
 			for part in parts {
 				match part {
@@ -409,23 +412,23 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 						compile_expr(ctx, s)?;
 					},
 					::StringPart::Lit(s) => {
-						ctx.write_op(OP_STR);
+						ctx.write_op(Op::Str);
 						ctx.write_str(&s);
 					},
 				}
-				ctx.write_op(OP_INTERPOLATE);
+				ctx.write_op(Op::Interpolate);
 			}
 			Ok(off)
 		}
 		::Almost::StrStatic(s) => {
-			let off = ctx.write_op(OP_STR);
+			let off = ctx.write_op(Op::Str);
 			ctx.write_str(&s);
 			Ok(off)
 		}
 		::Almost::Sub(_, left, right) => {
 			let off = compile_expr(ctx, *left)?;
 			compile_expr(ctx, *right)?;
-			ctx.write_op(OP_SUB);
+			ctx.write_op(Op::Sub);
 			Ok(off)
 		}
 		other => unimplemented!("compile({:?})", other),
@@ -433,14 +436,14 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 }
 
 fn compile_global(ctx: &mut CompileContext, global: usize) -> Result<usize,::Val> {
-	let off = ctx.write_op(OP_GLOBAL);
+	let off = ctx.write_op(Op::Global);
 	ctx.write_usize(global);
 	Ok(off)
 }
 
 fn compile(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> {
 	let off = compile_expr(ctx, ast)?;
-	ctx.write_op(OP_RET);
+	ctx.write_op(Op::Ret);
 	Ok(off)
 }
 
@@ -528,55 +531,55 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	
 	let mut stack = Vec::new();
 	loop {
-		let op = cursor.read_u8().unwrap();
-		// eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
+		let op = Op::from(cursor.read_u8().unwrap())?;
+		// eprintln!("Executing OP {:?} @ {}", op, pc + cursor.position() as usize - 1);
 		match op {
-			OP_RET => {
+			Op::Ret => {
 				assert_eq!(stack.len(), 1);
 				return stack.pop().unwrap()
 			},
-			OP_GLOBAL => {
+			Op::Global => {
 				let id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				stack.push(::builtins::get_id(id));
 			}
-			OP_ADD => {
+			Op::Add => {
 				let right = stack.pop().expect("One item in stack for add")
 					.annotate("On right side of add");
 				let left = stack.pop().expect("No items in stack for add")
 					.annotate("On left side of add");
 				stack.push(left.add(right));
 			}
-			OP_CALL => {
+			Op::Call => {
 				let right = stack.pop().expect("One item in stack for call");
 				let left = stack.pop().expect("No items in stack for call");
 				stack.push(left.call(right));
 			}
-			OP_GE => {
+			Op::Ge => {
 				let r = stack.pop().expect("One item in stack for >=");
 				let l = stack.pop().expect("No items in stack for >=");
 				stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
 			}
-			OP_GT => {
+			Op::Gt => {
 				let r = stack.pop().expect("One item in stack for >");
 				let l = stack.pop().expect("No items in stack for >");
 				stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
 			}
-			OP_EQ => {
+			Op::Eq => {
 				let right = stack.pop().expect("One item in stack for ==");
 				let left = stack.pop().expect("No items in stack for ==");
 				stack.push(::bool::get(left == right));
 			}
-			OP_LT => {
+			Op::Lt => {
 				let r = stack.pop().expect("One item in stack for <");
 				let l = stack.pop().expect("No items in stack for <");
 				stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
 			}
-			OP_LE => {
+			Op::Le => {
 				let r = stack.pop().expect("One item in stack for <=");
 				let l = stack.pop().expect("No items in stack for <=");
 				stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
 			}
-			OP_ADICT => {
+			Op::ADict => {
 				let childoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = cursor.read_str();
 				
@@ -585,7 +588,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 					key,
 					Value::new(module.clone(), childoff)));
 			}
-			OP_DICT => {
+			Op::Dict => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
@@ -602,18 +605,18 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				}
 				stack.push(::dict::Dict::new(pstruct.clone(), items));
 			}
-			OP_FUNC => {
+			Op::Func => {
 				let bodyoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				stack.push(::func::Func::new(
 					pstruct.clone(),
 					Func::new(module.clone(), bodyoff)));
 			}
-			OP_INDEX => {
+			Op::Index => {
 				let key = stack.pop().expect("No items in stack for index");
 				let val = stack.pop().expect("One item in stack for index");
 				stack.push(val.index(key));
 			}
-			OP_INTERPOLATE => {
+			Op::Interpolate => {
 				let b = stack.pop().expect("No items in stack for interpolate");
 				let b = b.to_string();
 				let b = b.get_str().unwrap();
@@ -624,11 +627,11 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let r = a.to_owned() + b;
 				stack.push(::Val::new(r))
 			}
-			OP_JUMP_FUNC | OP_JUMP_LAZY => {
+			Op::JumpFunc | Op::JumpLazy => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
 				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 			}
-			OP_LIST => {
+			Op::List => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
@@ -637,14 +640,14 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				}
 				stack.push(::list::List::new(pstruct.clone(), items));
 			}
-			OP_NEG => {
+			Op::Neg => {
 				let v = stack.pop().expect("No items in stack for neg");
 				stack.push(v.neg());
 			}
-			OP_NUM => {
+			Op::Num => {
 				stack.push(::Val::new(cursor.read_f64::<EclByteOrder>().unwrap()));
 			}
-			OP_REF => {
+			Op::Ref => {
 				let strkey = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
@@ -658,22 +661,21 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 					.annotate_with(|| format!("Referenced by {:?}", strkey));
 				stack.push(v);
 			}
-			OP_REF_REL => {
+			Op::RefRel => {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = ::dict::Key::Pub(key);
 				stack.push(pstruct.structural_lookup(depth, &key));
 			}
-			OP_STR => {
+			Op::Str => {
 				let s = cursor.read_str();
 				stack.push(::Val::new(s));
 			}
-			OP_SUB => {
+			Op::Sub => {
 				let right = stack.pop().expect("One item in stack for add");
 				let left = stack.pop().expect("No items in stack for add");
 				stack.push(left.subtract(right));
 			}
-			unknown => panic!("Unknown opcode 0x{:02x}", unknown),
 		}
 	}
 }
@@ -684,43 +686,43 @@ pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 	let mut out = String::with_capacity(code.len() * 8);
 	
 	while let Ok(op) = cursor.read_u8() {
-		match op {
-			OP_RET => {
+		match Op::from(op)? {
+			Op::Ret => {
 				writeln!(out, "{:08} RET", cursor.position()).unwrap();
 			}
-			OP_GLOBAL => {
+			Op::Global => {
 				let id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} GLOBAL {} {:?}",
 					cursor.position(),
 					id, ::builtins::get_id(id)).unwrap();
 			}
-			OP_ADD => {
+			Op::Add => {
 				writeln!(out, "{:08} ADD", cursor.position()).unwrap();
 			}
-			OP_CALL => {
+			Op::Call => {
 				writeln!(out, "{:08} CALL", cursor.position()).unwrap();
 			}
-			OP_GE => {
+			Op::Ge => {
 				writeln!(out, "{:08} GE", cursor.position()).unwrap();
 			}
-			OP_GT => {
+			Op::Gt => {
 				writeln!(out, "{:08} GT", cursor.position()).unwrap();
 			}
-			OP_EQ => {
+			Op::Eq => {
 				writeln!(out, "{:08} EQ", cursor.position()).unwrap();
 			}
-			OP_LT => {
+			Op::Lt => {
 				writeln!(out, "{:08} LT", cursor.position()).unwrap();
 			}
-			OP_LE => {
+			Op::Le => {
 				writeln!(out, "{:08} LE", cursor.position()).unwrap();
 			}
-			OP_ADICT => {
+			Op::ADict => {
 				let childoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = cursor.read_str();
 				writeln!(out, "{:08} ADICT {:?}@{:08}", cursor.position(), key, childoff).unwrap();
 			}
-			OP_DICT => {
+			Op::Dict => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} DICT {} items", cursor.position(), len).unwrap();
 				for _ in 0..len {
@@ -739,27 +741,27 @@ pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 					writeln!(out, " @ {:08}", off).unwrap();
 				}
 			}
-			OP_FUNC => {
+			Op::Func => {
 				let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} FUNC @ {:08}", cursor.position(), off).unwrap();
 			}
-			OP_INDEX => {
+			Op::Index => {
 				writeln!(out, "{:08} INDEX", cursor.position()).unwrap();
 			}
-			OP_INTERPOLATE => {
+			Op::Interpolate => {
 				writeln!(out, "{:08} OP_INTERPOLATE", cursor.position()).unwrap();
 			}
-			OP_JUMP_FUNC => {
+			Op::JumpFunc => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
 				writeln!(out, "{:08} OP_JUMP_FUNC @{:08}", cursor.position(), target).unwrap();
 				// TODO: Recompile rather than seek over.
 				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 			}
-			OP_JUMP_LAZY => {
+			Op::JumpLazy => {
 				let target = cursor.read_u64::<EclByteOrder>().unwrap();
 				writeln!(out, "{:08} JUMP_LAZY @{:08}", cursor.position(), target).unwrap();
 			}
-			OP_LIST => {
+			Op::List => {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} LIST {} items", cursor.position(), len).unwrap();
 				for i in 0..len {
@@ -767,35 +769,31 @@ pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 					writeln!(out, "     ... {:2} @ {}", i, off).unwrap();
 				}
 			}
-			OP_NEG => {
+			Op::Neg => {
 				writeln!(out, "{:08} NEG", cursor.position()).unwrap();
 			}
-			OP_NUM => {
+			Op::Num => {
 				let num = cursor.read_f64::<EclByteOrder>().unwrap();
 				writeln!(out, "{:08} NUM {}", cursor.position(), num).unwrap();
 			}
-			OP_REF => {
+			Op::Ref => {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} REF depth:{} {:?} id:{}",
 					cursor.position(), depth, key, id).unwrap();
 			}
-			OP_REF_REL => {
+			Op::RefRel => {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				writeln!(out, "{:08} REF_REL depth:{} {:?}", cursor.position(), depth, key).unwrap();
 			}
-			OP_STR => {
+			Op::Str => {
 				let s = cursor.read_str();
 				writeln!(out, "{:08} STR {:?}", cursor.position(), s).unwrap();
 			}
-			OP_SUB => {
+			Op::Sub => {
 				writeln!(out, "{:08} SUB", cursor.position()).unwrap();
-			}
-			other => {
-				writeln!(out, "ERR unknown opcode 0x{:02x}", other).unwrap();
-				return Err(::err::Err::new(out))
 			}
 		}
 	}
@@ -845,13 +843,13 @@ impl Func {
 			grandparent: parent,
 		});
 		
-		match cursor.read_u8().unwrap() {
-			ARG_ONE => {
+		match ArgType::from(cursor.read_u8().unwrap())? {
+			ArgType::One => {
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				id += self.module.unique_id();
 				dict._set_val(::dict::Key::Local(id), arg);
 			}
-			ARG_DICT => {
+			ArgType::Dict => {
 				use Value;
 				
 				let sourcedict = match arg.downcast_ref::<::dict::Dict>() {
@@ -867,8 +865,8 @@ impl Func {
 					let key = cursor.read_str();
 					let passed = sourcedict.index(&::dict::Key::Pub(key.clone()))
 						.map(|v| v.annotate("Looking up argument value"));
-					let val = match cursor.read_u8().unwrap() {
-						ARG_REQ => match passed {
+					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
+						ArgReq::Required => match passed {
 							Some(val) => {
 								unused_args -= 1;
 								val
@@ -877,7 +875,7 @@ impl Func {
 								"Required argument {:?} not set in {:?}",
 								key, sourcedict)),
 						}
-						ARG_OPT => {
+						ArgReq::Optional => {
 							let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 							match passed {
 								Some(v) => {
@@ -890,7 +888,6 @@ impl Func {
 								}
 							}
 						}
-						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
 					dict._set_val(::dict::Key::Pub(key), val)
 				}
@@ -900,7 +897,7 @@ impl Func {
 						"Function called with {} unused arguments.", unused_args));
 				}
 			}
-			ARG_LIST => {
+			ArgType::List => {
 				use Value;
 				
 				let list = match arg.downcast_ref::<::list::List>() {
@@ -922,25 +919,23 @@ impl Func {
 					id += self.module.unique_id();
 					
 					let passed = list.get(i);
-					let val = match cursor.read_u8().unwrap() {
-						ARG_REQ => match passed {
+					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
+						ArgReq::Required => match passed {
 							Some(val) => val,
 							None => return ::err::Err::new(format!(
 								"Required argument {} not provided.", i)),
 						}
-						ARG_OPT => {
+						ArgReq::Optional => {
 							let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 							passed.unwrap_or_else(|| {
 								let value = self::Value::new(self.module.clone(), off);
 								::thunk::Thunk::bytecode(parent.clone(), value)
 							})
 						}
-						other => panic!("Unknown ARG op 0x{:02x}", other),
 					};
 					dict._set_val(::dict::Key::Local(id), val)
 				}
 			}
-			other => panic!("Unexpected func arg 0x{:02x}", other),
 		};
 		
 		eval_at(self.module.clone(), cursor.position() as usize, parent)

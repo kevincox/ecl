@@ -10,7 +10,6 @@ extern crate byteorder;
 extern crate erased_serde;
 #[macro_use] extern crate gc;
 #[macro_use] extern crate gc_derive;
-#[macro_use] extern crate iota;
 #[macro_use] extern crate lazy_static;
 extern crate regex;
 extern crate serde;
