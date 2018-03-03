@@ -32,18 +32,22 @@ fn regen(expected: &[u8], path: &std::path::Path) -> bool {
 	return true
 }
 
-pub fn diff(expected: &[u8], path: &std::path::Path) {
+pub fn read_or_empty(path: &std::path::Path) -> Vec<u8> {
 	let mut f = match std::fs::File::open(path) {
 		Ok(f) => f,
 		Err(e) => {
-			if e.kind() == std::io::ErrorKind::NotFound && expected.is_empty() { return }
-			if regen(expected, path) { return }
+			if e.kind() == std::io::ErrorKind::NotFound { return Vec::new() }
 			panic!("reference file {:?} couldn't be opened: {:?}", path, e)
 		}
 	};
-
+	
 	let mut reference = Vec::new();
 	f.read_to_end(&mut reference).unwrap();
+	reference
+}
+
+pub fn diff(expected: &[u8], path: &std::path::Path) {
+	let reference = read_or_empty(path);
 	
 	if expected != reference.as_slice() {
 		if regen(expected, path) { return }

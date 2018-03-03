@@ -28,6 +28,15 @@ impl Key {
 	}
 }
 
+impl std::fmt::Display for Key {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		match *self {
+			Key::Local(id) => write!(f, "local #{}", id),
+			Key::Pub(ref key) => write!(f, "{:?}", key),
+		}
+	}
+}
+
 #[derive(Trace)]
 pub struct Dict {
 	prv: gc::GcCell<DictData>,
@@ -110,7 +119,7 @@ impl Dict {
 		}
 	}
 	
-	fn index(&self, key: &Key) -> Option<::Val> {
+	pub fn index(&self, key: &Key) -> Option<::Val> {
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
 			.map(|pair| pair.val.clone())
@@ -234,9 +243,12 @@ impl ::Value for Dict {
 			.unwrap_or_else(::nil::get)
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
-		self.index(key)
+		match self.index(key) {
+			Some(v) => v,
+			None => ::err::Err::new(format!("No {:?} in {:?}", key, self)),
+		}
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
@@ -331,7 +343,7 @@ pub struct ParentSplitter {
 impl ::Value for ParentSplitter {
 	fn type_str(&self) -> &'static str { "parentsplitter" }
 	
-	fn structural_lookup(&self, depth: usize, key: &Key) -> Option<::Val> {
+	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		match depth {
 			0 => self.parent.structural_lookup(0, key),
 			n => self.grandparent.structural_lookup(n-1, key),

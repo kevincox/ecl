@@ -56,7 +56,9 @@ pub trait Value:
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
-	fn structural_lookup(&self, _depth: usize, _key: &dict::Key) -> Option<Val> { None }
+	fn structural_lookup(&self, _depth: usize, key: &dict::Key) -> Val {
+		::err::Err::new(format!("Can't lookup {} in {:?}", key, self))
+	}
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
@@ -166,6 +168,19 @@ impl Val {
 		}
 	}
 	
+	fn annotate_with<F: FnOnce() -> String>(&self, f: F) -> Val {
+		self.annotate_at_with(::grammar::Loc{line: 0, col: 0}, f)
+	}
+	
+	fn annotate_at_with<F: FnOnce() -> String>(&self, loc: grammar::Loc, f: F) -> Val {
+		let v = self.get();
+		if v.is_err() {
+			err::Err::new_from_at(v, loc, f())
+		} else {
+			v
+		}
+	}
+	
 	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
 		self.deref().as_any().downcast_ref::<T>()
 	}
@@ -211,7 +226,7 @@ impl Val {
 		self.value().unwrap().index_str(key)
 	}
 	
-	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Option<Val> {
+	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Val {
 		// eprintln!("Lookup {} {:?} in {:?}", depth, key, self);
 		self.deref().structural_lookup(depth, key)
 	}

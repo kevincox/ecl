@@ -529,7 +529,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	let mut stack = Vec::new();
 	loop {
 		let op = cursor.read_u8().unwrap();
-		eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
+		// eprintln!("Executing OP 0x{:02x} @ {}", op, pc + cursor.position() as usize - 1);
 		match op {
 			OP_RET => {
 				assert_eq!(stack.len(), 1);
@@ -540,8 +540,10 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				stack.push(::builtins::get_id(id));
 			}
 			OP_ADD => {
-				let right = stack.pop().expect("One item in stack for add");
-				let left = stack.pop().expect("No items in stack for add");
+				let right = stack.pop().expect("One item in stack for add")
+					.annotate("On right side of add");
+				let left = stack.pop().expect("No items in stack for add")
+					.annotate("On left side of add");
 				stack.push(left.add(right));
 			}
 			OP_CALL => {
@@ -652,16 +654,15 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 					id += module.unique_id();
 					::dict::Key::Local(id)
 				};
-				stack.push(pstruct.structural_lookup(depth, &key)
-					.unwrap_or_else(||
-						::err::Err::new(format!("Lookup of {:?} failed", strkey))));
+				let v = pstruct.structural_lookup(depth, &key)
+					.annotate_with(|| format!("Referenced by {:?}", strkey));
+				stack.push(v);
 			}
 			OP_REF_REL => {
 				let key = cursor.read_str();
 				let depth = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = ::dict::Key::Pub(key);
-				stack.push(pstruct.structural_lookup(depth, &key)
-					.expect("Ref lookup failed"));
+				stack.push(pstruct.structural_lookup(depth, &key));
 			}
 			OP_STR => {
 				let s = cursor.read_str();
@@ -864,7 +865,7 @@ impl Func {
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				for _ in 0..len {
 					let key = cursor.read_str();
-					let passed = sourcedict.structural_lookup(0, &::dict::Key::Pub(key.clone()))
+					let passed = sourcedict.index(&::dict::Key::Pub(key.clone()))
 						.map(|v| v.annotate("Looking up argument value"));
 					let val = match cursor.read_u8().unwrap() {
 						ARG_REQ => match passed {
