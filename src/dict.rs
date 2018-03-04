@@ -51,7 +51,13 @@ struct DictData {
 #[derive(Debug,Trace)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: ::Val,
+	pub val: ::thunk::Thunk,
+}
+
+impl DictPair {
+	fn val(&self) -> ::Val {
+		self.val.eval()
+	}
 }
 
 impl Dict {
@@ -111,7 +117,7 @@ impl Dict {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
-	pub fn _set_val(&self, key: Key, val: ::Val) {
+	pub fn _set_val(&self, key: Key, val: ::thunk::Thunk) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -122,7 +128,7 @@ impl Dict {
 	pub fn index(&self, key: &Key) -> Option<::Val> {
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
-			.map(|pair| pair.val.clone())
+			.map(|pair| pair.val())
 		// prv.data.binary_search_by(|pair| pair.key.cmp(key))
 		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
@@ -167,13 +173,13 @@ impl Dict {
 					grandparent: s.parent_structual.clone(),
 				});
 				
-				let val = ::thunk::Thunk::bytecode(pstruct, s.almost.clone());
+				let mut val = ::thunk::Thunk::bytecode(pstruct, s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
-					let inherited = override_(data.last().unwrap().val.clone(), val);
-					data.last_mut().unwrap().val = inherited;
-				} else {
-					data.push(DictPair{key: s.key.clone(), val});
+					let mut suppair = data.pop().unwrap();
+					let sup = std::mem::replace(&mut suppair.val, ::thunk::Thunk::stub());
+					val = override_(sup, val);
 				}
+				data.push(DictPair{key: s.key.clone(), val});
 				source.push(s);
 			}
 		}
@@ -182,16 +188,22 @@ impl Dict {
 	}
 }
 
-pub fn override_(sup: ::Val, sub: ::Val) -> ::Val {
-	let sub = sub.get();
-	if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
-		let sup = sup.get()
-			.annotate("overriding error value")?;
-		if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
-			return sup_dict.call(sub_dict)
-		}
-	}
-	return sub
+pub fn override_(sup: ::thunk::Thunk, sub: ::thunk::Thunk) -> ::thunk::Thunk {
+	::thunk::Thunk::new(
+		vec![::Val::new(sup), ::Val::new(sub)],
+		|refs| {
+			let sup = refs[0].downcast_ref::<::thunk::Thunk>().unwrap();
+			let sub = refs[1].downcast_ref::<::thunk::Thunk>().unwrap().eval();
+			
+			if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
+				let sup = sup.eval().annotate("overriding error value")?;
+				if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
+					return sup_dict.call(sub_dict)
+				}
+			}
+			
+			return sub
+		})
 }
 
 impl fmt::Debug for Dict {
@@ -222,7 +234,7 @@ impl ::Value for Dict {
 	
 	fn eval(&self) -> Result<(),::Val> {
 		for pair in &self.prv.borrow().data {
-			pair.val.eval()?;
+			pair.val().eval()?;
 		}
 		
 		Ok(())
@@ -252,7 +264,6 @@ impl ::Value for Dict {
 	}
 	
 	fn call(&self, arg: ::Val) -> ::Val {
-		let arg = arg.get();
 		match arg.downcast_ref::<Dict>() {
 			Some(dict) => self.call(dict),
 			None => ::err::Err::new(format!("Can't call dict with {:?}", arg)),
@@ -269,8 +280,11 @@ impl ::Value for Dict {
 				.filter(|pair| pair.key.is_public())
 				.filter_map(|pair| match pair.key {
 					Key::Pub(ref s) => {
-						let k = ::Val::new(s.clone());
-						let data = vec![k, pair.val.clone()];
+						let s = s.clone();
+						let data = vec![
+							::thunk::Thunk::new(vec![], move |_| ::Val::new(s)),
+							::thunk::Thunk::shim(pair.val()),
+						];
 						Some(::list::List::of_vals(data))
 					}
 					_ => None
@@ -285,7 +299,7 @@ impl ::Value for Dict {
 		for pair in &prv.data {
 			if let Key::Pub(ref k) = pair.key {
 				s.erased_serialize_map_key(&mut state, k)?;
-				s.erased_serialize_map_value(&mut state, &pair.val.rec_ser(visited))?;
+				s.erased_serialize_map_value(&mut state, &pair.val().rec_ser(visited))?;
 			}
 		}
 		s.erased_serialize_map_end(state)

@@ -48,7 +48,6 @@ pub trait Value:
 {
 	fn type_str(&self) -> &'static str;
 	
-	fn get(&self) -> Option<Val> { None }
 	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
@@ -62,7 +61,6 @@ pub trait Value:
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
-	fn to_slice(&self) -> &[Val] { panic!("Can't turn {:?} into a slice", self) }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
 	fn neg(&self) -> Val { err::Err::new(format!("Can't negate {:?}", self)) }
@@ -138,18 +136,8 @@ impl Val {
 		Val(gc::Gc::new(v))
 	}
 	
-	pub fn get(&self) -> Val {
-		let mut v = self.clone();
-		
-		while let Some(ref vn) = Value::get(v.deref()) {
-			v = vn.clone();
-		}
-		
-		v
-	}
-	
 	fn value(&self) -> Result<&Value,Val> {
-		Ok(i_promise_this_will_stay_alive(self.get()?.deref()))
+		Ok(i_promise_this_will_stay_alive(self.clone()?.deref()))
 	}
 	
 	fn deref(&self) -> &Value { &*self.0 }
@@ -159,11 +147,10 @@ impl Val {
 	}
 	
 	fn annotate_at(&self, loc: grammar::Loc, msg: &str) -> Val {
-		let v = self.get();
-		if v.is_err() {
-			err::Err::new_from_at(v, loc, msg.to_owned())
+		if self.is_err() {
+			err::Err::new_from_at(self.clone(), loc, msg.to_owned())
 		} else {
-			v
+			self.clone()
 		}
 	}
 	
@@ -172,11 +159,10 @@ impl Val {
 	}
 	
 	fn annotate_at_with<F: FnOnce() -> String>(&self, loc: grammar::Loc, f: F) -> Val {
-		let v = self.get();
-		if v.is_err() {
-			err::Err::new_from_at(v, loc, f())
+		if self.is_err() {
+			err::Err::new_from_at(self.clone(), loc, f())
 		} else {
-			v
+			self.clone()
 		}
 	}
 	
@@ -197,7 +183,7 @@ impl Val {
 	}
 	
 	pub fn is_err(&self) -> bool {
-		self.get().deref().is_err()
+		self.deref().is_err()
 	}
 	
 	pub fn len(&self) -> usize {
@@ -247,18 +233,13 @@ impl Val {
 	}
 	
 	pub fn call(&self, arg: Val) -> Val {
-		self.value().unwrap().call(arg)
+		self.value()?.call(arg)
 	}
 	
 	fn get_str(&self) -> Result<&str,Val> {
-		let v = self.get()?;
-		v.deref().get_str()
+		self.deref().get_str()
 			.map(|r| i_promise_this_will_stay_alive(r))
-			.ok_or_else(|| err::Err::new(format!("Attempt to treat {:?} as a string", v)))
-	}
-	
-	fn to_slice(&self) -> &[Val] {
-		i_promise_this_will_stay_alive(self.value().unwrap().to_slice())
+			.ok_or_else(|| err::Err::new(format!("Attempt to treat {:?} as a string", self)))
 	}
 	
 	fn to_string(&self) -> Val {
@@ -272,37 +253,31 @@ impl Val {
 	}
 	
 	pub fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
-		i_promise_this_will_stay_alive(self.get().deref()).iter()
+		i_promise_this_will_stay_alive(self.deref()).iter()
 	}
 	
 	fn foldl(&self, f: Val, accum: Val) -> Val {
-		let iterable = self.get();
-		let iterable = iterable.deref();
-		let iter = match iterable.iter() {
+		let iter = match self.deref().iter() {
 			Some(iter) => iter,
-			None => return err::Err::new(format!("Can't iterate over {:?}", iterable)),
+			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
 		
 		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
 	}
 	
 	fn foldr(&self, f: Val, accum: Val) -> Val {
-		let iterable = self.get();
-		let iterable = iterable.deref();
-		let iter = match iterable.reverse_iter() {
+		let iter = match self.deref().reverse_iter() {
 			Some(iter) => iter,
-			None => return err::Err::new(format!("Can't reverse iterate over {:?}", iterable)),
+			None => return err::Err::new(format!("Can't reverse iterate over {:?}", self)),
 		};
 		
 		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
 	}
 	
 	fn map(&self, f: Val) -> Val {
-		let iterable = self.get();
-		let iterable = iterable.deref();
-		let iter = match iterable.iter() {
+		let iter = match self.deref().iter() {
 			Some(iter) => iter,
-			None => return err::Err::new(format!("Can't reverse iterate over {:?}", iterable)),
+			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
 		let vals = iter
 			.map(move |v|
@@ -318,18 +293,16 @@ impl Val {
 	}
 	
 	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
-		let selfr = self.get();
-		let selfp = selfr.deref() as *const Value;
+		let selfp = self.deref() as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 		
-		SerializeVal { val: selfr, visited: RefCell::new(visited) }
+		SerializeVal { val: self.clone(), visited: RefCell::new(visited) }
 	}
 	
 	pub fn eval(&self) -> Result<Val,Val> {
-		let val = self.get()?;
-		val.deref().eval()?;
-		Ok(val)
+		self.deref().eval()?;
+		Ok(self.clone())
 	}
 }
 
@@ -352,8 +325,7 @@ impl std::ops::Try for Val {
 	fn from_ok(v: Self::Ok) -> Self { v }
 	fn from_error(v: Self::Error) -> Self { v }
 	fn into_result(self) -> Result<Self::Ok, Self::Error> {
-		let val = self.get();
-		if val.deref().is_err() { Err(val) } else { Ok(val) }
+		if self.is_err() { Err(self.clone()) } else { Ok(self.clone()) }
 	}
 }
 

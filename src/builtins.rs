@@ -17,9 +17,9 @@ struct Two(::Val, ::Val);
 
 static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("nil", &|| nil::get()),
-	("cond", &|| new("if", |v| cond(v.to_slice()))),
+	("cond", &|| new("if", |v| cond(v))),
 	("error", &|| new("error", |msg|
-		::err::Err::new(format!("Error: {:?}", msg.get())))),
+		::err::Err::new(format!("Error: {:?}", msg)))),
 	("index", &|| new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i)))),
 	("false", &|| ::bool::get_false()),
 	("foldl", &|| new("foldl",
@@ -43,7 +43,7 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("nil", &|| nil::get()),
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|
-		panic!("Script called panic: {:?}", msg.get()))),
+		panic!("Script called panic: {:?}", msg))),
 	("true", &|| ::bool::get_true()),
 	("type", &|| new("type", |v| ::Val::new(v.type_str().to_owned()))),
 	("_testing_assert_cache_eval", &|| {
@@ -106,17 +106,16 @@ impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> fmt::Debug for Builtin<D
 	}
 }
 
-fn cond(args: &[::Val]) -> ::Val {
-	match *args {
-		[] => nil::get(),
-		[ref val] => val.clone(),
-		[ref pred, ref val, ref rest..] => {
-			if pred.to_bool() {
-				val.clone()
-			} else {
-				cond(rest)
-			}
-		},
+fn cond(args: ::Val) -> ::Val {
+	let mut current = 0;
+	let len = args.len();
+	loop {
+		if current == len { return nil::get() }
+		if current + 1 == len { return args.index_int(current) }
+		if args.index_int(current).to_bool() {
+			return args.index_int(current + 1)
+		}
+		current += 2;
 	}
 }
 
@@ -139,7 +138,7 @@ mod tests {
 				msg = "Baby's first" + " error"
 				boom = panic:msg
 			}.boom
-		"###).get();
+		"###);
 		println!("Returned value: {:?}", v);
 	}
 	

@@ -2,7 +2,7 @@ extern crate serde_yaml;
 
 use std;
 
-#[derive(Trace)]
+#[derive(Clone,Trace)]
 pub struct Err {
 	msg: String,
 	#[unsafe_ignore_trace]
@@ -35,6 +35,10 @@ impl Err {
 impl ::Value for Err {
 	fn type_str(&self) -> &'static str { "err" }
 	fn is_err(&self) -> bool { true }
+	
+	fn eval(&self) -> Result<(),::Val> {
+		Err(::Val::new((*self).clone()))
+	}
 }
 
 impl ::SameOps for Err {

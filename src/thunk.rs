@@ -24,17 +24,24 @@ unsafe impl gc::Trace for State {
 }
 
 impl Thunk {
-	pub fn new<F: FnOnce(Vec<::Val>) -> ::Val + 'static>(refs: Vec<::Val>, code: F) -> ::Val {
-		::Val::new(Thunk(gc::GcCell::new(State::Code(refs, Box::new(code)))))
+	pub fn new<F: FnOnce(Vec<::Val>) -> ::Val + 'static>(refs: Vec<::Val>, code: F) -> Self {
+		Thunk(gc::GcCell::new(State::Code(refs, Box::new(code))))
 	}
 	
-	pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> ::Val {
-		// TODO: just evaluate cheap things on the spot.
+	pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> Self {
 		Self::new(vec![pstruct],
 			move |mut refs| code.eval(refs.pop().unwrap()))
 	}
 	
-	fn eval(&self) -> ::Val {
+	pub fn shim(v: ::Val) -> Self {
+		Thunk(gc::GcCell::new(State::Val(v)))
+	}
+	
+	pub fn stub() -> Self {
+		Thunk(gc::GcCell::new(State::Working))
+	}
+	
+	pub fn eval(&self) -> ::Val {
 		if let State::Val(ref v) = *self.0.borrow_mut() {
 			return v.clone()
 		}
@@ -46,17 +53,13 @@ impl Thunk {
 				return ::err::Err::new("Dependency cycle detected.".to_owned()),
 			State::Code(refs, code) => (refs, code),
 		};
-		let v = code(refs).get();
+		let v = code(refs);
 		mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
 		v
 	}
 }
 
 impl ::Value for Thunk {
-	fn get(&self) -> Option<::Val> {
-		Some(self.eval().clone())
-	}
-	
 	fn type_str(&self) -> &'static str { "thunk" }
 }
 

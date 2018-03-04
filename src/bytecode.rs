@@ -847,7 +847,7 @@ impl Func {
 			ArgType::One => {
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				id += self.module.unique_id();
-				dict._set_val(::dict::Key::Local(id), arg);
+				dict._set_val(::dict::Key::Local(id), ::thunk::Thunk::shim(arg));
 			}
 			ArgType::Dict => {
 				use Value;
@@ -869,7 +869,7 @@ impl Func {
 						ArgReq::Required => match passed {
 							Some(val) => {
 								unused_args -= 1;
-								val
+								::thunk::Thunk::shim(val)
 							}
 							None => return ::err::Err::new(format!(
 								"Required argument {:?} not set in {:?}",
@@ -880,7 +880,7 @@ impl Func {
 							match passed {
 								Some(v) => {
 									unused_args -= 1;
-									v
+									::thunk::Thunk::shim(v)
 								}
 								None => {
 									let value = self::Value::new(self.module.clone(), off);
@@ -921,16 +921,18 @@ impl Func {
 					let passed = list.get(i);
 					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
 						ArgReq::Required => match passed {
-							Some(val) => val,
+							Some(val) => ::thunk::Thunk::shim(val),
 							None => return ::err::Err::new(format!(
 								"Required argument {} not provided.", i)),
 						}
 						ArgReq::Optional => {
 							let off = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
-							passed.unwrap_or_else(|| {
-								let value = self::Value::new(self.module.clone(), off);
-								::thunk::Thunk::bytecode(parent.clone(), value)
-							})
+							passed
+								.map(::thunk::Thunk::shim)
+								.unwrap_or_else(|| {
+									let value = self::Value::new(self.module.clone(), off);
+									::thunk::Thunk::bytecode(parent.clone(), value)
+								})
 						}
 					};
 					dict._set_val(::dict::Key::Local(id), val)

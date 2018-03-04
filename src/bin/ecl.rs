@@ -64,7 +64,6 @@ fn main() {
 				val = select.call(val);
 			}
 			
-			let val = val.get();
 			if let Err(e) = val.eval() {
 				eprintln!("{:?}\nError occured.", e);
 				std::process::exit(1)
