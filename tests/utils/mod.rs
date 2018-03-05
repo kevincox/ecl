@@ -1,5 +1,6 @@
 extern crate difference;
 extern crate humanbool;
+extern crate procinfo;
 
 use std;
 use std::io::Read;
@@ -15,8 +16,29 @@ pub fn scan_dir(dir: &str, ext: &'static str)
 	Box::new(std::fs::read_dir(format!("tests/{}", dir)).unwrap()
 		.map(|f| f.unwrap().path())
 		.filter(|p| p.file_name().map_or(false, |n| !n.to_string_lossy().starts_with('_')))
-		.filter(move |p| p.extension().map_or(false, |e| e == ext))
-		.inspect(|p| println!("Testing {:?}", p)))
+		.filter(move |p| p.extension().map_or(false, |e| e == ext)))
+}
+
+pub fn test_dir<
+	F: std::panic::RefUnwindSafe + Fn(&std::path::Path) -> ()>
+	(dir: &str, ext: &'static str, f: F)
+{
+	let mut tests = 0;
+	let mut errors = 0;
+	
+	for path in scan_dir(dir, ext) {
+		tests += 1;
+		if let Err(_) = std::panic::catch_unwind(|| f(&path)) {
+			errors += 1;
+			println!("Error testing {:?}", path);
+		}
+	}
+	
+	if errors == 0 {
+		eprintln!("{} tests completed successfully.", tests);
+	} else {
+		panic!("{}/{} tests failed.", errors, tests);
+	}
 }
 
 fn regen(expected: &[u8], path: &std::path::Path) -> bool {
@@ -61,3 +83,5 @@ pub fn diff(expected: &[u8], path: &std::path::Path) {
 		panic!("ERROR: Difference found in {:?}", path);
 	}
 }
+
+// pub fn check_leaks

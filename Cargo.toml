@@ -19,5 +19,14 @@ version = "0.3"
 
 [dev-dependencies]
 difference = "1.0"
-serde_derive = "0.8"
 humanbool = "1.0"
+procinfo = "0.4.2"
+serde_derive = "0.8"
+
+[[test]]
+name = "compile"
+harness = false
+
+[[test]]
+name = "exec"
+harness = false

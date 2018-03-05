@@ -13,13 +13,12 @@ struct Config {
 	status: i32,
 }
 
-#[test]
-fn test_exec() {
+fn main() {
 	let ecl = std::path::PathBuf::from("target/debug/ecl")
 		.canonicalize().expect("Could not canonicalize binary.");
 	
-	for path in utils::scan_dir("exec", "exec") {
-		let f = std::fs::File::open(&path).unwrap();
+	utils::test_dir("exec", "exec", |path| {
+		let f = std::fs::File::open(path).unwrap();
 		let config: Config = serde_yaml::from_reader(f).unwrap();
 		
 		let cmd = format!("exec {:?} {}", ecl, config.cmd);
@@ -31,5 +30,5 @@ fn test_exec() {
 		utils::diff(&out.stderr, &path.with_extension("stderr"));
 		utils::diff(&out.stdout, &path.with_extension("stdout"));
 		assert_eq!(out.status.code(), Some(config.status), "Wrong exit status.");
-	}
+	});
 }
