@@ -30,3 +30,7 @@ harness = false
 [[test]]
 name = "exec"
 harness = false
+
+[[test]]
+name = "leak"
+harness = false

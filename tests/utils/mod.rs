@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 extern crate difference;
 extern crate humanbool;
 extern crate procinfo;

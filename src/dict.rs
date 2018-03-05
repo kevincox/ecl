@@ -233,7 +233,9 @@ impl ::Value for Dict {
 	
 	fn eval(&self) -> Result<(),::Val> {
 		for pair in &self.prv.borrow().data {
-			pair.val().eval()?;
+			if pair.key.is_public() {
+				pair.val().eval()?;
+			}
 		}
 		
 		Ok(())
