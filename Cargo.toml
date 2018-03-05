@@ -34,3 +34,7 @@ harness = false
 [[test]]
 name = "leak"
 harness = false
+
+[[test]]
+name = "lines"
+harness = false
