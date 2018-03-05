@@ -1,77 +1,71 @@
 extern crate gc;
 
-use std::boxed::FnBox;
+use std;
 use std::fmt;
 use std::mem;
 
-enum State {
-	Code(Vec<::Val>, Box<FnBox(Vec<::Val>) -> ::Val>),
+pub enum State<T: 'static + gc::Trace> {
+	Code(T, &'static Fn(T) -> ::Val),
 	Working,
 	Val(::Val),
 }
 
-#[derive(Trace)]
-pub struct Thunk(gc::GcCell<State>);
-
-unsafe impl gc::Trace for State {
+unsafe impl<T: 'static + gc::Trace> gc::Trace for State<T> {
 	custom_trace!(this, {
 		match *this {
-			State::Code(ref refs, _) => mark(refs),
+			State::Code(ref data, _) => mark(data),
 			State::Working => {},
 			State::Val(ref v) => mark(v),
 		}
 	});
 }
 
-impl Thunk {
-	pub fn new<F: FnOnce(Vec<::Val>) -> ::Val + 'static>(refs: Vec<::Val>, code: F) -> Self {
-		Thunk(gc::GcCell::new(State::Code(refs, Box::new(code))))
+#[derive(Trace)]
+pub struct Thunk<T: 'static + gc::Trace>(gc::GcCell<State<T>>);
+
+impl<T: 'static + gc::Trace> Thunk<T> {
+	pub fn new(data: T, code: &'static Fn(T) -> ::Val) -> gc::Gc<Thunky> {
+		gc::Gc::new(Thunk(gc::GcCell::new(State::Code(data, code))))
 	}
 	
-	pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> Self {
-		Self::new(vec![pstruct],
-			move |mut refs| code.eval(refs.pop().unwrap()))
+	pub fn shim(v: ::Val) -> gc::Gc<Thunk<T>> {
+		gc::Gc::new(Thunk(gc::GcCell::new(State::Val(v))))
 	}
-	
-	pub fn shim(v: ::Val) -> Self {
-		Thunk(gc::GcCell::new(State::Val(v)))
-	}
-	
-	pub fn stub() -> Self {
-		Thunk(gc::GcCell::new(State::Working))
-	}
-	
-	pub fn eval(&self) -> ::Val {
+}
+
+pub fn shim(v: ::Val) -> gc::Gc<Thunky> {
+	Thunk::<()>::shim(v)
+}
+
+pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> gc::Gc<Thunky> {
+	const F: &Fn((::Val, ::bytecode::Value)) -> ::Val = &|a| a.1.eval(a.0);
+	Thunk::new((pstruct, code), F)
+}
+
+pub trait Thunky: gc::Trace + std::fmt::Debug {
+	fn eval(&self) -> ::Val;
+}
+
+impl<T: 'static + gc::Trace> Thunky for Thunk<T> {
+	fn eval(&self) -> ::Val {
 		if let State::Val(ref v) = *self.0.borrow_mut() {
 			return v.clone()
 		}
 		
 		let state = mem::replace(&mut*self.0.borrow_mut(), State::Working);
-		let (refs, code) = match state {
+		let (data, code) = match state {
 			State::Val(_) => unreachable!(),
 			State::Working =>
 				return ::err::Err::new("Dependency cycle detected.".to_owned()),
-			State::Code(refs, code) => (refs, code),
+			State::Code(data, code) => (data, code),
 		};
-		let v = code(refs);
+		let v = code(data);
 		mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
 		v
 	}
 }
 
-impl ::Value for Thunk {
-	fn type_str(&self) -> &'static str { "thunk" }
-}
-
-impl ::SameOps for Thunk { }
-
-impl PartialEq for Thunk {
-	fn eq(&self, _that: &Self) -> bool {
-		false
-	}
-}
-
-impl fmt::Debug for Thunk {
+impl<T: 'static + gc::Trace> fmt::Debug for Thunk<T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self.0.borrow_mut() {
 			State::Code(_,_) => write!(f, "<code>"),

@@ -279,10 +279,9 @@ impl Val {
 			Some(iter) => iter,
 			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
+		const F: &Fn((Val,Val)) -> Val = &|(f, v)| f.call(v);
 		let vals = iter
-			.map(move |v|
-				 thunk::Thunk::new(vec![f.clone(), v.clone()], move |r|
-					r[0].clone().call(r[1].clone())))
+			.map(move |v| thunk::Thunk::new((f.clone(), v.clone()), F))
 			.collect();
 		list::List::of_vals(vals)
 	}

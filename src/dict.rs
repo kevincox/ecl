@@ -2,6 +2,7 @@ extern crate erased_serde;
 extern crate gc;
 extern crate serde;
 
+use gc::Gc;
 use std;
 use std::fmt;
 
@@ -51,7 +52,7 @@ struct DictData {
 #[derive(Debug,Trace)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: ::thunk::Thunk,
+	pub val: Gc<::thunk::Thunky>,
 }
 
 impl DictPair {
@@ -84,7 +85,7 @@ impl Dict {
 					key: key.clone(),
 					almost: item.clone()
 				});
-				let val = ::thunk::Thunk::bytecode(this_pstruct.clone(), item);
+				let val = ::thunk::bytecode(this_pstruct.clone(), item);
 				prv.data.push(DictPair{key, val});
 			}
 		}
@@ -95,7 +96,7 @@ impl Dict {
 	pub fn new_adict(pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
 		let key = Key::Pub(k.clone());
 		
-		let val = ::thunk::Thunk::bytecode(pstruct.clone(), item.clone());
+		let val = ::thunk::bytecode(pstruct.clone(), item.clone());
 		let data = vec![
 			DictPair{key, val: val}];
 		
@@ -117,7 +118,7 @@ impl Dict {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
-	pub fn _set_val(&self, key: Key, val: ::thunk::Thunk) {
+	pub fn _set_val(&self, key: Key, val: Gc<::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -173,11 +174,10 @@ impl Dict {
 					grandparent: s.parent_structual.clone(),
 				});
 				
-				let mut val = ::thunk::Thunk::bytecode(pstruct, s.almost.clone());
+				let mut val = ::thunk::bytecode(pstruct, s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
-					let mut suppair = data.pop().unwrap();
-					let sup = std::mem::replace(&mut suppair.val, ::thunk::Thunk::stub());
-					val = override_(sup, val);
+					let sup = data.pop().unwrap();
+					val = override_(sup.val.clone(), val);
 				}
 				data.push(DictPair{key: s.key.clone(), val});
 				source.push(s);
@@ -188,22 +188,21 @@ impl Dict {
 	}
 }
 
-pub fn override_(sup: ::thunk::Thunk, sub: ::thunk::Thunk) -> ::thunk::Thunk {
-	::thunk::Thunk::new(
-		vec![::Val::new(sup), ::Val::new(sub)],
-		|refs| {
-			let sup = refs[0].downcast_ref::<::thunk::Thunk>().unwrap();
-			let sub = refs[1].downcast_ref::<::thunk::Thunk>().unwrap().eval();
-			
-			if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
-				let sup = sup.eval().annotate("overriding error value")?;
-				if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
-					return sup_dict.call(sub_dict)
-				}
+pub fn override_(sup: Gc<::thunk::Thunky>, sub: Gc<::thunk::Thunky>) -> Gc<::thunk::Thunky> {
+	const F: &Fn((Gc<::thunk::Thunky>, Gc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
+		let sub = sub.eval();
+		
+		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
+			let sup = sup.eval().annotate("overriding error value")?;
+			if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
+				return sup_dict.call(sub_dict)
 			}
-			
-			return sub
-		})
+		}
+		
+		return sub
+	};
+	
+	::thunk::Thunk::new((sup, sub), F)
 }
 
 impl fmt::Debug for Dict {
@@ -280,10 +279,9 @@ impl ::Value for Dict {
 				.filter(|pair| pair.key.is_public())
 				.filter_map(|pair| match pair.key {
 					Key::Pub(ref s) => {
-						let s = s.clone();
 						let data = vec![
-							::thunk::Thunk::new(vec![], move |_| ::Val::new(s)),
-							::thunk::Thunk::shim(pair.val()),
+							::thunk::Thunk::new(s.clone(), &::Val::new),
+							::thunk::shim(pair.val()),
 						];
 						Some(::list::List::of_vals(data))
 					}

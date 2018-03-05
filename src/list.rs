@@ -3,23 +3,20 @@ extern crate erased_serde;
 use std;
 use gc::Gc;
 
-#[derive(Trace,PartialEq)]
+#[derive(Trace)]
 pub struct List {
-	data: Vec<Gc<::thunk::Thunk>>,
+	data: Vec<Gc<::thunk::Thunky>>,
 }
 
 impl List {
 	pub fn new(pstruct: ::Val, items: Vec<::bytecode::Value>) -> ::Val {
 		::Val::new(List {
 			data: items.iter().map(|item|
-				Gc::new(::thunk::Thunk::bytecode(pstruct.clone(), item.clone()))).collect(),
+				::thunk::bytecode(pstruct.clone(), item.clone())).collect(),
 		})
 	}
 	
-	pub fn of_vals(data: Vec<::thunk::Thunk>) -> ::Val {
-		let data = data.into_iter()
-			.map(Gc::new)
-			.collect();
+	pub fn of_vals(data: Vec<Gc<::thunk::Thunky>>) -> ::Val {
 		::Val::new(List{data})
 	}
 	
