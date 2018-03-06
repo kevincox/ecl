@@ -1,5 +1,3 @@
-extern crate serde_yaml;
-
 use std;
 
 #[derive(Clone,Trace)]
@@ -44,8 +42,8 @@ impl ::Value for Err {
 impl ::SameOps for Err {
 }
 
-impl ::fmt::Debug for Err {
-	fn fmt(&self, f: &mut ::fmt::Formatter) -> ::fmt::Result {
+impl std::fmt::Debug for Err {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		if self.loc.col != 0 {
 			write!(f, "At line {}.{} ", self.loc.line, self.loc.col)?;
 		}

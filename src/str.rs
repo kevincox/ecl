@@ -1,4 +1,4 @@
-extern crate erased_serde;
+use erased_serde;
 
 impl ::Value for String {
 	fn type_str(&self) -> &'static str { "string" }

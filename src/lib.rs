@@ -1,9 +1,7 @@
-#![feature(fnbox)]
 #![feature(io)]
 #![feature(plugin)]
 #![feature(proc_macro)]
 #![feature(slice_patterns)]
-#![feature(stmt_expr_attributes)]
 #![feature(try_trait)]
 
 extern crate byteorder;
@@ -14,12 +12,8 @@ extern crate erased_serde;
 extern crate regex;
 extern crate serde;
 
-use std::any;
-use std::cell::{RefCell};
-use std::fmt;
 use std::io::Read;
-use std::mem;
-use std::rc;
+use std::rc::Rc;
 
 mod builtins;
 mod bool;
@@ -36,12 +30,12 @@ mod str;
 mod thunk;
 
 fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
-	unsafe { mem::transmute(v) }
+	unsafe { std::mem::transmute(v) }
 }
 
 pub trait Value:
-	any::Any +
-	fmt::Debug +
+	std::any::Any +
+	std::fmt::Debug +
 	gc::Trace +
 	SameOpsTrait +
 	'static
@@ -71,7 +65,7 @@ pub trait Value:
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
-pub trait SameOps: fmt::Debug {
+pub trait SameOps: std::fmt::Debug {
 	fn add(&self, that: &Self) -> Val { err::Err::new(format!("Can't add {:?} and {:?}", self, that)) }
 	fn subtract(&self, that: &Self) -> Val { err::Err::new(format!("Can't subtract {:?} and {:?}", self, that)) }
 	fn eq(&self, that: &Self) -> Val { err::Err::new(format!("Can't compare {:?} and {:?}", self, that)) }
@@ -82,7 +76,7 @@ pub trait SameOps: fmt::Debug {
 }
 
 pub trait SameOpsTrait {
-	fn as_any(&self) -> &any::Any;
+	fn as_any(&self) -> &std::any::Any;
 	
 	fn add(&self, that: &Value) -> Val;
 	fn subtract(&self, that: &Value) -> Val;
@@ -91,7 +85,7 @@ pub trait SameOpsTrait {
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
-	fn as_any(&self) -> &any::Any { self }
+	fn as_any(&self) -> &std::any::Any { self }
 	
 	fn add(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
@@ -296,7 +290,10 @@ impl Val {
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 		
-		SerializeVal { val: self.clone(), visited: RefCell::new(visited) }
+		SerializeVal {
+			val: self.clone(),
+			visited: std::cell::RefCell::new(visited),
+		}
 	}
 	
 	pub fn eval(&self) -> Result<Val,Val> {
@@ -311,8 +308,8 @@ impl PartialEq for Val {
 	}
 }
 
-impl fmt::Debug for Val {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for Val {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		self.deref().fmt(f)
 	}
 }
@@ -330,7 +327,7 @@ impl std::ops::Try for Val {
 
 pub struct SerializeVal<'a> {
 	val: Val,
-	visited: RefCell<&'a mut Vec<*const Value>>,
+	visited: std::cell::RefCell<&'a mut Vec<*const Value>>,
 }
 
 impl<'a> Drop for SerializeVal<'a> {
@@ -353,15 +350,15 @@ fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
 		let mut v: Vec<*const Value> = vec![];
-		self.rec_ser(unsafe{ mem::transmute(&mut v) }).serialize(s)
+		self.rec_ser(unsafe{ std::mem::transmute(&mut v) }).serialize(s)
 	}
 }
 
 #[derive(PartialEq)]
 pub enum Almost {
-	ADict(String,std::rc::Rc<Almost>),
+	ADict(String, Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
-	Inherit(std::rc::Rc<Almost>, std::rc::Rc<Almost>),
+	Inherit(Rc<Almost>, Rc<Almost>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
 	Call(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -370,9 +367,9 @@ pub enum Almost {
 	GreatEq(Box<Almost>, Box<Almost>),
 	Less(Box<Almost>, Box<Almost>),
 	LessEq(Box<Almost>, Box<Almost>),
-	Func(rc::Rc<func::FuncData>),
+	Func(Rc<func::FuncData>),
 	Index(grammar::Loc, Box<Almost>, Box<Almost>),
-	List(Vec<rc::Rc<Almost>>),
+	List(Vec<Rc<Almost>>),
 	Neg(grammar::Loc, Box<Almost>),
 	Nil,
 	Num(f64),
@@ -382,8 +379,8 @@ pub enum Almost {
 	StrStatic(String),
 }
 
-impl fmt::Debug for Almost {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for Almost {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		match *self {
 			Almost::Add(_, ref lhs, ref rhs) => write!(f, "({:?} + {:?})", lhs, rhs),
 			Almost::Sub(_, ref lhs, ref rhs) => write!(f, "({:?} - {:?})", lhs, rhs),
@@ -473,7 +470,7 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 	grammar::parse(source, doc.chars())
 		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 		.map(|ast| {
-			::Almost::Func(std::rc::Rc::new(func::FuncData{
+			::Almost::Func(Rc::new(func::FuncData{
 				arg: func::Arg::One(name),
 				body: ast,
 			}))

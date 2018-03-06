@@ -1,5 +1,4 @@
-extern crate erased_serde;
-
+use erased_serde;
 use std;
 use gc::Gc;
 

@@ -1,7 +1,5 @@
-extern crate erased_serde;
-extern crate gc;
-extern crate serde;
-
+use erased_serde;
+use gc;
 use gc::Gc;
 use std;
 use std::fmt;

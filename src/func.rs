@@ -1,4 +1,4 @@
-use std::fmt;
+use std;
 
 #[derive(PartialEq)]
 pub enum Arg {
@@ -7,8 +7,8 @@ pub enum Arg {
 	List(Vec<(String,bool,::Almost)>),
 }
 
-impl fmt::Debug for Arg {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for Arg {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		match *self {
 			Arg::One(ref s) => write!(f, "{}", s),
 			Arg::Dict(ref args) => {
@@ -63,8 +63,8 @@ impl ::Value for Func {
 
 impl ::SameOps for Func { }
 
-impl fmt::Debug for Func {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for Func {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "Func({:?})", self.body)
 	}
 }

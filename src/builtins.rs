@@ -1,13 +1,5 @@
-extern crate erased_serde;
-extern crate gc;
-extern crate lazy_static;
-extern crate regex;
-extern crate serde;
-
-use std::fmt;
-use std::cell::Cell;
-
-use nil;
+use gc;
+use std;
 
 #[derive(PartialEq,Trace)]
 struct Empty;
@@ -16,7 +8,7 @@ struct Empty;
 struct Two(::Val, ::Val);
 
 static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
-	("nil", &|| nil::get()),
+	("nil", &|| ::nil::get()),
 	("cond", &|| new("if", |v| cond(v))),
 	("error", &|| new("error", |msg|
 		::err::Err::new(format!("Error: {:?}", msg)))),
@@ -40,14 +32,13 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 		}
 	})),
 	("map", &|| new("map", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone())))),
-	("nil", &|| nil::get()),
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|
 		panic!("Script called panic: {:?}", msg))),
 	("true", &|| ::bool::get_true()),
 	("type", &|| new("type", |v| ::Val::new(v.type_str().to_owned()))),
 	("_testing_assert_cache_eval", &|| {
-		let unevaluated = Cell::new(true);
+		let unevaluated = std::cell::Cell::new(true);
 		let func = move |r| {
 			assert!(unevaluated.get(), "Called twice");
 			unevaluated.set(false);
@@ -100,8 +91,8 @@ impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> ::
 	fn type_str(&self) -> &'static str { "builtin" }
 }
 
-impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> fmt::Debug for Builtin<D, F> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> std::fmt::Debug for Builtin<D, F> {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "<builtin {:?}>", self.name)
 	}
 }
@@ -110,7 +101,7 @@ fn cond(args: ::Val) -> ::Val {
 	let mut current = 0;
 	let len = args.len();
 	loop {
-		if current == len { return nil::get() }
+		if current == len { return ::nil::get() }
 		if current + 1 == len { return args.index_int(current) }
 		if args.index_int(current).to_bool() {
 			return args.index_int(current + 1)

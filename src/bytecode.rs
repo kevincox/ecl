@@ -132,7 +132,7 @@ impl CompileContext {
 	
 	fn write_u64(&mut self, n: u64) -> usize {
 		let mut buf = [0; 8];
-		byteorder::LittleEndian::write_u64(&mut buf, n);
+		EclByteOrder::write_u64(&mut buf, n);
 		self.write(buf.into_iter().cloned())
 	}
 	
@@ -142,7 +142,7 @@ impl CompileContext {
 	
 	fn write_f64(&mut self, f: f64) -> usize {
 		let mut buf = [0; 8];
-		byteorder::LittleEndian::write_f64(&mut buf, f);
+		EclByteOrder::write_f64(&mut buf, f);
 		self.write(buf.into_iter().cloned())
 	}
 	
@@ -163,7 +163,7 @@ impl CompileContext {
 	
 	fn set_jump(&mut self, jump: usize) {
 		let target = self.bytes.len() as u64;
-		byteorder::LittleEndian::write_u64(&mut self.bytes[jump..(jump+8)], target);
+		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
 	}
 }
 

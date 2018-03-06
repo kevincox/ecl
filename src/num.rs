@@ -1,6 +1,5 @@
-extern crate erased_serde;
-
 use std;
+use erased_serde;
 
 impl ::Value for f64 {
 	fn type_str(&self) -> &'static str { "num" }

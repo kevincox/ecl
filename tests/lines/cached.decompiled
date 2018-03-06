@@ -1,9 +1,9 @@
 00000025 JUMP_LAZY @00001027
 00000034 JUMP_LAZY @00000149
-00000043 GLOBAL 14 <builtin "_testing_assert_eval_once">
+00000043 GLOBAL 13 <builtin "_testing_assert_eval_once">
 00000052 NUM 6
 00000053 CALL
-00000062 GLOBAL 14 <builtin "_testing_assert_eval_once">
+00000062 GLOBAL 13 <builtin "_testing_assert_eval_once">
 00000071 NUM 7
 00000072 CALL
 00000073 ADD
@@ -13,7 +13,7 @@
 00000127 DICT 0 items
 00000128 CALL
 00000129 RET
-00000138 GLOBAL 14 <builtin "_testing_assert_eval_once">
+00000138 GLOBAL 13 <builtin "_testing_assert_eval_once">
 00000147 NUM 5
 00000148 CALL
 00000149 RET

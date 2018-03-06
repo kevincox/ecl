@@ -1,4 +1,4 @@
-extern crate erased_serde;
+use erased_serde;
 
 #[derive(Debug,Trace)]
 pub struct Nil;

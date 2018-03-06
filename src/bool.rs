@@ -1,4 +1,4 @@
-extern crate erased_serde;
+use erased_serde;
 
 thread_local! {
 	static TRUE: ::Val = ::Val::new(true);

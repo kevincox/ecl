@@ -1,11 +1,10 @@
-type ParseResult = Result<::Almost,ParseError>;
-
-extern crate std;
-
-use rc::Rc;
+use std;
+use std::rc::Rc;
 
 use dict;
 use func;
+
+type ParseResult = Result<::Almost,ParseError>;
 
 #[derive(Clone,Copy,PartialEq)]
 pub struct Loc {

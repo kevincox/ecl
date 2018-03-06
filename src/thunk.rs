@@ -1,8 +1,5 @@
-extern crate gc;
-
+use gc;
 use std;
-use std::fmt;
-use std::mem;
 
 pub enum State<T: 'static + gc::Trace> {
 	Code(T, &'static Fn(T) -> ::Val),
@@ -52,7 +49,7 @@ impl<T: 'static + gc::Trace> Thunky for Thunk<T> {
 			return v.clone()
 		}
 		
-		let state = mem::replace(&mut*self.0.borrow_mut(), State::Working);
+		let state = std::mem::replace(&mut*self.0.borrow_mut(), State::Working);
 		let (data, code) = match state {
 			State::Val(_) => unreachable!(),
 			State::Working =>
@@ -60,13 +57,13 @@ impl<T: 'static + gc::Trace> Thunky for Thunk<T> {
 			State::Code(data, code) => (data, code),
 		};
 		let v = code(data);
-		mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
+		std::mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
 		v
 	}
 }
 
-impl<T: 'static + gc::Trace> fmt::Debug for Thunk<T> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<T: 'static + gc::Trace> std::fmt::Debug for Thunk<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		match *self.0.borrow_mut() {
 			State::Code(_,_) => write!(f, "<code>"),
 			State::Working => write!(f, "<evaling>"),
