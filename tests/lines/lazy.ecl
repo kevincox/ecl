@@ -12,7 +12,7 @@ local func-raw = ->unused 5
 local func-dict = ->{a=5 b=panic:"Default argument evaluated"} a + 8
 func-eval = {
 	dict-passed = func-dict:{ b=6 }
-	
+
 	# Right now we evaluate unused arguments. This is unlikely to be an issue.
 	# dict-passed-unused = func-dict:{ b=panic:"Unused arg evaluated." }
 	# dict-default = func-dict:{}
@@ -24,7 +24,7 @@ list-eval = index:list:1
 
 local template = {
 	not-merged = panic: "Overridden value."
-	
+
 	# This indirection is required because we need to check if a value is a
 	# dict to merge the parent and child values.
 	merged = [ panic: "Overridden value." ]

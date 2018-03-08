@@ -12,9 +12,9 @@ fn fib_func_rec(b: &mut test::Bencher) {
 	"###);
 	let num = ecl::eval("<num-str>", "(20)");
 	let fib_num = || fib.call(num.clone()).get_num();
-	
+
 	assert_eq!(fib_num(), Some(6765.0));
-	
+
 	b.iter(fib_num)
 }
 
@@ -35,8 +35,8 @@ fn fib_func_iter(b: &mut test::Bencher) {
 	"###);
 	let num = ecl::eval("<num-str>", "(80)");
 	let fib_num = || fib.call(num.clone()).get_num();
-	
+
 	assert_eq!(fib_num(), Some(23416728348467685.0));
-	
+
 	b.iter(fib_num)
 }

@@ -55,7 +55,7 @@ impl Func {
 
 impl ::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
-	
+
 	fn call(&self, arg: ::Val) -> ::Val {
 		self.body.call(self.pstruct.clone(), arg)
 	}

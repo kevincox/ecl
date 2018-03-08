@@ -108,7 +108,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 	fn new(input: Input) -> Self {
 		let mut statestack = Vec::with_capacity(2);
 		statestack.push(LexerMode::Code(2));
-		
+
 		Lexer {
 			input: input,
 			current: None,
@@ -117,21 +117,21 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			loc: Loc{line: 1, col: 0},
 		}
 	}
-	
+
 	fn ident_start_char(c: char) -> bool{
 		c.is_alphabetic() || c == '_'
 	}
-	
+
 	fn ident_char(c: char) -> bool{
 		c.is_alphanumeric() || c == '-' || c == '_'
 	}
-	
+
 	fn ident_str(&mut self, first: char) -> Result<String,Token> {
 		if !Self::ident_start_char(first) { return Err(self.unexpected(first)) }
-		
+
 		let mut s = String::new();
 		s.push(first);
-		
+
 		while let Some(c) = self.next() {
 			if !Self::ident_char(c) {
 				self.unget(c);
@@ -139,31 +139,31 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			}
 			s.push(c);
 		}
-		
+
 		Ok(s)
 	}
-	
+
 	fn ident(&mut self, first: char) -> Token {
 		self.ident_str(first).map(Token::Ident).unwrap_or_else(|t| t)
 	}
-	
+
 	fn next_is_ident(&mut self) -> bool {
 		if let Some(c) = self.peek() {
 			return Self::ident_char(c)
 		}
 		false
 	}
-	
+
 	fn raw_next(&mut self) -> Option<char> {
 		let next = self.input.next();
 		next
 	}
-	
+
 	fn unexpected(&mut self, c: char) -> Token {
 		self.start_loc = self.loc; // Report the bad char, not the start of the token.
 		Token::Unexpected(c)
 	}
-	
+
 	fn next(&mut self) -> Option<char> {
 		let next = std::mem::replace(&mut self.current, None).or_else(|| self.raw_next());
 		if next == Some('\n') {
@@ -175,24 +175,24 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		// println!("At {:?} got {:?}", self.loc, next);
 		next
 	}
-	
+
 	fn peek(&mut self) -> Option<char> {
 		if self.current.is_none() {
 			self.current = self.raw_next();
 		}
 		self.current
 	}
-	
+
 	fn consume(&mut self, c: char) -> bool {
 		if self.peek() == Some(c) { self.next(); true } else { false }
 	}
-	
+
 	fn unget(&mut self, c: char) {
 		debug_assert!(self.current.is_none());
 		if c == '\n' { self.loc.line -= 1 } else { self.loc.col -= 1 }
 		self.current = Some(c);
 	}
-	
+
 	fn next_token(&mut self) -> Option<Token> {
 		self.next().and_then(|c| {
 			self.start_loc = self.loc; // Capture at start.
@@ -203,7 +203,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			}
 		})
 	}
-	
+
 	// Parses the bit of a number after the 0.
 	fn num(&mut self) -> Token {
 		if_next!(self,
@@ -215,10 +215,10 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'.' => self.num_base(10, '0'),
 		).unwrap_or(Token::Num(0.0))
 	}
-	
+
 	fn num_int(&mut self, base: u32, first: char) -> u64 {
 		let mut n = first.to_digit(base).unwrap() as u64;
-		
+
 		while_next! { self,
 			'_' => {},
 			c@'0'...'9' |
@@ -233,13 +233,13 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				}
 			},
 		}
-		
+
 		n
 	}
-	
+
 	fn num_base(&mut self, base: u32, first: char) -> Token {
 		let mut n = self.num_int(base, first) as f64;
-		
+
 		let mut numerator = 0 as u64;
 		let mut denominator = 1 as u64;
 		if self.consume('.') {
@@ -260,11 +260,11 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			}
 		}
 		n += numerator as f64 / denominator as f64;
-		
+
 		let bindec = |this: &mut Self, bin, dec| {
 			if this.consume('i') { bin } else { dec }
 		};
-		
+
 		n *= if_next!{self,
 			'E' => bindec(self, 1152921504606846976.0, 1e18),
 			'P' => bindec(self, 1125899906842624.0, 1e15),
@@ -284,7 +284,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				if base != 10 {
 					return self.unexpected('e')
 				}
-				
+
 				let sign = match self.next() {
 					Some('+') => 1,
 					Some('-') => -1,
@@ -295,15 +295,15 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				(base as f64).powi(sign * exp)
 			},
 		}.unwrap_or(1.0);
-		
+
 		if self.next_is_ident() {
 			let c = self.next().unwrap();
 			return self.unexpected(c)
 		}
-		
+
 		Token::Num(n)
 	}
-	
+
 	fn relative_reference(&mut self) -> Token {
 		let mut up = 1;
 		loop {
@@ -317,7 +317,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			}
 		}
 	}
-	
+
 	fn lex_code(&mut self, c: char) -> Option<Token> {
 		Some(match c {
 			'+' => Token::Add,
@@ -403,7 +403,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			c => self.ident(c),
 		})
 	}
-	
+
 	fn lex_interpolation(&mut self) -> Token {
 		match self.next() {
 			Some('{') => {
@@ -417,7 +417,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			None => return Token::Unfinished,
 		}
 	}
-	
+
 	fn lex_str(&mut self, c: char) -> Token {
 		match c {
 			'"' => {
@@ -428,9 +428,9 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'$' => return self.lex_interpolation(),
 			c => self.unget(c),
 		}
-		
+
 		let mut s = String::new();
-		
+
 		loop {
 			match self.next() {
 				Some('"') => { self.unget('"'); break },
@@ -450,18 +450,18 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				None => return Token::Unfinished,
 			}
 		}
-		
+
 		Token::StrChunk(s)
 	}
-	
+
 	fn lex_path(&mut self, c: char) -> Token {
 		match c {
 			'$' => return self.lex_interpolation(),
 			c => self.unget(c),
 		}
-		
+
 		let mut s = String::new();
-		
+
 		loop {
 			match self.next() {
 				Some('$') => { self.unget('$'); break },
@@ -474,7 +474,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 				},
 			}
 		}
-		
+
 		if s.is_empty() {
 			let old = self.state.pop();
 			debug_assert_eq!(old, Some(LexerMode::Path));
@@ -482,13 +482,13 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		} else {
 			Token::StrChunk(s)
 		}
-		
+
 	}
 }
 
 impl<Input: Iterator<Item=char>> Iterator for Lexer<Input> {
 	type Item = (Token,Loc);
-	
+
 	fn next(&mut self) -> Option<Self::Item> {
 		self.next_token().map(|t| (t, self.start_loc))
 	}
@@ -524,7 +524,7 @@ struct Parser<'a, Input: Iterator<Item=(Token,Loc)>> {
 impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	fn new(path: &'a str, input: Input) -> Self {
 		let last_slash = path.rfind('/').map(|i| i + 1).unwrap_or(0);
-		
+
 		Parser{
 			// file: path,
 			directory: &path[0..last_slash],
@@ -532,24 +532,24 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			current: None,
 		}
 	}
-	
+
 	fn next(&mut self) -> Option<(Token,Loc)> {
 		std::mem::replace(&mut self.current, None).or_else(|| self.input.next())
 	}
-	
+
 	fn peek(&mut self) -> Option<&(Token,Loc)> {
 		if self.current.is_none() {
 			self.current = self.input.next();
 		}
 		self.current.as_ref()
 	}
-	
+
 	fn unget(&mut self, t: (Token,Loc)) {
 		debug_assert!(self.current.is_none());
 		self.current = Some(t);
 	}
-	
-	
+
+
 	fn consume(&mut self, tok: Token) -> Option<Loc> {
 		if let Some(t) = self.next() {
 			if t.0 == tok {
@@ -557,10 +557,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			}
 			self.unget(t)
 		}
-		
+
 		None
 	}
-	
+
 	fn document(&mut self) -> ParseResult {
 		let is_expr = match self.peek() {
 			Some(&(Token::DictOpen, _)) |
@@ -569,9 +569,9 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			Some(&(Token::ParenOpen, _)) => true,
 			_ => false,
 		};
-		
+
 		let e = if is_expr { self.expr()? } else { self.document_items()? };
-		
+
 		match self.next() {
 			Some((t,l)) => Err(ParseError{
 				typ: ErrorType::Unused(l, t),
@@ -580,7 +580,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			None => Ok(e),
 		}
 	}
-	
+
 	fn document_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
 		while self.peek().is_some() {
@@ -589,17 +589,17 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		items.sort_unstable_by(::dict::AlmostDictElement::sort_cmp);
 		Ok(::Almost::Dict(items))
 	}
-	
+
 	fn dict_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
 		while !self.consume(Token::DictClose).is_some() {
 			items.push(self.dict_item()?);
 		}
 		items.sort_unstable_by(::dict::AlmostDictElement::sort_cmp);
-		
+
 		Ok(::Almost::Dict(items))
 	}
-	
+
 	fn dict_item(&mut self) -> Result<dict::AlmostDictElement,ParseError> {
 		let ade = expect_next!{self: "parsing dict element",
 			(Token::Ident(s), _) => {
@@ -614,7 +614,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					},
 					_ => {},
 				}
-				
+
 				let val = self.dict_val()?;
 				dict::AlmostDictElement::public(s, val)
 			},
@@ -626,15 +626,15 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					},
 					(Token::StrClose, _) => "".to_owned(),
 				};
-				
+
 				let val = self.dict_val()?;
 				dict::AlmostDictElement::public(s, val)
 			},
 		};
-		
+
 		Ok(ade)
 	}
-	
+
 	fn dict_val(&mut self) -> ParseResult {
 		expect_next!{self: "parsing dict key",
 			(Token::Dot, _) => {
@@ -652,7 +652,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			(Token::Assign, _) => self.expr(),
 		}
 	}
-	
+
 	fn list_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
 		while !self.consume(Token::ListClose).is_some() {
@@ -660,59 +660,59 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		}
 		Ok(::Almost::List(items))
 	}
-	
+
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
 		Ok(::Almost::Func(Rc::new(func::FuncData{arg: args, body: self.expr()?})))
 	}
-	
+
 	fn args(&mut self) -> Result<func::Arg,ParseError> {
 		expect_next!{self: "parsing function argument",
 			(Token::Ident(name), _) => Ok(func::Arg::One(name)),
 			(Token::DictOpen, _) => {
 				let mut args = Vec::new();
-				
+
 				while !self.consume(Token::DictClose).is_some() {
 					let k = expect_next!{self: "destructure dict key",
 						(Token::Ident(k), _) => k,
 					};
-					
+
 					if let Some(_) = self.consume(Token::Assign) {
 						args.push((k.clone(), false, self.expr()?));
 					} else {
 						args.push((k.clone(), true, ::Almost::Nil));
 					}
 				}
-				
+
 				Ok(func::Arg::Dict(args))
 			},
 			(Token::ListOpen, _) => {
 				let mut args = Vec::new();
-				
+
 				while !self.consume(Token::ListClose).is_some() {
 					let k = expect_next!{self: "destructure list key",
 						(Token::Ident(k), _) => k,
 					};
-					
+
 					if let Some(_) = self.consume(Token::Assign) {
 						args.push((k.clone(), false, self.expr()?));
 					} else {
 						args.push((k.clone(), true, ::Almost::Nil));
 					}
 				}
-				
+
 				Ok(func::Arg::List(args))
 			},
 		}
 	}
-	
+
 	fn expr(&mut self) -> ParseResult {
 		self.expr_eq()
 	}
-	
+
 	fn expr_eq(&mut self) -> ParseResult {
 		let mut r = self.expr_ops()?;
-		
+
 		loop {
 			match self.next() {
 				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
@@ -724,13 +724,13 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				None => break,
 			}
 		}
-		
+
 		Ok(r)
 	}
-	
+
 	fn expr_ops(&mut self) -> ParseResult {
 		let mut r = self.expr_unary()?;
-		
+
 		loop {
 			match self.next() {
 				Some((Token::Add, l)) => {
@@ -743,31 +743,31 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				None => break,
 			}
 		}
-		
+
 		Ok(r)
 	}
-	
+
 	fn expr_unary(&mut self) -> ParseResult {
 		match self.consume(Token::Neg) {
 			Some(loc) => Ok(::Almost::Neg(loc, Box::new(self.expr_call()?))),
 			None => self.expr_call(),
 		}
 	}
-	
+
 	fn expr_call(&mut self) -> ParseResult {
 		let mut r = self.expr_index()?;
-		
+
 		while let Some(loc) = self.consume(Token::Call) {
 			r = ::Almost::Call(loc, Box::new(r), Box::new(self.expr_index()?));
 		}
-		
+
 		Ok(r)
 	}
-	
-	
+
+
 	fn expr_index(&mut self) -> ParseResult {
 		let mut r = self.atom()?;
-		
+
 		while let Some(loc) = self.consume(Token::Dot) {
 			expect_next!{self: "parsing index",
 				(Token::Ident(s), _) =>
@@ -776,10 +776,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					r = ::Almost::Index(loc, Box::new(r), Box::new(self.string(t)?)),
 			}
 		}
-		
+
 		Ok(r)
 	}
-	
+
 	fn atom(&mut self) -> ParseResult {
 		expect_next!{self: "parsing atom",
 			(Token::DictOpen, _) => self.dict_items(),
@@ -796,10 +796,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			(Token::StrOpen(t), _) => self.string(t),
 		}
 	}
-	
+
 	fn string(&mut self, typ: StrType) -> ParseResult {
 		let mut pieces = vec![];
-		
+
 		match typ {
 			StrType::Relative => {
 				pieces.push(::StringPart::Lit(self.directory.to_owned()));
@@ -809,9 +809,9 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			}
 			StrType::String => {},
 		}
-		
+
 		// println!("Pieces: {:?}", pieces);
-		
+
 		loop {
 			match self.next() {
 				Some((Token::StrChunk(s), _)) => pieces.push(::StringPart::Lit(s)),
@@ -828,7 +828,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				},
 			}
 		}
-		
+
 		if let &[::StringPart::Lit(_)] = pieces.as_slice() {
 			if let ::StringPart::Lit(s) = pieces.pop().unwrap() {
 				Ok(::Almost::StrStatic(s))
@@ -856,7 +856,7 @@ pub fn parse_expr<Input: Iterator<Item=char>>(file: &str, input: Input) -> Parse
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
+
 	#[test]
 	fn num_decimal() {
 		assert_eq!(::eval("<str>", "(10)"), ::Val::new(10.0));
@@ -871,7 +871,7 @@ mod tests {
 		assert_eq!(::eval("<str>", "(4u)"), ::Val::new(0.000_004));
 		assert_eq!(::eval("<str>", "(2 - 1)"), ::Val::new(1.0));
 	}
-	
+
 	#[test]
 	fn num_binary() {
 		assert_eq!(::eval("<str>", "(0b10)"), ::Val::new(2.0));
@@ -884,7 +884,7 @@ mod tests {
 		assert_eq!(::eval("<str>", "(0b1M)"), ::Val::new(1_000_000.0));
 		assert_eq!(::eval("<str>", "(0b1u)"), ::Val::new(0.000_001));
 	}
-	
+
 	#[test]
 	fn num_hex() {
 		assert_eq!(::eval("<str>", "(0x10)"), ::Val::new(16.0));

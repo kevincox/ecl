@@ -14,11 +14,11 @@ impl List {
 				::thunk::bytecode(pstruct.clone(), item.clone())).collect(),
 		})
 	}
-	
+
 	pub fn of_vals(data: Vec<Gc<::thunk::Thunky>>) -> ::Val {
 		::Val::new(List{data})
 	}
-	
+
 	pub fn get(&self, i: usize) -> Option<::Val> {
 		self.data.get(i).map(|i| i.eval())
 	}
@@ -28,11 +28,11 @@ impl ::Value for List {
 	fn type_str(&self) -> &'static str { "list" }
 	fn is_empty(&self) -> bool { self.data.is_empty() }
 	fn len(&self) -> usize { self.data.len() }
-	
+
 	fn index_int(&self, k: usize) -> ::Val {
 		self.data[k].eval()
 	}
-	
+
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let len = self.data.len();
@@ -42,15 +42,15 @@ impl ::Value for List {
 		}
 		s.erased_serialize_seq_end(state)
 	}
-	
+
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
 		Some(Box::new(self.data.iter().map(|v| v.eval())))
 	}
-	
+
 	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
 		Some(Box::new(self.data.iter().rev().map(|v| v.eval())))
 	}
-	
+
 	fn reverse(&self) -> ::Val {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();

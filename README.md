@@ -43,20 +43,20 @@ require-signed-cookies = true
 ```
 local webapp = {
 	time-zone = err:"Time zone must be set"
-	
+
 	option database-host = "localhost"
 	option database-port = 1234
 	assert "Database port in range" = 0 < database-port < 2**16
 	database-addr = "${databse-host}:${database-port}"
 	database-name = "webapp"
-	
+
 	default base-dir = "data"
 	log-dir = "$base-dir/logs"
 	image-dir = "$base-dir/images"
-	
+
 	log-level = "warn"
 	500-debug-info = false # If 500 responses should show debugging information.
-	
+
 	sign-cookies = true
 	require-signed-cookies = true
 }
@@ -65,7 +65,7 @@ prod = webapp:{time-zone="UTC"}
 dev = webapp:{
 	time-zone = "localtime"
 	data-dir = "/tmp/webapp-data"
-	
+
 	log-level = "info"
 	500-debug-info = true
 	require-signed-cookies = true
@@ -85,10 +85,10 @@ hello = job:{
 	args = {
 		greating = "Hello"
 		name = "World"
-		
+
 		assert "Same structure" = service-name == "hello"
 		assert "Same lookup" = service-name == "World"
-		
+
 		# I like the first one as that is probably what the author meant. It is
 		# what you would get if you used a "fully qualified" path (which we
 		# don't support) to indicate what property you wanted to reference.
@@ -100,11 +100,11 @@ greeter = {
 	args = job.args:{
 		greating = "Hello"
 		name = "World"
-		
+
 		assert "Closure" = service-name == "hello"
 		assert "Same structure" = service-name == "greeter"
 		assert "Same lookup" = service-name == "World"
-		
+
 		# So this one is interesting, we don't want structural because then
 		# you leak all of your local variables. I guess it is like strutural
 		# except that you "break" at the interitance boundary. If you hit that

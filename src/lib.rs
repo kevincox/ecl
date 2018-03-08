@@ -41,7 +41,7 @@ pub trait Value:
 	'static
 {
 	fn type_str(&self) -> &'static str;
-	
+
 	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
@@ -69,7 +69,7 @@ pub trait SameOps: std::fmt::Debug {
 	fn add(&self, that: &Self) -> Val { err::Err::new(format!("Can't add {:?} and {:?}", self, that)) }
 	fn subtract(&self, that: &Self) -> Val { err::Err::new(format!("Can't subtract {:?} and {:?}", self, that)) }
 	fn eq(&self, that: &Self) -> Val { err::Err::new(format!("Can't compare {:?} and {:?}", self, that)) }
-	
+
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,Val> {
 		Err(err::Err::new(format!("Can't compare {:?} and {:?}", self, that)))
 	}
@@ -77,7 +77,7 @@ pub trait SameOps: std::fmt::Debug {
 
 pub trait SameOpsTrait {
 	fn as_any(&self) -> &std::any::Any;
-	
+
 	fn add(&self, that: &Value) -> Val;
 	fn subtract(&self, that: &Value) -> Val;
 	fn eq(&self, that: &Value) -> Val;
@@ -86,7 +86,7 @@ pub trait SameOpsTrait {
 
 impl<T: SameOps + Value> SameOpsTrait for T {
 	fn as_any(&self) -> &std::any::Any { self }
-	
+
 	fn add(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::add(self, that.as_any().downcast_ref::<Self>().unwrap())
@@ -94,7 +94,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 			err::Err::new(format!("Can't add {:?} and {:?}", self, that))
 		}
 	}
-	
+
 	fn subtract(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::subtract(self, that.as_any().downcast_ref::<Self>().unwrap())
@@ -102,7 +102,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 			err::Err::new(format!("Can't subtract {:?} and {:?}", self, that))
 		}
 	}
-	
+
 	fn eq(&self, that: &Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
@@ -110,7 +110,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 			bool::get_false()
 		}
 	}
-	
+
 	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::cmp(self, that.as_any().downcast_ref::<Self>().unwrap())
@@ -129,17 +129,17 @@ impl Val {
 	fn new<T: Value + Sized>(v: T) -> Val {
 		Val(gc::Gc::new(v))
 	}
-	
+
 	fn value(&self) -> Result<&Value,Val> {
 		Ok(i_promise_this_will_stay_alive(self.clone()?.deref()))
 	}
-	
+
 	fn deref(&self) -> &Value { &*self.0 }
-	
+
 	fn annotate(&self, msg: &str) -> Val {
 		self.annotate_at(::grammar::Loc{line: 0, col: 0}, msg)
 	}
-	
+
 	fn annotate_at(&self, loc: grammar::Loc, msg: &str) -> Val {
 		if self.is_err() {
 			err::Err::new_from_at(self.clone(), loc, msg.to_owned())
@@ -147,11 +147,11 @@ impl Val {
 			self.clone()
 		}
 	}
-	
+
 	fn annotate_with<F: FnOnce() -> String>(&self, f: F) -> Val {
 		self.annotate_at_with(::grammar::Loc{line: 0, col: 0}, f)
 	}
-	
+
 	fn annotate_at_with<F: FnOnce() -> String>(&self, loc: grammar::Loc, f: F) -> Val {
 		if self.is_err() {
 			err::Err::new_from_at(self.clone(), loc, f())
@@ -159,35 +159,35 @@ impl Val {
 			self.clone()
 		}
 	}
-	
+
 	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
 		self.deref().as_any().downcast_ref::<T>()
 	}
-	
+
 	pub fn type_str(&self) -> &'static str {
 		self.value().unwrap().type_str()
 	}
-	
+
 	pub fn get_num(&self) -> Option<f64> {
 		self.value().unwrap().get_num()
 	}
-	
+
 	pub fn is_empty(&self) -> bool {
 		self.value().unwrap().is_empty()
 	}
-	
+
 	pub fn is_err(&self) -> bool {
 		self.deref().is_err()
 	}
-	
+
 	pub fn len(&self) -> usize {
 		self.value().unwrap().len()
 	}
-	
+
 	pub fn index(&self, k: Val) -> Val {
 		let this = self.value()?;
 		let k = k.value()?;
-		
+
 		if let Some(s) = k.get_str() {
 			this.index_str(s)
 		} else if let Some(n) = k.get_num() {
@@ -196,78 +196,78 @@ impl Val {
 			panic!("Can't index with a {:?}", k)
 		}
 	}
-	
+
 	pub fn index_int(&self, k: usize) -> Val {
 		self.value().unwrap().index_int(k)
 	}
-	
+
 	pub fn index_str(&self, key: &str) -> Val {
 		self.value().unwrap().index_str(key)
 	}
-	
+
 	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Val {
 		// eprintln!("Lookup {} {:?} in {:?}", depth, key, self);
 		self.deref().structural_lookup(depth, key)
 	}
-	
+
 	fn add(&self, that: Val) -> Val {
 		self.value()?.add(that.value()?)
 	}
-	
+
 	fn subtract(&self, that: Val) -> Val {
 		self.value()?.subtract(that.value()?)
 	}
-	
+
 	fn neg(&self) -> Val {
 		self.value()?.neg()
 	}
-	
+
 	fn cmp(&self, that: ::Val) -> Result<std::cmp::Ordering,Val> {
 		self.value()?.cmp(that.value()?)
 	}
-	
+
 	pub fn call(&self, arg: Val) -> Val {
 		self.value()?.call(arg)
 	}
-	
+
 	fn get_str(&self) -> Result<&str,Val> {
 		self.deref().get_str()
 			.map(|r| i_promise_this_will_stay_alive(r))
 			.ok_or_else(|| err::Err::new(format!("Attempt to treat {:?} as a string", self)))
 	}
-	
+
 	fn to_string(&self) -> Val {
 		let v = self.value()?;
 		if v.type_str() == "string" { return self.clone() }
 		v.to_string()
 	}
-	
+
 	fn to_bool(&self) -> bool {
 		self.value().unwrap().to_bool()
 	}
-	
+
 	pub fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
 		i_promise_this_will_stay_alive(self.deref()).iter()
 	}
-	
+
 	fn foldl(&self, f: Val, accum: Val) -> Val {
 		let iter = match self.deref().iter() {
 			Some(iter) => iter,
 			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
-		
+
 		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
 	}
-	
+
 	fn foldr(&self, f: Val, accum: Val) -> Val {
 		let iter = match self.deref().reverse_iter() {
 			Some(iter) => iter,
 			None => return err::Err::new(format!("Can't reverse iterate over {:?}", self)),
 		};
-		
+
 		iter.fold(accum, |accum, elem| f.call(accum).call(elem))
 	}
-	
+
 	fn map(&self, f: Val) -> Val {
 		let iter = match self.deref().iter() {
 			Some(iter) => iter,
@@ -279,23 +279,23 @@ impl Val {
 			.collect();
 		list::List::of_vals(vals)
 	}
-	
-	
+
+
 	fn reverse(&self) -> Val {
 		self.value()?.reverse()
 	}
-	
+
 	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
 		let selfp = self.deref() as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
-		
+
 		SerializeVal {
 			val: self.clone(),
 			visited: std::cell::RefCell::new(visited),
 		}
 	}
-	
+
 	pub fn eval(&self) -> Result<Val,Val> {
 		self.deref().eval()?;
 		Ok(self.clone())
@@ -317,7 +317,7 @@ impl std::fmt::Debug for Val {
 impl std::ops::Try for Val {
 	type Ok = Self;
 	type Error = Self;
-	
+
 	fn from_ok(v: Self::Ok) -> Self { v }
 	fn from_error(v: Self::Error) -> Self { v }
 	fn into_result(self) -> Result<Self::Ok, Self::Error> {
@@ -446,12 +446,12 @@ pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
 		Ok(file) => file,
 		Err(e) => panic!("Failed to open {:?}: {:?}", path, e),
 	};
-	
+
 	let mut err = None;
 	let chars = file.chars()
 		.filter_map(|r| r.map_err(|e| err = Some(e)).ok())
 		.fuse();
-	
+
 	grammar::parse(path, chars)
 }
 
@@ -466,7 +466,7 @@ pub fn eval_file(path: &str) -> Val {
 pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 {
 	assert!(source.find('/').is_none(), "Non-file source can't have a path.");
-	
+
 	grammar::parse(source, doc.chars())
 		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 		.map(|ast| {
@@ -535,7 +535,7 @@ fn format_ref(depth: usize, ident: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
+
 	#[test]
 	fn val_is_gc_sized() {
 		// Testing an implementation detail. A value should be one word.
@@ -544,7 +544,7 @@ mod tests {
 		// can consider having a pointer and doing the checking ourselves unsafely.
 		assert_eq!(std::mem::size_of::<gc::Gc<Value>>(), std::mem::size_of::<Val>());
 	}
-	
+
 	#[test]
 	fn list() {
 		assert!(eval("<str>", "[]").is_empty());
@@ -552,18 +552,18 @@ mod tests {
 		assert_eq!(v.index_int(0), Val::new(29.0));
 		assert_eq!(v.index_int(1), Val::new(1.5));
 	}
-	
+
 	#[test]
 	fn ident() {
 		assert_eq!(eval("<str>","{b = 4}.b"), Val::new(4.0));
 	}
-	
+
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion() {
 		eval("<str>" ,"{b = b}").index_str("b").get_num();
 	}
-	
+
 	#[test]
 	#[should_panic(expected="Dependency cycle detected.")]
 	fn recursion_multi_step() {

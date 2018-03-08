@@ -12,15 +12,15 @@ impl Err {
 	pub fn new(msg: String) -> ::Val {
 		Self::new_at(::grammar::Loc{line: 0, col: 0}, msg)
 	}
-	
+
 	pub fn new_at(loc: ::grammar::Loc, msg: String) -> ::Val {
 		Self::new_from_at(::nil::get(), loc, msg)
 	}
-	
+
 	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
 		::Val::new(Err{msg: msg, loc: loc, chained: chained})
 	}
-	
+
 	fn from(e: &std::error::Error) -> ::Val {
 		if let Some(sub) = e.cause() {
 			Self::from(sub).annotate(e.description())
@@ -33,7 +33,7 @@ impl Err {
 impl ::Value for Err {
 	fn type_str(&self) -> &'static str { "err" }
 	fn is_err(&self) -> bool { true }
-	
+
 	fn eval(&self) -> Result<(),::Val> {
 		Err(::Val::new((*self).clone()))
 	}

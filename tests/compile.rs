@@ -8,7 +8,7 @@ fn main() {
 		let compiled = ecl::bytecode::compile_to_vec(ast).unwrap();
 		let decompiled = ecl::bytecode::decompile(&compiled)
 			.unwrap_or_else(|d| panic!("decompile failed:\n{:?}", d));
-		
+
 		utils::diff(&decompiled.as_bytes(), &path.with_extension("decompiled"));
 	})
 }

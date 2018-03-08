@@ -51,7 +51,7 @@ fn main() {
 			.arg(formatarg)
 			.arg(compactarg))
 		.get_matches();
-	
+
 	match matches.subcommand() {
 		("load", Some(load)) => {
 			let mut val = ecl::eval_file(&load.value_of("file").unwrap());
@@ -63,12 +63,12 @@ fn main() {
 				let select = ecl::hacky_parse_func("--select", "r".to_owned(), code);
 				val = select.call(val);
 			}
-			
+
 			if let Err(e) = val.eval() {
 				eprintln!("{:?}\nError occured.", e);
 				std::process::exit(1)
 			}
-			
+
 			serialize_val_with(val,
 				load.value_of("format").unwrap(),
 				load.is_present("compact"));

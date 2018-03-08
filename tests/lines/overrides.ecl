@@ -2,7 +2,7 @@ base = {
 	some-option = 5
 	local my-local = some-option
 	output = my-local
-	
+
 	dict-val = {}
 }
 

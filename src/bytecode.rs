@@ -16,7 +16,7 @@ macro_rules! codes {
 	( $type:ident : $repr:ident $first:ident , $( $item:ident, )* ) => {
 		#[derive(Debug)]
 		enum $type { $first = 0, $( $item ),* }
-		
+
 		impl $type {
 			fn from(i: $repr) -> Result<Self,::Val> {
 				if i == $type::$first as $repr { Ok($type::$first) }
@@ -82,7 +82,7 @@ impl CompileContext {
 	fn scope_open(&mut self) {
 		self.depth += 1;
 	}
-	
+
 	fn scope_add(&mut self, name: String, public: bool) -> usize {
 		let id = if public {
 			0
@@ -90,18 +90,18 @@ impl CompileContext {
 			self.last_local += 1;
 			self.last_local
 		};
-		
+
 		self.scope.push((name, self.depth, id));
-		
+
 		id
 	}
-	
+
 	fn scope_find(&self, name: &str) -> Option<(usize,usize)> {
 		self.scope.iter().rev()
 			.find(|i| i.0 == name)
 			.map(|i| (self.depth - i.1, i.2))
 	}
-	
+
 	fn scope_find_at(&self, name: &str, ups: usize) -> Option<usize> {
 		let depth = self.depth - ups;
 		self.scope.iter().rev()
@@ -110,7 +110,7 @@ impl CompileContext {
 			.find(|i| i.0 == name)
 			.map(|i| i.2)
 	}
-	
+
 	fn scope_close(&mut self) {
 		self.depth -= 1;
 		let todrop = self.scope.iter().rev()
@@ -119,48 +119,48 @@ impl CompileContext {
 		let newend = self.scope.len() - todrop;
 		self.scope.truncate(newend);
 	}
-	
+
 	fn write<T: IntoIterator<Item=u8>>(&mut self, bytes: T) -> usize {
 		let start_offset = self.bytes.len();
 		self.bytes.extend(bytes);
 		start_offset
 	}
-	
+
 	fn write_u8(&mut self, byte: u8) -> usize {
 		self.write(Some(byte))
 	}
-	
+
 	fn write_u64(&mut self, n: u64) -> usize {
 		let mut buf = [0; 8];
 		EclByteOrder::write_u64(&mut buf, n);
 		self.write(buf.into_iter().cloned())
 	}
-	
+
 	fn write_usize(&mut self, n: usize) -> usize {
 		self.write_u64(n as u64)
 	}
-	
+
 	fn write_f64(&mut self, f: f64) -> usize {
 		let mut buf = [0; 8];
 		EclByteOrder::write_f64(&mut buf, f);
 		self.write(buf.into_iter().cloned())
 	}
-	
+
 	fn write_op(&mut self, op: Op) -> usize {
 		self.write(Some(op as u8))
 	}
-	
+
 	fn write_str(&mut self, s: &str) -> usize {
 		let off = self.write_usize(s.len());
 		self.write(s.bytes());
 		off
 	}
-	
+
 	fn start_jump(&mut self, op: Op) -> usize {
 		self.write_op(op);
 		return self.write_u64(0)
 	}
-	
+
 	fn set_jump(&mut self, jump: usize) {
 		let target = self.bytes.len() as u64;
 		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
@@ -222,22 +222,22 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		}
 		::Almost::Dict(elements) => {
 			let jump = ctx.start_jump(Op::JumpLazy);
-			
+
 			ctx.scope_open();
-			
+
 			let elements = elements.into_iter()
 				.map(|e| {
 					let id = ctx.scope_add(e.key.clone(), e.is_public());
 					(e.key, id, e.val)
 				})
 				.collect::<Vec<_>>();
-			
+
 			let elements = elements.into_iter()
 				.map(|(key, id, val)| (key, id, compile(ctx, val)))
 				.collect::<Vec<_>>();
-			
+
 			ctx.scope_close();
-			
+
 			ctx.set_jump(jump);
 			let off = ctx.write_op(Op::Dict);
 			ctx.write_u64(elements.len() as u64);
@@ -258,7 +258,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		}
 		::Almost::Func(data) => {
 			let jump = ctx.start_jump(Op::JumpFunc);
-			
+
 			ctx.scope_open();
 			let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
 			let argoff = match arg {
@@ -275,7 +275,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							(key, required, val)
 						})
 						.collect::<Vec<_>>();
-					
+
 					let args = args.into_iter().map(|(key, required, val)| {
 							if required {
 								(key, Ok(0))
@@ -284,12 +284,12 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							}
 						})
 						.collect::<Vec<_>>();
-					
+
 					let argoff = ctx.write_u8(ArgType::Dict as u8);
 					ctx.write_usize(args.len());
 					for (key, off) in args {
 						let off = off?;
-						
+
 						ctx.write_str(&key);
 						if off == 0 {
 							ctx.write_u8(ArgReq::Required as u8);
@@ -298,7 +298,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							ctx.write_usize(off);
 						}
 					}
-					
+
 					argoff
 				}
 				::func::Arg::List(args) => {
@@ -307,7 +307,7 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							(ctx.scope_add(key, false), required, val)
 						})
 						.collect::<Vec<_>>();
-					
+
 					let args = args.into_iter().map(|(id, required, val)| {
 							if required {
 								(id, Ok(0))
@@ -316,12 +316,12 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							}
 						})
 						.collect::<Vec<_>>();
-					
+
 					let argoff = ctx.write_u8(ArgType::List as u8);
 					ctx.write_usize(args.len());
 					for (id, off) in args {
 						let off = off?;
-						
+
 						ctx.write_usize(id);
 						if off == 0 {
 							ctx.write_u8(ArgReq::Required as u8);
@@ -330,13 +330,13 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 							ctx.write_usize(off);
 						}
 					}
-					
+
 					argoff
 				}
 			};
 			compile(ctx, body)?;
 			ctx.scope_close();
-			
+
 			ctx.set_jump(jump);
 			let off = ctx.write_op(Op::Func);
 			ctx.write_usize(argoff);
@@ -350,11 +350,11 @@ fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> 
 		}
 		::Almost::List(elements) => {
 			let jump = ctx.start_jump(Op::JumpLazy);
-			
+
 			let offsets = elements.into_iter().map(|element| 
 				compile(ctx, Rc::try_unwrap(element).unwrap()))
 				.collect::<Vec<_>>();
-			
+
 			ctx.set_jump(jump);
 			let off = ctx.write_op(Op::List);
 			ctx.write_usize(offsets.len());
@@ -465,7 +465,7 @@ pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 	ctx.bytes[START_OFFSET+5] = (start >> 8*5) as u8;
 	ctx.bytes[START_OFFSET+6] = (start >> 8*6) as u8;
 	ctx.bytes[START_OFFSET+7] = (start >> 8*7) as u8;
-	
+
 	Ok(ctx.bytes)
 }
 
@@ -479,15 +479,15 @@ impl Module {
 	fn unique_id(&self) -> usize {
 		self.code.as_ptr() as usize
 	}
-	
+
 	fn start_pc(&self) -> usize {
 		self.read_usize(START_OFFSET)
 	}
-	
+
 	fn read_u64(&self, i: usize) -> u64 {
 		EclByteOrder::read_u64(&self.code[i..(i+8)])
 	}
-	
+
 	fn read_usize(&self, i: usize) -> usize {
 		let n = self.read_u64(i);
 		assert!(n <= usize::max_value() as u64);
@@ -519,7 +519,7 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 		file: "myfile".into(),
 		code: code,
 	});
-	
+
 	let pc = module.start_pc();
 	eval_at(module, pc, ::nil::get())
 }
@@ -528,7 +528,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 	// eprintln!("Executing @ {}", pc);
 	let mut cursor = std::io::Cursor::new(&module.code[..]);
 	cursor.seek(std::io::SeekFrom::Start(pc as u64)).unwrap();
-	
+
 	let mut stack = Vec::new();
 	loop {
 		let op = Op::from(cursor.read_u8().unwrap())?;
@@ -582,7 +582,7 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 			Op::ADict => {
 				let childoff = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				let key = cursor.read_str();
-				
+
 				stack.push(::dict::Dict::new_adict(
 					pstruct.clone(),
 					key,
@@ -620,10 +620,10 @@ pub fn eval_at(module: Rc<Module>, pc: usize, pstruct: ::Val) -> ::Val {
 				let b = stack.pop().expect("No items in stack for interpolate");
 				let b = b.to_string();
 				let b = b.get_str().unwrap();
-				
+
 				let a = stack.pop().expect("One item in stack for interpolate");
 				let a = a.get_str().expect("Interpolating to something not a string.");
-				
+
 				let r = a.to_owned() + b;
 				stack.push(::Val::new(r))
 			}
@@ -684,7 +684,7 @@ pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 	let mut cursor = std::io::Cursor::new(code);
 	cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
 	let mut out = String::with_capacity(code.len() * 8);
-	
+
 	while let Ok(op) = cursor.read_u8() {
 		match Op::from(op)? {
 			Op::Ret => {
@@ -797,7 +797,7 @@ pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 			}
 		}
 	}
-	
+
 	return Ok(out)
 }
 
@@ -812,7 +812,7 @@ impl Value {
 	fn new(module: Rc<Module>, offset: usize) -> Self {
 		Value{module, offset}
 	}
-	
+
 	pub fn eval(&self, parent: ::Val) -> ::Val {
 		eval_at(self.module.clone(), self.offset, parent.clone())
 	}
@@ -829,20 +829,20 @@ impl Func {
 	fn new(module: Rc<Module>, offset: usize) -> Self {
 		Func{module, offset}
 	}
-	
+
 	pub fn call(&self, parent: ::Val, arg: ::Val) -> ::Val {
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
 		cursor.seek(std::io::SeekFrom::Start(self.offset as u64)).unwrap();
-		
+
 		let args = ::dict::Dict::new(parent.clone(), Vec::new());
 		let dict = args.clone();
 		let dict = dict.downcast_ref::<::dict::Dict>().unwrap();
-		
+
 		let parent = ::Val::new(::dict::ParentSplitter{
 			parent: args.clone(),
 			grandparent: parent,
 		});
-		
+
 		match ArgType::from(cursor.read_u8().unwrap())? {
 			ArgType::One => {
 				let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
@@ -851,7 +851,7 @@ impl Func {
 			}
 			ArgType::Dict => {
 				use Value;
-				
+
 				let sourcedict = match arg.downcast_ref::<::dict::Dict>() {
 					Some(d) => d,
 					None => return ::err::Err::new(format!(
@@ -859,7 +859,7 @@ impl Func {
 						arg)),
 				};
 				let mut unused_args = sourcedict.len();
-				
+
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				for _ in 0..len {
 					let key = cursor.read_str();
@@ -891,7 +891,7 @@ impl Func {
 					};
 					dict._set_val(::dict::Key::Pub(key), val)
 				}
-				
+
 				if unused_args != 0 {
 					return ::err::Err::new(format!(
 						"Function called with {} unused arguments.", unused_args));
@@ -899,25 +899,25 @@ impl Func {
 			}
 			ArgType::List => {
 				use Value;
-				
+
 				let list = match arg.downcast_ref::<::list::List>() {
 					Some(l) => l,
 					None => return ::err::Err::new(format!(
 						"Function must be called with list, called with {:?}",
 						arg)),
 				};
-				
+
 				let len = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 				if list.len() > len {
 					return ::err::Err::new(format!(
 						"Function called with too many arguments, expected {} got {}",
 						len, list.len()))
 				}
-				
+
 				for i in 0..len {
 					let mut id = cursor.read_u64::<EclByteOrder>().unwrap() as usize;
 					id += self.module.unique_id();
-					
+
 					let passed = list.get(i);
 					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
 						ArgReq::Required => match passed {
@@ -939,7 +939,7 @@ impl Func {
 				}
 			}
 		};
-		
+
 		eval_at(self.module.clone(), cursor.position() as usize, parent)
 	}
 }
@@ -947,7 +947,7 @@ impl Func {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
+
 	#[test]
 	fn compile_global() {
 		assert_eq!(

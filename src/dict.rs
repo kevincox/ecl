@@ -67,16 +67,16 @@ impl Dict {
 				source: Vec::with_capacity(items.len()),
 			}),
 		});
-		
+
 		let this_pstruct = ::Val::new(ParentSplitter{
 			parent: this.clone(),
 			grandparent: pstruct.clone(),
 		});
-		
+
 		{
 			let dict = this.downcast_ref::<Dict>().unwrap();
 			let mut prv = dict.prv.borrow_mut();
-			
+
 			for (key, item) in items {
 				prv.source.push(Source{
 					parent_structual: pstruct.clone(),
@@ -87,23 +87,23 @@ impl Dict {
 				prv.data.push(DictPair{key, val});
 			}
 		}
-		
+
 		this
 	}
-	
+
 	pub fn new_adict(pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
 		let key = Key::Pub(k.clone());
-		
+
 		let val = ::thunk::bytecode(pstruct.clone(), item.clone());
 		let data = vec![
 			DictPair{key, val: val}];
-		
+
 		let source = Source{
 			parent_structual: pstruct,
 			key: Key::Pub(k),
 			almost: item,
 		};
-		
+
 		::Val::new(Dict{
 			prv: gc::GcCell::new(DictData{
 				data: data,
@@ -111,11 +111,11 @@ impl Dict {
 			}),
 		})
 	}
-	
+
 	fn source(&self) -> &[Source] {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
-	
+
 	pub fn _set_val(&self, key: Key, val: Gc<::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
@@ -123,7 +123,7 @@ impl Dict {
 			Err(i) => prv.data.insert(i, DictPair{key, val}),
 		}
 	}
-	
+
 	pub fn index(&self, key: &Key) -> Option<::Val> {
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
@@ -131,7 +131,7 @@ impl Dict {
 		// prv.data.binary_search_by(|pair| pair.key.cmp(key))
 		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
-	
+
 	fn call(&self, that: &Dict) -> ::Val {
 		let this = ::Val::new(Dict{
 			prv: gc::GcCell::new(DictData {
@@ -139,16 +139,16 @@ impl Dict {
 				source: Vec::new(),
 			}),
 		});
-		
+
 		{
 			let dict = this.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			let mut prv = dict.prv.borrow_mut();
 			let DictData{ref mut source, ref mut data} = *prv;
-			
+
 			let mut left = self.source();
 			let mut right = that.source();
-			
+
 			loop {
 				let ord = match (left.first(), right.first()) {
 					(Some(l), Some(r)) => l.key.cmp(&r.key),
@@ -156,7 +156,7 @@ impl Dict {
 					(None, Some(_)) => std::cmp::Ordering::Greater,
 					(None, None) => break,
 				};
-				
+
 				let s = if ord == std::cmp::Ordering::Greater {
 					let v = right[0].clone();
 					right = &right[1..];
@@ -166,12 +166,12 @@ impl Dict {
 					left = &left[1..];
 					v
 				};
-				
+
 				let pstruct = ::Val::new(ParentSplitter{
 					parent: this.clone(),
 					grandparent: s.parent_structual.clone(),
 				});
-				
+
 				let mut val = ::thunk::bytecode(pstruct, s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
 					let sup = data.pop().unwrap();
@@ -181,7 +181,7 @@ impl Dict {
 				source.push(s);
 			}
 		}
-		
+
 		this
 	}
 }
@@ -189,71 +189,71 @@ impl Dict {
 pub fn override_(sup: Gc<::thunk::Thunky>, sub: Gc<::thunk::Thunky>) -> Gc<::thunk::Thunky> {
 	const F: &Fn((Gc<::thunk::Thunky>, Gc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
 		let sub = sub.eval();
-		
+
 		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
 			let sup = sup.eval().annotate("overriding error value")?;
 			if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
 				return sup_dict.call(sub_dict)
 			}
 		}
-		
+
 		return sub
 	};
-	
+
 	::thunk::Thunk::new((sup, sub), F)
 }
 
 impl fmt::Debug for Dict {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let prv = self.prv.borrow();
-		
+
 		if prv.data.is_empty() {
 			return write!(f, "{{}}")
 		}
-		
+
 		let mut leader = '{';
 		for pair in &prv.data {
 			write!(f, "{}", leader)?;
 			leader = ' ';
-			
+
 			match pair.key {
 				Key::Pub(ref k) => write!(f, "{:?}={:?}", k, pair.val)?,
 				Key::Local(id) => write!(f, "local {:?}={:?}", id, pair.val)?,
 			}
 		}
-		
+
 		write!(f, "}}")
 	}
 }
 
 impl ::Value for Dict {
 	fn type_str(&self) -> &'static str { "dict" }
-	
+
 	fn eval(&self) -> Result<(),::Val> {
 		for pair in &self.prv.borrow().data {
 			if pair.key.is_public() {
 				pair.val().eval()?;
 			}
 		}
-		
+
 		Ok(())
 	}
-	
+
 	fn len(&self) -> usize {
 		let prv = self.prv.borrow();
 		prv.data.len()
 	}
-	
+
 	fn is_empty(&self) -> bool {
 		let prv = self.prv.borrow();
 		prv.data.iter().all(|pair| !pair.key.is_public())
 	}
-	
+
 	fn index_str(&self, key: &str) -> ::Val {
 		self.index(&Key::Pub(key.to_owned()))
 			.unwrap_or_else(::nil::get)
 	}
-	
+
 	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
 		match self.index(key) {
@@ -261,18 +261,18 @@ impl ::Value for Dict {
 			None => ::err::Err::new(format!("No {:?} in {:?}", key, self)),
 		}
 	}
-	
+
 	fn call(&self, arg: ::Val) -> ::Val {
 		match arg.downcast_ref::<Dict>() {
 			Some(dict) => self.call(dict),
 			None => ::err::Err::new(format!("Can't call dict with {:?}", arg)),
 		}
 	}
-	
+
 	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
 		// This is fine because the dict has been fully evaluated.
 		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
-		
+
 		Some(Box::new(
 			data
 				.iter()
@@ -288,11 +288,11 @@ impl ::Value for Dict {
 					_ => None
 				})))
 	}
-	
+
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let prv = self.prv.borrow();
-		
+
 		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
 		for pair in &prv.data {
 			if let Key::Pub(ref k) = pair.key {
@@ -322,15 +322,15 @@ impl AlmostDictElement {
 	pub fn local(key: String, val: ::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Local, key, val}
 	}
-	
+
 	pub fn public(key: String, val: ::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Pub, key, val}
 	}
-	
+
 	pub fn is_public(&self) -> bool {
 		self.visibility == Visibility::Pub
 	}
-	
+
 	pub fn sort_cmp(&self, that: &AlmostDictElement) -> std::cmp::Ordering {
 		(self.visibility, &self.key).cmp(&(that.visibility, &that.key))
 	}
@@ -354,7 +354,7 @@ pub struct ParentSplitter {
 
 impl ::Value for ParentSplitter {
 	fn type_str(&self) -> &'static str { "parentsplitter" }
-	
+
 	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		match depth {
 			0 => self.parent.structural_lookup(0, key),
@@ -368,15 +368,15 @@ impl ::SameOps for ParentSplitter { }
 #[cfg(test)]
 mod tests {
 	use super::super::*;
-	
+
 	#[test]
 	fn dict() {
 		assert!(eval("<str>", "{}").is_empty());
-		
+
 		let v = eval("<str>", "{a=4 b = 0}");
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(0.0));
-		
+
 		let v = eval("<str>", "{a=4 b=a}");
 		assert_eq!(v.index_str("a"), ::Val::new(4.0));
 		assert_eq!(v.index_str("b"), ::Val::new(4.0));

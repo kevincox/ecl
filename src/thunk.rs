@@ -24,7 +24,7 @@ impl<T: 'static + gc::Trace> Thunk<T> {
 	pub fn new(data: T, code: &'static Fn(T) -> ::Val) -> gc::Gc<Thunky> {
 		gc::Gc::new(Thunk(gc::GcCell::new(State::Code(data, code))))
 	}
-	
+
 	pub fn shim(v: ::Val) -> gc::Gc<Thunk<T>> {
 		gc::Gc::new(Thunk(gc::GcCell::new(State::Val(v))))
 	}
@@ -48,7 +48,7 @@ impl<T: 'static + gc::Trace> Thunky for Thunk<T> {
 		if let State::Val(ref v) = *self.0.borrow_mut() {
 			return v.clone()
 		}
-		
+
 		let state = std::mem::replace(&mut*self.0.borrow_mut(), State::Working);
 		let (data, code) = match state {
 			State::Val(_) => unreachable!(),
