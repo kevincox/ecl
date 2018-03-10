@@ -1,61 +1,61 @@
-00000016 JumpLazy @00000684
-00000025 JumpLazy @00000209
-00000034 JumpLazy @00000073
-00000043 Ref depth:1 "name" id:0
-00000072 Ret
-00000073 Dict 1 items
+     +16 JumpLazy @00000684
+      +9 JumpLazy @00000209
+      +9 JumpLazy @00000073
+      +9 Ref depth:1 "name" id:0
+     +29 Ret
+      +1 Dict 1 items
      ... PUB   "ns" @ 00000043
-00000101 Ret
-00000102 JumpLazy @00000111
-00000111 Dict 0 items
-00000120 Ret
-00000121 Str "default app name"
-00000146 Ret
-00000147 Ref depth:0 "deployments" id:0
-00000183 Str "foo"
-00000195 Index
-00000196 Str "ns"
-00000207 Index
-00000208 Ret
-00000209 Dict 4 items
+     +28 Ret
+      +1 JumpLazy @00000111
+      +9 Dict 0 items
+      +9 Ret
+      +1 Str "default app name"
+     +25 Ret
+      +1 Ref depth:0 "deployments" id:0
+     +36 Str "foo"
+     +12 Index
+      +1 Str "ns"
+     +11 Index
+      +1 Ret
+      +1 Dict 4 items
      ... PUB   "default-deployment" @ 00000073
      ... PUB   "deployments" @ 00000111
      ... PUB   "name" @ 00000121
      ... PUB   "ns" @ 00000147
-00000321 Ret
-00000322 Ref depth:0 "App" id:0
-00000350 JumpLazy @00000545
-00000359 JumpLazy @00000368
-00000368 Dict 0 items
-00000377 Ret
-00000378 JumpLazy @00000484
-00000387 Ref depth:1 "default-deployment" id:0
-00000430 JumpLazy @00000452
-00000439 Str "foo"
-00000451 Ret
-00000452 Dict 1 items
+    +112 Ret
+      +1 Ref depth:0 "App" id:0
+     +28 JumpLazy @00000545
+      +9 JumpLazy @00000368
+      +9 Dict 0 items
+      +9 Ret
+      +1 JumpLazy @00000484
+      +9 Ref depth:1 "default-deployment" id:0
+     +43 JumpLazy @00000452
+      +9 Str "foo"
+     +12 Ret
+      +1 Dict 1 items
      ... PUB   "name" @ 00000439
-00000482 Call
-00000483 Ret
-00000484 Dict 1 items
+     +30 Call
+      +1 Ret
+      +1 Dict 1 items
      ... PUB   "foo" @ 00000387
-00000513 Ret
-00000514 Global 11 true
-00000523 Ret
-00000524 Str "my app name"
-00000544 Ret
-00000545 Dict 4 items
+     +29 Ret
+      +1 Global 11 true
+      +9 Ret
+      +1 Str "my app name"
+     +20 Ret
+      +1 Dict 4 items
      ... PUB   "default-deployment" @ 00000368
      ... PUB   "deployments" @ 00000484
      ... PUB   "derive-marker-for-debugging" @ 00000514
      ... PUB   "name" @ 00000524
-00000682 Call
-00000683 Ret
-00000684 Dict 2 items
+    +137 Call
+      +1 Ret
+      +1 Dict 2 items
      ... PUB   "App" @ 00000209
      ... PUB   "MyApp" @ 00000322
-00000735 Str "MyApp"
-00000749 Index
-00000750 Str "ns"
-00000761 Index
-00000762 Ret
+     +51 Str "MyApp"
+     +14 Index
+      +1 Str "ns"
+     +11 Index
+      +1 Ret

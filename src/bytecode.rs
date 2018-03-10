@@ -667,24 +667,61 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 	EvalContext{module, pc, pstruct: ::nil::get()}.eval()
 }
 
+#[derive(Clone,Copy)]
+pub struct DisassembleOptions {
+	pub relative_offset_ops: bool,
+	pub relative_offset_references: bool,
+}
+
+impl DisassembleOptions {
+	pub fn new() -> Self {
+		DisassembleOptions{
+			relative_offset_ops: false,
+			relative_offset_references: false,
+		}
+	}
+
+	pub fn diffable() -> Self {
+		DisassembleOptions{
+			relative_offset_ops: true,
+			relative_offset_references: true,
+		}
+	}
+
+	pub fn disassemble(&self, code: &[u8]) -> Result<String,::Val> {
+		DisassembeContext::new(*self, code).disassemble()
+	}
+}
+
 struct DisassembeContext<'a> {
+	options: DisassembleOptions,
 	cursor: std::io::Cursor<&'a [u8]>,
+	previous_pc: u64,
 	out: String,
 }
 
 impl<'a> DisassembeContext<'a> {
-	fn new(code: &'a[u8]) -> Self {
+	fn new(options: DisassembleOptions, code: &'a[u8]) -> Self {
 		let mut cursor = std::io::Cursor::new(code);
 		cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
 
 		DisassembeContext{
-			cursor: cursor,
+			options,
+			cursor,
+			previous_pc: 0,
 			out: String::with_capacity(code.len() * 8),
 		}
 	}
 
-	fn write_prefix(&mut self, op: Op) -> std::fmt::Result {
-		write!(self.out, "{:08} {:?}", self.cursor.position()-1, op)
+	fn write_prefix(&mut self, op: Op) -> Result<(), ::Val> {
+		let pc = self.cursor.position()-1;
+		if self.options.relative_offset_ops {
+			write!(self.out, "{:+8} {:?}", pc - self.previous_pc, op)?;
+		} else {
+			write!(self.out, "{:08} {:?}", pc, op)?;
+		}
+		self.previous_pc = pc;
+		Ok(())
 	}
 
 	fn write_continuation(&mut self) -> std::fmt::Result {
@@ -785,10 +822,6 @@ impl<'a> DisassembeContext<'a> {
 
 		return Ok(self.out)
 	}
-}
-
-pub fn disassemble(code: &[u8]) -> Result<String,::Val> {
-	DisassembeContext::new(code).disassemble()
 }
 
 #[derive(Clone,Debug,Trace)]

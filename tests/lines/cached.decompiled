@@ -1,92 +1,92 @@
-00000016 JumpLazy @00001027
-00000025 JumpLazy @00000149
-00000034 Global 13 <builtin "_testing_assert_eval_once">
-00000043 Num 6
-00000052 Call
-00000053 Global 13 <builtin "_testing_assert_eval_once">
-00000062 Num 7
-00000071 Call
-00000072 Add
-00000073 Ret
-00000074 Ref depth:1 "func-twice" id:3
-00000109 JumpLazy @00000118
-00000118 Dict 0 items
-00000127 Call
-00000128 Ret
-00000129 Global 13 <builtin "_testing_assert_eval_once">
-00000138 Num 5
-00000147 Call
-00000148 Ret
-00000149 Dict 3 items
+     +16 JumpLazy @00001027
+      +9 JumpLazy @00000149
+      +9 Global 13 <builtin "_testing_assert_eval_once">
+      +9 Num 6
+      +9 Call
+      +1 Global 13 <builtin "_testing_assert_eval_once">
+      +9 Num 7
+      +9 Call
+      +1 Add
+      +1 Ret
+      +1 Ref depth:1 "func-twice" id:3
+     +35 JumpLazy @00000118
+      +9 Dict 0 items
+      +9 Call
+      +1 Ret
+      +1 Global 13 <builtin "_testing_assert_eval_once">
+      +9 Num 5
+      +9 Call
+      +1 Ret
+      +1 Dict 3 items
      ... PUB   "add" @ 00000034
      ... PUB   "arg-twice" @ 00000074
      ... PUB   "plain" @ 00000129
-00000226 Ret
-00000227 JumpFunc @00000357
-00000357 Func @ 00000256
-00000366 Ret
-00000367 JumpFunc @00000477
-00000477 Func @ 00000396
-00000486 Ret
-00000487 JumpLazy @00000625
-00000496 Ref depth:0 "dict" id:1
-00000525 Str "add"
-00000537 Index
-00000538 Ret
-00000539 Ref depth:0 "dict" id:1
-00000568 Str "add"
-00000580 Index
-00000581 Ret
-00000582 Ref depth:0 "dict" id:1
-00000611 Str "add"
-00000623 Index
-00000624 Ret
-00000625 List 3 items
+     +77 Ret
+      +1 JumpFunc @00000357
+    +130 Func @ 00000256
+      +9 Ret
+      +1 JumpFunc @00000477
+    +110 Func @ 00000396
+      +9 Ret
+      +1 JumpLazy @00000625
+      +9 Ref depth:0 "dict" id:1
+     +29 Str "add"
+     +12 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "add"
+     +12 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "add"
+     +12 Index
+      +1 Ret
+      +1 List 3 items
      ...  0 @ 496
      ...  1 @ 539
      ...  2 @ 582
-00000658 Ret
-00000659 JumpLazy @00000815
-00000668 Ref depth:0 "dict" id:1
-00000697 Str "arg-twice"
-00000715 Index
-00000716 Ret
-00000717 Ref depth:0 "dict" id:1
-00000746 Str "arg-twice"
-00000764 Index
-00000765 Ret
-00000766 Ref depth:0 "dict" id:1
-00000795 Str "arg-twice"
-00000813 Index
-00000814 Ret
-00000815 List 3 items
+     +33 Ret
+      +1 JumpLazy @00000815
+      +9 Ref depth:0 "dict" id:1
+     +29 Str "arg-twice"
+     +18 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "arg-twice"
+     +18 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "arg-twice"
+     +18 Index
+      +1 Ret
+      +1 List 3 items
      ...  0 @ 668
      ...  1 @ 717
      ...  2 @ 766
-00000848 Ret
-00000849 JumpLazy @00000993
-00000858 Ref depth:0 "dict" id:1
-00000887 Str "plain"
-00000901 Index
-00000902 Ret
-00000903 Ref depth:0 "dict" id:1
-00000932 Str "plain"
-00000946 Index
-00000947 Ret
-00000948 Ref depth:0 "dict" id:1
-00000977 Str "plain"
-00000991 Index
-00000992 Ret
-00000993 List 3 items
+     +33 Ret
+      +1 JumpLazy @00000993
+      +9 Ref depth:0 "dict" id:1
+     +29 Str "plain"
+     +14 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "plain"
+     +14 Index
+      +1 Ret
+      +1 Ref depth:0 "dict" id:1
+     +29 Str "plain"
+     +14 Index
+      +1 Ret
+      +1 List 3 items
      ...  0 @ 858
      ...  1 @ 903
      ...  2 @ 948
-00001026 Ret
-00001027 Dict 6 items
+     +33 Ret
+      +1 Dict 6 items
      ... LOCAL 0001 @ 00000149
      ... LOCAL 0002 @ 00000357
      ... LOCAL 0003 @ 00000477
      ... PUB   "add" @ 00000625
      ... PUB   "arg-twice" @ 00000815
      ... PUB   "plain" @ 00000993
-00001155 Ret
+    +128 Ret

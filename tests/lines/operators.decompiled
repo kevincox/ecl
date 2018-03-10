@@ -1,107 +1,107 @@
-00000016 JumpLazy @00000729
-00000025 JumpLazy @00000181
-00000034 JumpLazy @00000135
-00000043 JumpFunc @00000115
-00000115 Func @ 00000052
-00000124 Ret
-00000125 Num 5
-00000134 Ret
-00000135 Dict 2 items
+     +16 JumpLazy @00000729
+      +9 JumpLazy @00000181
+      +9 JumpLazy @00000135
+      +9 JumpFunc @00000115
+     +72 Func @ 00000052
+      +9 Ret
+      +1 Num 5
+      +9 Ret
+      +1 Dict 2 items
      ... PUB   "f" @ 00000115
      ... PUB   "i" @ 00000125
-00000180 Ret
-00000181 Dict 1 items
+     +45 Ret
+      +1 Dict 1 items
      ... PUB   "b" @ 00000135
-00000208 Ret
-00000209 Str "1"
-00000219 Num 1
-00000228 Eq
-00000229 Ret
-00000230 Num 1
-00000239 Num 1
-00000248 Eq
-00000249 Ret
-00000250 Num 3
-00000259 Num 2
-00000268 Ge
-00000269 Ret
-00000270 Num 1
-00000279 Num 2
-00000288 Ge
-00000289 Ret
-00000290 Num 1
-00000299 Num 2
-00000308 Neg
-00000309 Ge
-00000310 Ret
-00000311 Num 1
-00000320 Num 2
-00000329 Gt
-00000330 Ret
-00000331 Num 2
-00000340 Num 1
-00000349 Gt
-00000350 Ret
-00000351 Num 1.2
-00000360 Neg
-00000361 Num 1.2
-00000370 Le
-00000371 Ret
-00000372 Num 1.2
-00000381 Num 1.2
-00000390 Neg
-00000391 Le
-00000392 Ret
-00000393 Num 1.2
-00000402 Neg
-00000403 Num 2
-00000412 Le
-00000413 Ret
-00000414 Num 5.2
-00000423 Num 2.3
-00000432 Lt
-00000433 Ret
-00000434 Num 1
-00000443 Num 2.3
-00000452 Lt
-00000453 Ret
-00000454 Ref depth:0 "a" id:1
-00000480 Str "b"
-00000490 Index
-00000491 Str "f"
-00000501 Index
-00000502 Ref depth:0 "a" id:1
-00000528 Str "b"
-00000538 Index
-00000539 Str "i"
-00000549 Index
-00000550 Call
-00000551 Ret
-00000552 Ref depth:0 "a" id:1
-00000578 Str "b"
-00000588 Index
-00000589 Str "f"
-00000599 Index
-00000600 Num 4
-00000609 Call
-00000610 Ref depth:0 "a" id:1
-00000636 Str "b"
-00000646 Index
-00000647 Str "f"
-00000657 Index
-00000658 Num 5
-00000667 Call
-00000668 Add
-00000669 Ref depth:0 "a" id:1
-00000695 Str "b"
-00000705 Index
-00000706 Str "f"
-00000716 Index
-00000717 Num 6
-00000726 Call
-00000727 Add
-00000728 Ret
-00000729 Dict 15 items
+     +27 Ret
+      +1 Str "1"
+     +10 Num 1
+      +9 Eq
+      +1 Ret
+      +1 Num 1
+      +9 Num 1
+      +9 Eq
+      +1 Ret
+      +1 Num 3
+      +9 Num 2
+      +9 Ge
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Ge
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Neg
+      +1 Ge
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Gt
+      +1 Ret
+      +1 Num 2
+      +9 Num 1
+      +9 Gt
+      +1 Ret
+      +1 Num 1.2
+      +9 Neg
+      +1 Num 1.2
+      +9 Le
+      +1 Ret
+      +1 Num 1.2
+      +9 Num 1.2
+      +9 Neg
+      +1 Le
+      +1 Ret
+      +1 Num 1.2
+      +9 Neg
+      +1 Num 2
+      +9 Le
+      +1 Ret
+      +1 Num 5.2
+      +9 Num 2.3
+      +9 Lt
+      +1 Ret
+      +1 Num 1
+      +9 Num 2.3
+      +9 Lt
+      +1 Ret
+      +1 Ref depth:0 "a" id:1
+     +26 Str "b"
+     +10 Index
+      +1 Str "f"
+     +10 Index
+      +1 Ref depth:0 "a" id:1
+     +26 Str "b"
+     +10 Index
+      +1 Str "i"
+     +10 Index
+      +1 Call
+      +1 Ret
+      +1 Ref depth:0 "a" id:1
+     +26 Str "b"
+     +10 Index
+      +1 Str "f"
+     +10 Index
+      +1 Num 4
+      +9 Call
+      +1 Ref depth:0 "a" id:1
+     +26 Str "b"
+     +10 Index
+      +1 Str "f"
+     +10 Index
+      +1 Num 5
+      +9 Call
+      +1 Add
+      +1 Ref depth:0 "a" id:1
+     +26 Str "b"
+     +10 Index
+      +1 Str "f"
+     +10 Index
+      +1 Num 6
+      +9 Call
+      +1 Add
+      +1 Ret
+      +1 Dict 15 items
      ... LOCAL 0001 @ 00000181
      ... PUB   "cmp-eq-false" @ 00000209
      ... PUB   "cmp-eq-true" @ 00000230
@@ -117,4 +117,4 @@
      ... PUB   "cmp-lt-true" @ 00000434
      ... PUB   "index" @ 00000454
      ... PUB   "math" @ 00000552
-00001135 Ret
+    +406 Ret

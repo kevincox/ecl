@@ -1,49 +1,49 @@
-00000016 JumpLazy @00000544
-00000025 JumpLazy @00000252
-00000034 Ref depth:0 "default-deployment" id:0
-00000077 Ref depth:0 "deployment" id:0
-00000112 Call
-00000113 Ret
-00000114 JumpLazy @00000123
-00000123 Dict 0 items
-00000132 JumpLazy @00000171
-00000141 Ref depth:1 "name" id:0
-00000170 Ret
-00000171 Dict 1 items
+     +16 JumpLazy @00000544
+      +9 JumpLazy @00000252
+      +9 Ref depth:0 "default-deployment" id:0
+     +43 Ref depth:0 "deployment" id:0
+     +35 Call
+      +1 Ret
+      +1 JumpLazy @00000123
+      +9 Dict 0 items
+      +9 JumpLazy @00000171
+      +9 Ref depth:1 "name" id:0
+     +29 Ret
+      +1 Dict 1 items
      ... PUB   "namespace" @ 00000141
-00000206 Call
-00000207 Ret
-00000208 JumpLazy @00000217
-00000217 Dict 0 items
-00000226 Ret
-00000227 Str "DefaultApp Name"
-00000251 Ret
-00000252 Dict 4 items
+     +35 Call
+      +1 Ret
+      +1 JumpLazy @00000217
+      +9 Dict 0 items
+      +9 Ret
+      +1 Str "DefaultApp Name"
+     +24 Ret
+      +1 Dict 4 items
      ... PUB   "api" @ 00000034
      ... PUB   "default-deployment" @ 00000123
      ... PUB   "deployment" @ 00000217
      ... PUB   "name" @ 00000227
-00000364 Ret
-00000365 Ref depth:0 "App" id:0
-00000393 JumpLazy @00000485
-00000402 JumpLazy @00000434
-00000411 Str "My Deployment"
-00000433 Ret
-00000434 Dict 1 items
+    +112 Ret
+      +1 Ref depth:0 "App" id:0
+     +28 JumpLazy @00000485
+      +9 JumpLazy @00000434
+      +9 Str "My Deployment"
+     +22 Ret
+      +1 Dict 1 items
      ... PUB   "name" @ 00000411
-00000464 Ret
-00000465 Str "MyApp Name"
-00000484 Ret
-00000485 Dict 2 items
+     +30 Ret
+      +1 Str "MyApp Name"
+     +19 Ret
+      +1 Dict 2 items
      ... PUB   "deployment" @ 00000434
      ... PUB   "name" @ 00000465
-00000542 Call
-00000543 Ret
-00000544 Dict 2 items
+     +57 Call
+      +1 Ret
+      +1 Dict 2 items
      ... PUB   "App" @ 00000252
      ... PUB   "MyApp" @ 00000365
-00000595 Str "MyApp"
-00000609 Index
-00000610 Str "api"
-00000622 Index
-00000623 Ret
+     +51 Str "MyApp"
+     +14 Index
+      +1 Str "api"
+     +12 Index
+      +1 Ret

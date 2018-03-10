@@ -1,9 +1,9 @@
-00000016 JumpLazy @00000045
-00000025 Num 4
-00000034 Ret
-00000035 Num 1
-00000044 Ret
-00000045 Dict 2 items
+     +16 JumpLazy @00000045
+      +9 Num 4
+      +9 Ret
+      +1 Num 1
+      +9 Ret
+      +1 Dict 2 items
      ... LOCAL 0001 @ 00000025
      ... PUB   "r" @ 00000035
-00000089 Ret
+     +44 Ret

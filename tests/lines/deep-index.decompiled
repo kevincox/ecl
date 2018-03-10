@@ -1,62 +1,62 @@
-00000016 JumpLazy @00000473
-00000025 JumpLazy @00000156
-00000034 JumpLazy @00000137
-00000043 JumpLazy @00000118
-00000052 JumpLazy @00000099
-00000061 JumpLazy @00000080
-00000070 Num 1000000
-00000079 Ret
-00000080 ADict "f"@00000070
-00000098 Ret
-00000099 ADict "e"@00000080
-00000117 Ret
-00000118 ADict "d"@00000099
-00000136 Ret
-00000137 ADict "c"@00000118
-00000155 Ret
-00000156 ADict "b"@00000137
-00000174 Ret
-00000175 JumpLazy @00000268
-00000184 JumpLazy @00000240
-00000193 JumpLazy @00000212
-00000202 Num 1.5
-00000211 Ret
-00000212 Dict 1 items
+     +16 JumpLazy @00000473
+      +9 JumpLazy @00000156
+      +9 JumpLazy @00000137
+      +9 JumpLazy @00000118
+      +9 JumpLazy @00000099
+      +9 JumpLazy @00000080
+      +9 Num 1000000
+      +9 Ret
+      +1 ADict "f"@00000070
+     +18 Ret
+      +1 ADict "e"@00000080
+     +18 Ret
+      +1 ADict "d"@00000099
+     +18 Ret
+      +1 ADict "c"@00000118
+     +18 Ret
+      +1 ADict "b"@00000137
+     +18 Ret
+      +1 JumpLazy @00000268
+      +9 JumpLazy @00000240
+      +9 JumpLazy @00000212
+      +9 Num 1.5
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "j" @ 00000202
-00000239 Ret
-00000240 Dict 1 items
+     +27 Ret
+      +1 Dict 1 items
      ... PUB   "i" @ 00000212
-00000267 Ret
-00000268 Dict 1 items
+     +27 Ret
+      +1 Dict 1 items
      ... PUB   "h" @ 00000240
-00000295 Ret
-00000296 JumpLazy @00000447
-00000305 Ref depth:0 "a" id:0
-00000331 Str "b"
-00000341 Index
-00000342 Str "c"
-00000352 Index
-00000353 Str "d"
-00000363 Index
-00000364 Str "e"
-00000374 Index
-00000375 Str "f"
-00000385 Index
-00000386 Ret
-00000387 Ref depth:0 "g" id:0
-00000413 Str "h"
-00000423 Index
-00000424 Str "i"
-00000434 Index
-00000435 Str "j"
-00000445 Index
-00000446 Ret
-00000447 List 2 items
+     +27 Ret
+      +1 JumpLazy @00000447
+      +9 Ref depth:0 "a" id:0
+     +26 Str "b"
+     +10 Index
+      +1 Str "c"
+     +10 Index
+      +1 Str "d"
+     +10 Index
+      +1 Str "e"
+     +10 Index
+      +1 Str "f"
+     +10 Index
+      +1 Ret
+      +1 Ref depth:0 "g" id:0
+     +26 Str "h"
+     +10 Index
+      +1 Str "i"
+     +10 Index
+      +1 Str "j"
+     +10 Index
+      +1 Ret
+      +1 List 2 items
      ...  0 @ 305
      ...  1 @ 387
-00000472 Ret
-00000473 Dict 3 items
+     +25 Ret
+      +1 Dict 3 items
      ... PUB   "a" @ 00000156
      ... PUB   "g" @ 00000268
      ... PUB   "r" @ 00000447
-00000536 Ret
+     +63 Ret

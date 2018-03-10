@@ -1,64 +1,64 @@
-00000016 JumpLazy @00000661
-00000025 JumpLazy @00000279
-00000034 JumpLazy @00000053
-00000043 Num 2
-00000052 Ret
-00000053 ADict "val"@00000043
-00000073 Ret
-00000074 JumpLazy @00000093
-00000083 Num 5
-00000092 Ret
-00000093 ADict "val"@00000083
-00000113 Ret
-00000114 JumpLazy @00000172
-00000123 Ref depth:0 "val" id:0
-00000151 Num 2
-00000160 Add
-00000161 Ret
-00000162 Num 4
-00000171 Ret
-00000172 Dict 2 items
+     +16 JumpLazy @00000661
+      +9 JumpLazy @00000279
+      +9 JumpLazy @00000053
+      +9 Num 2
+      +9 Ret
+      +1 ADict "val"@00000043
+     +20 Ret
+      +1 JumpLazy @00000093
+      +9 Num 5
+      +9 Ret
+      +1 ADict "val"@00000083
+     +20 Ret
+      +1 JumpLazy @00000172
+      +9 Ref depth:0 "val" id:0
+     +28 Num 2
+      +9 Add
+      +1 Ret
+      +1 Num 4
+      +9 Ret
+      +1 Dict 2 items
      ... PUB   "use-val" @ 00000123
      ... PUB   "val" @ 00000162
-00000225 Ret
-00000226 Ref depth:0 "dict" id:0
-00000255 Str "val"
-00000267 Index
-00000268 Num 3
-00000277 Add
-00000278 Ret
-00000279 Dict 4 items
+     +53 Ret
+      +1 Ref depth:0 "dict" id:0
+     +29 Str "val"
+     +12 Index
+      +1 Num 3
+      +9 Add
+      +1 Ret
+      +1 Dict 4 items
      ... PUB   "adict-add" @ 00000053
      ... PUB   "adict-override" @ 00000093
      ... PUB   "dict" @ 00000172
      ... PUB   "dict-use-val" @ 00000226
-00000395 Ret
-00000396 Ref depth:0 "base" id:0
-00000425 JumpLazy @00000572
-00000434 JumpLazy @00000453
-00000443 Num 3
-00000452 Ret
-00000453 Dict 1 items
+    +116 Ret
+      +1 Ref depth:0 "base" id:0
+     +29 JumpLazy @00000572
+      +9 JumpLazy @00000453
+      +9 Num 3
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "new" @ 00000443
-00000482 Ret
-00000483 JumpLazy @00000502
-00000492 Num 4
-00000501 Ret
-00000502 Dict 1 items
+     +29 Ret
+      +1 JumpLazy @00000502
+      +9 Num 4
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "val" @ 00000492
-00000531 Ret
-00000532 JumpLazy @00000551
-00000541 Num 6
-00000550 Ret
-00000551 ADict "val"@00000541
-00000571 Ret
-00000572 Dict 3 items
+     +29 Ret
+      +1 JumpLazy @00000551
+      +9 Num 6
+      +9 Ret
+      +1 ADict "val"@00000541
+     +20 Ret
+      +1 Dict 3 items
      ... PUB   "adict-add" @ 00000453
      ... PUB   "adict-override" @ 00000502
      ... PUB   "dict" @ 00000551
-00000659 Call
-00000660 Ret
-00000661 Dict 2 items
+     +87 Call
+      +1 Ret
+      +1 Dict 2 items
      ... PUB   "base" @ 00000279
      ... PUB   "sub" @ 00000396
-00000711 Ret
+     +50 Ret

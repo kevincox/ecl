@@ -1,33 +1,33 @@
-00000016 JumpLazy @00000233
-00000025 Num 1
-00000034 Ret
-00000035 JumpLazy @00000054
-00000044 Num 2
-00000053 Ret
-00000054 ADict "b"@00000044
-00000072 Ret
-00000073 JumpLazy @00000120
-00000082 JumpLazy @00000101
-00000091 Num 3
-00000100 Ret
-00000101 ADict "c"@00000091
-00000119 Ret
-00000120 ADict "c"@00000101
-00000138 Ret
-00000139 JumpLazy @00000214
-00000148 JumpLazy @00000195
-00000157 JumpLazy @00000176
-00000166 Num 4
-00000175 Ret
-00000176 ADict "g"@00000166
-00000194 Ret
-00000195 ADict "f"@00000176
-00000213 Ret
-00000214 ADict "e"@00000195
-00000232 Ret
-00000233 Dict 4 items
+     +16 JumpLazy @00000233
+      +9 Num 1
+      +9 Ret
+      +1 JumpLazy @00000054
+      +9 Num 2
+      +9 Ret
+      +1 ADict "b"@00000044
+     +18 Ret
+      +1 JumpLazy @00000120
+      +9 JumpLazy @00000101
+      +9 Num 3
+      +9 Ret
+      +1 ADict "c"@00000091
+     +18 Ret
+      +1 ADict "c"@00000101
+     +18 Ret
+      +1 JumpLazy @00000214
+      +9 JumpLazy @00000195
+      +9 JumpLazy @00000176
+      +9 Num 4
+      +9 Ret
+      +1 ADict "g"@00000166
+     +18 Ret
+      +1 ADict "f"@00000176
+     +18 Ret
+      +1 ADict "e"@00000195
+     +18 Ret
+      +1 Dict 4 items
      ... PUB   "a" @ 00000025
      ... PUB   "b" @ 00000054
      ... PUB   "c" @ 00000120
      ... PUB   "d" @ 00000214
-00000314 Ret
+     +81 Ret

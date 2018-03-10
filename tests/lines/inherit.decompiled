@@ -1,119 +1,119 @@
-00000016 JumpLazy @00001253
-00000025 JumpLazy @00000134
-00000034 JumpLazy @00000073
-00000043 Ref depth:1 "name" id:0
-00000072 Ret
-00000073 Dict 1 items
+     +16 JumpLazy @00001253
+      +9 JumpLazy @00000134
+      +9 JumpLazy @00000073
+      +9 Ref depth:1 "name" id:0
+     +29 Ret
+      +1 Dict 1 items
      ... PUB   "service-name" @ 00000043
-00000111 Ret
-00000112 Str "default-name"
-00000133 Ret
-00000134 Dict 2 items
+     +38 Ret
+      +1 Str "default-name"
+     +21 Ret
+      +1 Dict 2 items
      ... PUB   "args" @ 00000073
      ... PUB   "name" @ 00000112
-00000185 Ret
-00000186 Ref depth:0 "base" id:0
-00000215 JumpLazy @00000336
-00000224 JumpLazy @00000263
-00000233 Str "Hello"
-00000247 Ret
-00000248 Str "World"
-00000262 Ret
-00000263 Dict 2 items
+     +51 Ret
+      +1 Ref depth:0 "base" id:0
+     +29 JumpLazy @00000336
+      +9 JumpLazy @00000263
+      +9 Str "Hello"
+     +14 Ret
+      +1 Str "World"
+     +14 Ret
+      +1 Dict 2 items
      ... PUB   "greeting" @ 00000233
      ... PUB   "name" @ 00000248
-00000318 Ret
-00000319 Str "greeter"
-00000335 Ret
-00000336 Dict 2 items
+     +55 Ret
+      +1 Str "greeter"
+     +16 Ret
+      +1 Dict 2 items
      ... PUB   "args" @ 00000263
      ... PUB   "name" @ 00000319
-00000387 Call
-00000388 Ret
-00000389 JumpLazy @00000552
-00000398 Ref depth:1 "base" id:0
-00000427 Str "args"
-00000440 Index
-00000441 JumpLazy @00000480
-00000450 Str "Hello"
-00000464 Ret
-00000465 Str "World"
-00000479 Ret
-00000480 Dict 2 items
+     +51 Call
+      +1 Ret
+      +1 JumpLazy @00000552
+      +9 Ref depth:1 "base" id:0
+     +29 Str "args"
+     +13 Index
+      +1 JumpLazy @00000480
+      +9 Str "Hello"
+     +14 Ret
+      +1 Str "World"
+     +14 Ret
+      +1 Dict 2 items
      ... PUB   "greeting" @ 00000450
      ... PUB   "name" @ 00000465
-00000535 Call
-00000536 Ret
-00000537 Str "hello"
-00000551 Ret
-00000552 Dict 2 items
+     +55 Call
+      +1 Ret
+      +1 Str "hello"
+     +14 Ret
+      +1 Dict 2 items
      ... PUB   "args" @ 00000398
      ... PUB   "name" @ 00000537
-00000603 Ret
-00000604 JumpLazy @00000623
-00000613 Num 0
-00000622 Ret
-00000623 Dict 1 items
+     +51 Ret
+      +1 JumpLazy @00000623
+      +9 Num 0
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "a" @ 00000613
-00000650 Ret
-00000651 Ref depth:0 "mid-override0" id:0
-00000689 JumpLazy @00000708
-00000698 Num 1
-00000707 Ret
-00000708 Dict 1 items
+     +27 Ret
+      +1 Ref depth:0 "mid-override0" id:0
+     +38 JumpLazy @00000708
+      +9 Num 1
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "a" @ 00000698
-00000735 Call
-00000736 Ret
-00000737 Ref depth:0 "mid-override1" id:0
-00000775 JumpLazy @00000784
-00000784 Dict 0 items
-00000793 Call
-00000794 Ret
-00000795 JumpLazy @00000821
-00000804 Str "an item"
-00000820 Ret
-00000821 Dict 1 items
+     +27 Call
+      +1 Ret
+      +1 Ref depth:0 "mid-override1" id:0
+     +38 JumpLazy @00000784
+      +9 Dict 0 items
+      +9 Call
+      +1 Ret
+      +1 JumpLazy @00000821
+      +9 Str "an item"
+     +16 Ret
+      +1 Dict 1 items
      ... PUB   "item" @ 00000804
-00000851 Ret
-00000852 Ref depth:0 "multi-level0" id:0
-00000889 JumpLazy @00000898
-00000898 Dict 0 items
-00000907 Call
-00000908 Ret
-00000909 Ref depth:0 "multi-level1" id:0
-00000946 JumpLazy @00000955
-00000955 Dict 0 items
-00000964 Call
-00000965 Ret
-00000966 JumpLazy @00001029
-00000975 JumpLazy @00000994
-00000984 Num 1
-00000993 Ret
-00000994 Dict 1 items
+     +30 Ret
+      +1 Ref depth:0 "multi-level0" id:0
+     +37 JumpLazy @00000898
+      +9 Dict 0 items
+      +9 Call
+      +1 Ret
+      +1 Ref depth:0 "multi-level1" id:0
+     +37 JumpLazy @00000955
+      +9 Dict 0 items
+      +9 Call
+      +1 Ret
+      +1 JumpLazy @00001029
+      +9 JumpLazy @00000994
+      +9 Num 1
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "base-val" @ 00000984
-00001028 Ret
-00001029 Dict 1 items
+     +34 Ret
+      +1 Dict 1 items
      ... PUB   "a" @ 00000994
-00001056 Ret
-00001057 Ref depth:0 "nested-type-base" id:0
-00001098 JumpLazy @00001206
-00001107 JumpLazy @00001126
-00001116 Num 2
-00001125 Ret
-00001126 Dict 1 items
+     +27 Ret
+      +1 Ref depth:0 "nested-type-base" id:0
+     +41 JumpLazy @00001206
+      +9 JumpLazy @00001126
+      +9 Num 2
+      +9 Ret
+      +1 Dict 1 items
      ... PUB   "sub-val" @ 00001116
-00001159 Ret
-00001160 Ref depth:0 "a" id:0
-00001186 JumpLazy @00001195
-00001195 Dict 0 items
-00001204 Call
-00001205 Ret
-00001206 Dict 2 items
+     +33 Ret
+      +1 Ref depth:0 "a" id:0
+     +26 JumpLazy @00001195
+      +9 Dict 0 items
+      +9 Call
+      +1 Ret
+      +1 Dict 2 items
      ... PUB   "a" @ 00001126
      ... PUB   "b" @ 00001160
-00001251 Call
-00001252 Ret
-00001253 Dict 11 items
+     +45 Call
+      +1 Ret
+      +1 Dict 11 items
      ... PUB   "base" @ 00000134
      ... PUB   "greeter" @ 00000186
      ... PUB   "hello" @ 00000552
@@ -125,4 +125,4 @@
      ... PUB   "multi-level2" @ 00000909
      ... PUB   "nested-type-base" @ 00001029
      ... PUB   "nested-type-sub" @ 00001057
-00001571 Ret
+    +318 Ret

@@ -1,21 +1,21 @@
-00000016 JumpLazy @00000151
-00000025 Num 4
-00000034 Ret
-00000035 Str "hi"
-00000046 Ret
-00000047 Str "${basic} \t\n"
-00000067 Ret
-00000068 Str ""
-00000077 Ref depth:0 "basic" id:0
-00000107 Interpolate
-00000108 Str " - "
-00000120 Interpolate
-00000121 Ref depth:0 "int" id:1
-00000149 Interpolate
-00000150 Ret
-00000151 Dict 4 items
+     +16 JumpLazy @00000151
+      +9 Num 4
+      +9 Ret
+      +1 Str "hi"
+     +11 Ret
+      +1 Str "${basic} \t\n"
+     +20 Ret
+      +1 Str ""
+      +9 Ref depth:0 "basic" id:0
+     +30 Interpolate
+      +1 Str " - "
+     +12 Interpolate
+      +1 Ref depth:0 "int" id:1
+     +28 Interpolate
+      +1 Ret
+      +1 Dict 4 items
      ... LOCAL 0001 @ 00000025
      ... PUB   "basic" @ 00000035
      ... PUB   "escape" @ 00000047
      ... PUB   "interp" @ 00000068
-00000245 Ret
+     +94 Ret
