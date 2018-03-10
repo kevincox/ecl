@@ -2,6 +2,7 @@
 #![feature(plugin)]
 #![feature(proc_macro)]
 #![feature(slice_patterns)]
+#![feature(try_from)]
 #![feature(try_trait)]
 
 extern crate byteorder;
