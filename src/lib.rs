@@ -359,7 +359,6 @@ impl serde::Serialize for Val {
 pub enum Almost {
 	ADict(String, Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
-	Inherit(Rc<Almost>, Rc<Almost>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
 	Call(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -395,7 +394,6 @@ impl std::fmt::Debug for Almost {
 				}
 				write!(f, "}}")
 			}
-			Almost::Inherit(ref l, ref r) => write!(f, "Inherit({:?}, {:?})", l, r),
 			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
 			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
 			Almost::Great(ref l, ref r) => write!(f, "({:?} > {:?})", l, r),

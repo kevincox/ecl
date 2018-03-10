@@ -413,7 +413,6 @@ impl CompileContext {
 			::Almost::Sub(_, left, right) => {
 				self.compile_binary_op(Op::Sub, *left, *right)
 			}
-			other => unimplemented!("compile({:?})", other),
 		}
 	}
 
