@@ -667,126 +667,119 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 	EvalContext{module, pc, pstruct: ::nil::get()}.eval()
 }
 
+struct DisassembeContext<'a> {
+	cursor: std::io::Cursor<&'a [u8]>,
+	out: String,
+}
 
-pub fn decompile(code: &[u8]) -> Result<String,::Val> {
-	let mut cursor = std::io::Cursor::new(code);
-	cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
-	let mut out = String::with_capacity(code.len() * 8);
+impl<'a> DisassembeContext<'a> {
+	fn new(code: &'a[u8]) -> Self {
+		let mut cursor = std::io::Cursor::new(code);
+		cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
 
-	while let Ok(op) = cursor.read_u8() {
-		match Op::from(op)? {
-			Op::Ret => {
-				writeln!(out, "{:08} RET", cursor.position()).unwrap();
-			}
-			Op::Global => {
-				let id = cursor.read_usize();
-				writeln!(out, "{:08} GLOBAL {} {:?}",
-					cursor.position(),
-					id, ::builtins::get_id(id)).unwrap();
-			}
-			Op::Add => {
-				writeln!(out, "{:08} ADD", cursor.position()).unwrap();
-			}
-			Op::Call => {
-				writeln!(out, "{:08} CALL", cursor.position()).unwrap();
-			}
-			Op::Ge => {
-				writeln!(out, "{:08} GE", cursor.position()).unwrap();
-			}
-			Op::Gt => {
-				writeln!(out, "{:08} GT", cursor.position()).unwrap();
-			}
-			Op::Eq => {
-				writeln!(out, "{:08} EQ", cursor.position()).unwrap();
-			}
-			Op::Lt => {
-				writeln!(out, "{:08} LT", cursor.position()).unwrap();
-			}
-			Op::Le => {
-				writeln!(out, "{:08} LE", cursor.position()).unwrap();
-			}
-			Op::ADict => {
-				let childoff = cursor.read_usize();
-				let key = cursor.read_str();
-				writeln!(out, "{:08} ADICT {:?}@{:08}", cursor.position(), key, childoff).unwrap();
-			}
-			Op::Dict => {
-				let len = cursor.read_usize();
-				writeln!(out, "{:08} DICT {} items", cursor.position(), len).unwrap();
-				for _ in 0..len {
-					write!(out, "     ... ").unwrap();
-					match DictItem::from(cursor.read_u8().unwrap())? {
-						DictItem::Pub => {
-							let key = cursor.read_str();
-							write!(out, "PUB   {:?}", key).unwrap()
-						}
-						DictItem::Local => {
-							let mut id = cursor.read_usize();
-							write!(out, "LOCAL {:04x}", id).unwrap();
-						},
-					}
-					let off = cursor.read_usize();
-					writeln!(out, " @ {:08}", off).unwrap();
-				}
-			}
-			Op::Func => {
-				let off = cursor.read_usize();
-				writeln!(out, "{:08} FUNC @ {:08}", cursor.position(), off).unwrap();
-			}
-			Op::Index => {
-				writeln!(out, "{:08} INDEX", cursor.position()).unwrap();
-			}
-			Op::Interpolate => {
-				writeln!(out, "{:08} OP_INTERPOLATE", cursor.position()).unwrap();
-			}
-			Op::JumpFunc => {
-				let target = cursor.read_u64::<EclByteOrder>().unwrap();
-				writeln!(out, "{:08} OP_JUMP_FUNC @{:08}", cursor.position(), target).unwrap();
-				// TODO: Recompile rather than seek over.
-				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
-			}
-			Op::JumpLazy => {
-				let target = cursor.read_u64::<EclByteOrder>().unwrap();
-				writeln!(out, "{:08} JUMP_LAZY @{:08}", cursor.position(), target).unwrap();
-			}
-			Op::List => {
-				let len = cursor.read_usize();
-				writeln!(out, "{:08} LIST {} items", cursor.position(), len).unwrap();
-				for i in 0..len {
-					let off = cursor.read_usize();
-					writeln!(out, "     ... {:2} @ {}", i, off).unwrap();
-				}
-			}
-			Op::Neg => {
-				writeln!(out, "{:08} NEG", cursor.position()).unwrap();
-			}
-			Op::Num => {
-				let num = cursor.read_f64::<EclByteOrder>().unwrap();
-				writeln!(out, "{:08} NUM {}", cursor.position(), num).unwrap();
-			}
-			Op::Ref => {
-				let key = cursor.read_str();
-				let depth = cursor.read_usize();
-				let mut id = cursor.read_usize();
-				writeln!(out, "{:08} REF depth:{} {:?} id:{}",
-					cursor.position(), depth, key, id).unwrap();
-			}
-			Op::RefRel => {
-				let key = cursor.read_str();
-				let depth = cursor.read_usize();
-				writeln!(out, "{:08} REF_REL depth:{} {:?}", cursor.position(), depth, key).unwrap();
-			}
-			Op::Str => {
-				let s = cursor.read_str();
-				writeln!(out, "{:08} STR {:?}", cursor.position(), s).unwrap();
-			}
-			Op::Sub => {
-				writeln!(out, "{:08} SUB", cursor.position()).unwrap();
-			}
+		DisassembeContext{
+			cursor: cursor,
+			out: String::with_capacity(code.len() * 8),
 		}
 	}
 
-	return Ok(out)
+	fn disassemble(mut self) -> Result<String,::Val> {
+		while let Ok(op) = self.cursor.read_u8() {
+			let op = Op::from(op)?;
+
+			write!(self.out, "{:08} {:?}", self.cursor.position()-1, op)?;
+
+			match op {
+				Op::Ret => writeln!(self.out)?,
+				Op::Global => {
+					let id = self.cursor.read_usize();
+					writeln!(self.out, " {} {:?}", id, ::builtins::get_id(id))?;
+				}
+				Op::Add => writeln!(self.out)?,
+				Op::Call => writeln!(self.out)?,
+				Op::Ge => writeln!(self.out)?,
+				Op::Gt => writeln!(self.out)?,
+				Op::Eq => writeln!(self.out)?,
+				Op::Lt => writeln!(self.out)?,
+				Op::Le => writeln!(self.out)?,
+				Op::ADict => {
+					let childoff = self.cursor.read_usize();
+					let key = self.cursor.read_str();
+					writeln!(self.out, " {:?}@{:08}", key, childoff)?;
+				}
+				Op::Dict => {
+					let len = self.cursor.read_usize();
+					writeln!(self.out, " {} items", len)?;
+					for _ in 0..len {
+						write!(self.out, "     ... ").unwrap();
+						match DictItem::from(self.cursor.read_u8().unwrap())? {
+							DictItem::Pub => {
+								let key = self.cursor.read_str();
+								write!(self.out, "PUB   {:?}", key).unwrap()
+							}
+							DictItem::Local => {
+								let mut id = self.cursor.read_usize();
+								write!(self.out, "LOCAL {:04x}", id).unwrap();
+							},
+						}
+						let off = self.cursor.read_usize();
+						writeln!(self.out, " @ {:08}", off)?;
+					}
+				}
+				Op::Func => {
+					let off = self.cursor.read_usize();
+					writeln!(self.out, " @ {:08}", off)?;
+				}
+				Op::Index => writeln!(self.out)?,
+				Op::Interpolate => writeln!(self.out)?,
+				Op::JumpFunc => {
+					let target = self.cursor.read_u64::<EclByteOrder>().unwrap();
+					writeln!(self.out, " @{:08}", target)?;
+					// TODO: Disassemble rather than seek over.
+					self.cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
+				}
+				Op::JumpLazy => {
+					let target = self.cursor.read_u64::<EclByteOrder>().unwrap();
+					writeln!(self.out, " @{:08}", target)?;
+				}
+				Op::List => {
+					let len = self.cursor.read_usize();
+					writeln!(self.out, " {} items", len)?;
+					for i in 0..len {
+						let off = self.cursor.read_usize();
+						writeln!(self.out, "     ... {:2} @ {}", i, off)?;
+					}
+				}
+				Op::Neg => writeln!(self.out)?,
+				Op::Num => {
+					let num = self.cursor.read_f64::<EclByteOrder>().unwrap();
+					writeln!(self.out, " {}", num)?;
+				}
+				Op::Ref => {
+					let key = self.cursor.read_str();
+					let depth = self.cursor.read_usize();
+					let mut id = self.cursor.read_usize();
+					writeln!(self.out, " depth:{} {:?} id:{}", depth, key, id)?;
+				}
+				Op::RefRel => {
+					let key = self.cursor.read_str();
+					let depth = self.cursor.read_usize();
+					writeln!(self.out, " depth:{} {:?}", depth, key)?;
+				}
+				Op::Str => {
+					let s = self.cursor.read_str();
+					writeln!(self.out, " {:?}", s)?;
+				}
+				Op::Sub => writeln!(self.out)?,
+			}
+		}
+
+		return Ok(self.out)
+	}
+}
+
+pub fn disassemble(code: &[u8]) -> Result<String,::Val> {
+	DisassembeContext::new(code).disassemble()
 }
 
 #[derive(Clone,Debug,Trace)]
