@@ -492,6 +492,171 @@ impl std::fmt::Debug for Module {
 	}
 }
 
+struct EvalContext {
+	module: Rc<Module>,
+	pc: u64,
+	pstruct: ::Val,
+}
+
+impl EvalContext {
+	pub fn eval(&mut self) -> ::Val {
+		// eprintln!("Executing @ {}", pc);
+		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
+		cursor.seek(std::io::SeekFrom::Start(self.pc)).unwrap();
+
+		let mut stack = Vec::new();
+		let r = loop {
+			let op = Op::from(cursor.read_u8().unwrap())?;
+			// eprintln!("Executing OP {:?} @ {}", op, pc + cursor.position() as usize - 1);
+			match op {
+				Op::Ret => {
+					assert_eq!(stack.len(), 1);
+					break stack.pop().unwrap()
+				},
+				Op::Global => {
+					let id = cursor.read_usize();
+					stack.push(::builtins::get_id(id));
+				}
+				Op::Add => {
+					let right = stack.pop().expect("One item in stack for add")
+						.annotate("On right side of add");
+					let left = stack.pop().expect("No items in stack for add")
+						.annotate("On left side of add");
+					stack.push(left.add(right));
+				}
+				Op::Call => {
+					let right = stack.pop().expect("One item in stack for call");
+					let left = stack.pop().expect("No items in stack for call");
+					stack.push(left.call(right));
+				}
+				Op::Ge => {
+					let r = stack.pop().expect("One item in stack for >=");
+					let l = stack.pop().expect("No items in stack for >=");
+					stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
+				}
+				Op::Gt => {
+					let r = stack.pop().expect("One item in stack for >");
+					let l = stack.pop().expect("No items in stack for >");
+					stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
+				}
+				Op::Eq => {
+					let right = stack.pop().expect("One item in stack for ==");
+					let left = stack.pop().expect("No items in stack for ==");
+					stack.push(::bool::get(left == right));
+				}
+				Op::Lt => {
+					let r = stack.pop().expect("One item in stack for <");
+					let l = stack.pop().expect("No items in stack for <");
+					stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
+				}
+				Op::Le => {
+					let r = stack.pop().expect("One item in stack for <=");
+					let l = stack.pop().expect("No items in stack for <=");
+					stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
+				}
+				Op::ADict => {
+					let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
+					let key = cursor.read_str();
+					stack.push(::dict::Dict::new_adict(
+						self.pstruct.clone(),
+						key,
+						Value::new(self.module.clone(), childoff)));
+				}
+				Op::Dict => {
+					let len = cursor.read_usize();
+					let mut items = Vec::with_capacity(len);
+					for _ in 0..len {
+						let key = match DictItem::from(cursor.read_u8().unwrap())? {
+							DictItem::Pub => ::dict::Key::Pub(cursor.read_str()),
+							DictItem::Local => {
+								let mut id = cursor.read_usize();
+								id += self.module.unique_id();
+								::dict::Key::Local(id)
+							},
+						};
+						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+						items.push((key, Value::new(self.module.clone(), offset)));
+					}
+					stack.push(::dict::Dict::new(self.pstruct.clone(), items));
+				}
+				Op::Func => {
+					let bodyoff = cursor.read_usize();
+					stack.push(::func::Func::new(
+						self.pstruct.clone(),
+						Func::new(self.module.clone(), bodyoff)));
+				}
+				Op::Index => {
+					let key = stack.pop().expect("No items in stack for index");
+					let val = stack.pop().expect("One item in stack for index");
+					stack.push(val.index(key));
+				}
+				Op::Interpolate => {
+					let b = stack.pop().expect("No items in stack for interpolate");
+					let b = b.to_string();
+					let b = b.get_str().unwrap();
+
+					let a = stack.pop().expect("One item in stack for interpolate");
+					let a = a.get_str().expect("Interpolating to something not a string.");
+
+					let r = a.to_owned() + b;
+					stack.push(::Val::new(r))
+				}
+				Op::JumpFunc | Op::JumpLazy => {
+					let target = cursor.read_u64::<EclByteOrder>().unwrap();
+					cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
+				}
+				Op::List => {
+					let len = cursor.read_usize();
+					let mut items = Vec::with_capacity(len);
+					for _ in 0..len {
+						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+						items.push(Value::new(self.module.clone(), offset));
+					}
+					stack.push(::list::List::new(self.pstruct.clone(), items));
+				}
+				Op::Neg => {
+					let v = stack.pop().expect("No items in stack for neg");
+					stack.push(v.neg());
+				}
+				Op::Num => {
+					stack.push(::Val::new(cursor.read_f64::<EclByteOrder>().unwrap()));
+				}
+				Op::Ref => {
+					let strkey = cursor.read_str();
+					let depth = cursor.read_usize();
+					let mut id = cursor.read_usize();
+					let key = if id == 0 {
+						::dict::Key::Pub(strkey.clone())
+					} else {
+						id += self.module.unique_id();
+						::dict::Key::Local(id)
+					};
+					let v = self.pstruct.structural_lookup(depth, &key)
+						.annotate_with(|| format!("Referenced by {:?}", strkey));
+					stack.push(v);
+				}
+				Op::RefRel => {
+					let key = cursor.read_str();
+					let depth = cursor.read_usize();
+					let key = ::dict::Key::Pub(key);
+					stack.push(self.pstruct.structural_lookup(depth, &key));
+				}
+				Op::Str => {
+					let s = cursor.read_str();
+					stack.push(::Val::new(s));
+				}
+				Op::Sub => {
+					let right = stack.pop().expect("One item in stack for add");
+					let left = stack.pop().expect("No items in stack for add");
+					stack.push(left.subtract(right));
+				}
+			}
+		};
+
+		r
+	}
+}
+
 pub fn eval(code: Vec<u8>) -> ::Val {
 	let module = Rc::new(Module{
 		file: "myfile".into(),
@@ -499,163 +664,9 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 	});
 
 	let pc = module.start_pc();
-	eval_at(module, pc, ::nil::get())
+	EvalContext{module, pc, pstruct: ::nil::get()}.eval()
 }
 
-pub fn eval_at(module: Rc<Module>, pc: u64, pstruct: ::Val) -> ::Val {
-	// eprintln!("Executing @ {}", pc);
-	let mut cursor = std::io::Cursor::new(&module.code[..]);
-	cursor.seek(std::io::SeekFrom::Start(pc)).unwrap();
-
-	let mut stack = Vec::new();
-	loop {
-		let op = Op::from(cursor.read_u8().unwrap())?;
-		// eprintln!("Executing OP {:?} @ {}", op, pc + cursor.position() as usize - 1);
-		match op {
-			Op::Ret => {
-				assert_eq!(stack.len(), 1);
-				return stack.pop().unwrap()
-			},
-			Op::Global => {
-				let id = cursor.read_usize();
-				stack.push(::builtins::get_id(id));
-			}
-			Op::Add => {
-				let right = stack.pop().expect("One item in stack for add")
-					.annotate("On right side of add");
-				let left = stack.pop().expect("No items in stack for add")
-					.annotate("On left side of add");
-				stack.push(left.add(right));
-			}
-			Op::Call => {
-				let right = stack.pop().expect("One item in stack for call");
-				let left = stack.pop().expect("No items in stack for call");
-				stack.push(left.call(right));
-			}
-			Op::Ge => {
-				let r = stack.pop().expect("One item in stack for >=");
-				let l = stack.pop().expect("No items in stack for >=");
-				stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
-			}
-			Op::Gt => {
-				let r = stack.pop().expect("One item in stack for >");
-				let l = stack.pop().expect("No items in stack for >");
-				stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
-			}
-			Op::Eq => {
-				let right = stack.pop().expect("One item in stack for ==");
-				let left = stack.pop().expect("No items in stack for ==");
-				stack.push(::bool::get(left == right));
-			}
-			Op::Lt => {
-				let r = stack.pop().expect("One item in stack for <");
-				let l = stack.pop().expect("No items in stack for <");
-				stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
-			}
-			Op::Le => {
-				let r = stack.pop().expect("One item in stack for <=");
-				let l = stack.pop().expect("No items in stack for <=");
-				stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
-			}
-			Op::ADict => {
-				let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
-				let key = cursor.read_str();
-				stack.push(::dict::Dict::new_adict(
-					pstruct.clone(),
-					key,
-					Value::new(module.clone(), childoff)));
-			}
-			Op::Dict => {
-				let len = cursor.read_usize();
-				let mut items = Vec::with_capacity(len);
-				for _ in 0..len {
-					let key = match DictItem::from(cursor.read_u8().unwrap())? {
-						DictItem::Pub => ::dict::Key::Pub(cursor.read_str()),
-						DictItem::Local => {
-							let mut id = cursor.read_usize();
-							id += module.unique_id();
-							::dict::Key::Local(id)
-						},
-					};
-					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
-					items.push((key, Value::new(module.clone(), offset)));
-				}
-				stack.push(::dict::Dict::new(pstruct.clone(), items));
-			}
-			Op::Func => {
-				let bodyoff = cursor.read_usize();
-				stack.push(::func::Func::new(
-					pstruct.clone(),
-					Func::new(module.clone(), bodyoff)));
-			}
-			Op::Index => {
-				let key = stack.pop().expect("No items in stack for index");
-				let val = stack.pop().expect("One item in stack for index");
-				stack.push(val.index(key));
-			}
-			Op::Interpolate => {
-				let b = stack.pop().expect("No items in stack for interpolate");
-				let b = b.to_string();
-				let b = b.get_str().unwrap();
-
-				let a = stack.pop().expect("One item in stack for interpolate");
-				let a = a.get_str().expect("Interpolating to something not a string.");
-
-				let r = a.to_owned() + b;
-				stack.push(::Val::new(r))
-			}
-			Op::JumpFunc | Op::JumpLazy => {
-				let target = cursor.read_u64::<EclByteOrder>().unwrap();
-				cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
-			}
-			Op::List => {
-				let len = cursor.read_usize();
-				let mut items = Vec::with_capacity(len);
-				for _ in 0..len {
-					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
-					items.push(Value::new(module.clone(), offset));
-				}
-				stack.push(::list::List::new(pstruct.clone(), items));
-			}
-			Op::Neg => {
-				let v = stack.pop().expect("No items in stack for neg");
-				stack.push(v.neg());
-			}
-			Op::Num => {
-				stack.push(::Val::new(cursor.read_f64::<EclByteOrder>().unwrap()));
-			}
-			Op::Ref => {
-				let strkey = cursor.read_str();
-				let depth = cursor.read_usize();
-				let mut id = cursor.read_usize();
-				let key = if id == 0 {
-					::dict::Key::Pub(strkey.clone())
-				} else {
-					id += module.unique_id();
-					::dict::Key::Local(id)
-				};
-				let v = pstruct.structural_lookup(depth, &key)
-					.annotate_with(|| format!("Referenced by {:?}", strkey));
-				stack.push(v);
-			}
-			Op::RefRel => {
-				let key = cursor.read_str();
-				let depth = cursor.read_usize();
-				let key = ::dict::Key::Pub(key);
-				stack.push(pstruct.structural_lookup(depth, &key));
-			}
-			Op::Str => {
-				let s = cursor.read_str();
-				stack.push(::Val::new(s));
-			}
-			Op::Sub => {
-				let right = stack.pop().expect("One item in stack for add");
-				let left = stack.pop().expect("No items in stack for add");
-				stack.push(left.subtract(right));
-			}
-		}
-	}
-}
 
 pub fn decompile(code: &[u8]) -> Result<String,::Val> {
 	let mut cursor = std::io::Cursor::new(code);
@@ -791,7 +802,11 @@ impl Value {
 	}
 
 	pub fn eval(&self, parent: ::Val) -> ::Val {
-		eval_at(self.module.clone(), self.offset, parent.clone())
+		EvalContext{
+			module: self.module.clone(),
+			pc: self.offset,
+			pstruct: parent,
+		}.eval()
 	}
 }
 
@@ -917,7 +932,11 @@ impl Func {
 			}
 		};
 
-		eval_at(self.module.clone(), cursor.position(), parent)
+		EvalContext{
+			module: self.module.clone(),
+			pc: cursor.position(),
+			pstruct: parent,
+		}.eval()
 	}
 }
 
