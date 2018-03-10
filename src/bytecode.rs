@@ -169,270 +169,268 @@ impl CompileContext {
 		let target = std::convert::TryFrom::try_from(self.bytes.len()).unwrap();
 		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
 	}
-}
 
-fn compile_binary_op(
-	ctx: &mut CompileContext,
-	op: Op,
-	left: ::Almost, right: ::Almost
-) -> Result<usize,::Val> {
-	let off = compile_expr(ctx, left)?;
-	compile_expr(ctx, right)?;
- 	ctx.write_op(op);
-	Ok(off)
-}
-
-fn compile_expr(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> {
-	match ast {
-		::Almost::Add(_, left, right) => {
-			compile_binary_op(ctx, Op::Add, *left, *right)
-		}
-		::Almost::Call(_, left, right) => {
-			compile_binary_op(ctx, Op::Call, *left, *right)
-		}
-		::Almost::GreatEq(left, right) => {
-			compile_binary_op(ctx, Op::Ge, *left, *right)
-		}
-		::Almost::Great(left, right) => {
-			compile_binary_op(ctx, Op::Gt, *left, *right)
-		}
-		::Almost::Eq(left, right) => {
-			compile_binary_op(ctx, Op::Eq, *left, *right)
-		}
-		::Almost::Less(left, right) => {
-			compile_binary_op(ctx, Op::Lt, *left, *right)
-		}
-		::Almost::LessEq(left, right) => {
-			compile_binary_op(ctx, Op::Le, *left, *right)
-		}
-		::Almost::ADict(key, element) => {
-			let jump = ctx.start_jump(Op::JumpLazy);
-			let childoff = compile(ctx, Rc::try_unwrap(element).unwrap())?;
-			ctx.set_jump(jump);
-			let off = ctx.write_op(Op::ADict);
-			ctx.write_usize(childoff);
-			ctx.write_str(&key);
-			Ok(off)
-		}
-		::Almost::Dict(elements) => {
-			let jump = ctx.start_jump(Op::JumpLazy);
-
-			ctx.scope_open();
-
-			let elements = elements.into_iter()
-				.map(|e| {
-					let id = ctx.scope_add(e.key.clone(), e.is_public());
-					(e.key, id, e.val)
-				})
-				.collect::<Vec<_>>();
-
-			let elements = elements.into_iter()
-				.map(|(key, id, val)| (key, id, compile(ctx, val)))
-				.collect::<Vec<_>>();
-
-			ctx.scope_close();
-
-			ctx.set_jump(jump);
-			let off = ctx.write_op(Op::Dict);
-			ctx.write_usize(elements.len());
-			for (key, id, offset) in elements {
-				match id {
-					0 => {
-						ctx.write_u8(DictItem::Pub.to());
-						ctx.write_str(&key);
-					}
-					id => {
-						ctx.write_u8(DictItem::Local.to());
-						ctx.write_usize(id);
-					}
-				}
-				ctx.write_usize(offset?);
-			}
-			Ok(off)
-		}
-		::Almost::Func(data) => {
-			let jump = ctx.start_jump(Op::JumpFunc);
-
-			ctx.scope_open();
-			let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
-			let argoff = match arg {
-				::func::Arg::One(arg) => {
-					let argoff = ctx.write_u8(ArgType::One.to());
-					let id = ctx.scope_add(arg.clone(), false);
-					ctx.write_usize(id);
-					argoff
-				}
-				::func::Arg::Dict(args) => {
-					let args = args.into_iter()
-						.map(|(key, required, val)| {
-							ctx.scope_add(key.clone(), true);
-							(key, required, val)
-						})
-						.collect::<Vec<_>>();
-
-					let args = args.into_iter().map(|(key, required, val)| {
-							if required {
-								(key, Ok(0))
-							} else {
-								(key, compile(ctx, val))
-							}
-						})
-						.collect::<Vec<_>>();
-
-					let argoff = ctx.write_u8(ArgType::Dict.to());
-					ctx.write_usize(args.len());
-					for (key, off) in args {
-						let off = off?;
-
-						ctx.write_str(&key);
-						if off == 0 {
-							ctx.write_u8(ArgReq::Required.to());
-						} else {
-							ctx.write_u8(ArgReq::Optional.to());
-							ctx.write_usize(off);
-						}
-					}
-
-					argoff
-				}
-				::func::Arg::List(args) => {
-					let args = args.into_iter()
-						.map(|(key, required, val)| {
-							(ctx.scope_add(key, false), required, val)
-						})
-						.collect::<Vec<_>>();
-
-					let args = args.into_iter().map(|(id, required, val)| {
-							if required {
-								(id, Ok(0))
-							} else {
-								(id, compile(ctx, val))
-							}
-						})
-						.collect::<Vec<_>>();
-
-					let argoff = ctx.write_u8(ArgType::List.to());
-					ctx.write_usize(args.len());
-					for (id, off) in args {
-						let off = off?;
-
-						ctx.write_usize(id);
-						if off == 0 {
-							ctx.write_u8(ArgReq::Required.to());
-						} else {
-							ctx.write_u8(ArgReq::Optional.to());
-							ctx.write_usize(off);
-						}
-					}
-
-					argoff
-				}
-			};
-			compile(ctx, body)?;
-			ctx.scope_close();
-
-			ctx.set_jump(jump);
-			let off = ctx.write_op(Op::Func);
-			ctx.write_usize(argoff);
-			Ok(off)
-		}
-		::Almost::Index(_, left, right) => {
-			compile_binary_op(ctx, Op::Index, *left, *right)
-		}
-		::Almost::List(elements) => {
-			let jump = ctx.start_jump(Op::JumpLazy);
-
-			let offsets = elements.into_iter().map(|element| 
-				compile(ctx, Rc::try_unwrap(element).unwrap()))
-				.collect::<Vec<_>>();
-
-			ctx.set_jump(jump);
-			let off = ctx.write_op(Op::List);
-			ctx.write_usize(offsets.len());
-			for offset in offsets {
-				ctx.write_usize(offset?);
-			}
-			Ok(off)
-		},
-		::Almost::Neg(_, v) => {
-			let off = compile_expr(ctx, *v)?;
-			ctx.write_op(Op::Neg);
-			Ok(off)
-		}
-		::Almost::Nil => compile_global(ctx, 0),
-		::Almost::Num(n) => {
-			let off = ctx.write_op(Op::Num);
-			ctx.write_f64(n);
-			Ok(off)
-		}
-		::Almost::Ref(loc, name) => {
-			if let Some((depth, id)) = ctx.scope_find(&name) {
-				let off = ctx.write_op(Op::Ref);
-				ctx.write_str(&name); // TODO: remove this.
-				ctx.write_usize(depth);
-				ctx.write_usize(id);
-				Ok(off)
-			} else if let Some(id) = ::builtins::builtin_id(&name) { // TODO get global.
-				let off = ctx.write_op(Op::Global);
-				ctx.write_usize(id);
-				Ok(off)
-			} else {
-				Err(::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
-			}
-		}
-		::Almost::StructRef(_, depth, key) => {
-			if let Some(id) = ctx.scope_find_at(&key, depth) {
-				let off = ctx.write_op(Op::Ref);
-				ctx.write_str(&key); // TODO: remove this.
-				ctx.write_usize(depth);
-				ctx.write_usize(id);
-				Ok(off)
-			} else {
-				let off = ctx.write_op(Op::RefRel);
-				ctx.write_str(&key); // TODO: remove this.
-				ctx.write_usize(depth);
-				Ok(off)
-			}
-		}
-		::Almost::Str(parts) => {
-			let off = ctx.write_op(Op::Str);
-			ctx.write_str("");
-			for part in parts {
-				match part {
-					::StringPart::Exp(s) => {
-						compile_expr(ctx, s)?;
-					},
-					::StringPart::Lit(s) => {
-						ctx.write_op(Op::Str);
-						ctx.write_str(&s);
-					},
-				}
-				ctx.write_op(Op::Interpolate);
-			}
-			Ok(off)
-		}
-		::Almost::StrStatic(s) => {
-			let off = ctx.write_op(Op::Str);
-			ctx.write_str(&s);
-			Ok(off)
-		}
-		::Almost::Sub(_, left, right) => {
-			compile_binary_op(ctx, Op::Sub, *left, *right)
-		}
-		other => unimplemented!("compile({:?})", other),
+	fn compile(&mut self, ast: ::Almost) -> Result<usize,::Val> {
+		let off = self.compile_expr(ast)?;
+		self.write_op(Op::Ret);
+		Ok(off)
 	}
-}
 
-fn compile_global(ctx: &mut CompileContext, global: usize) -> Result<usize,::Val> {
-	let off = ctx.write_op(Op::Global);
-	ctx.write_usize(global);
-	Ok(off)
-}
+	fn compile_expr(&mut self, ast: ::Almost) -> Result<usize,::Val> {
+		match ast {
+			::Almost::Add(_, left, right) => {
+				self.compile_binary_op(Op::Add, *left, *right)
+			}
+			::Almost::Call(_, left, right) => {
+				self.compile_binary_op(Op::Call, *left, *right)
+			}
+			::Almost::GreatEq(left, right) => {
+				self.compile_binary_op(Op::Ge, *left, *right)
+			}
+			::Almost::Great(left, right) => {
+				self.compile_binary_op(Op::Gt, *left, *right)
+			}
+			::Almost::Eq(left, right) => {
+				self.compile_binary_op(Op::Eq, *left, *right)
+			}
+			::Almost::Less(left, right) => {
+				self.compile_binary_op(Op::Lt, *left, *right)
+			}
+			::Almost::LessEq(left, right) => {
+				self.compile_binary_op(Op::Le, *left, *right)
+			}
+			::Almost::ADict(key, element) => {
+				let jump = self.start_jump(Op::JumpLazy);
+				let childoff = self.compile(Rc::try_unwrap(element).unwrap())?;
+				self.set_jump(jump);
+				let off = self.write_op(Op::ADict);
+				self.write_usize(childoff);
+				self.write_str(&key);
+				Ok(off)
+			}
+			::Almost::Dict(elements) => {
+				let jump = self.start_jump(Op::JumpLazy);
 
-fn compile(ctx: &mut CompileContext, ast: ::Almost) -> Result<usize,::Val> {
-	let off = compile_expr(ctx, ast)?;
-	ctx.write_op(Op::Ret);
-	Ok(off)
+				self.scope_open();
+
+				let elements = elements.into_iter()
+					.map(|e| {
+						let id = self.scope_add(e.key.clone(), e.is_public());
+						(e.key, id, e.val)
+					})
+					.collect::<Vec<_>>();
+
+				let elements = elements.into_iter()
+					.map(|(key, id, val)| (key, id, self.compile(val)))
+					.collect::<Vec<_>>();
+
+				self.scope_close();
+
+				self.set_jump(jump);
+				let off = self.write_op(Op::Dict);
+				self.write_usize(elements.len());
+				for (key, id, offset) in elements {
+					match id {
+						0 => {
+							self.write_u8(DictItem::Pub.to());
+							self.write_str(&key);
+						}
+						id => {
+							self.write_u8(DictItem::Local.to());
+							self.write_usize(id);
+						}
+					}
+					self.write_usize(offset?);
+				}
+				Ok(off)
+			}
+			::Almost::Func(data) => {
+				let jump = self.start_jump(Op::JumpFunc);
+
+				self.scope_open();
+				let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
+				let argoff = match arg {
+					::func::Arg::One(arg) => {
+						let argoff = self.write_u8(ArgType::One.to());
+						let id = self.scope_add(arg.clone(), false);
+						self.write_usize(id);
+						argoff
+					}
+					::func::Arg::Dict(args) => {
+						let args = args.into_iter()
+							.map(|(key, required, val)| {
+								self.scope_add(key.clone(), true);
+								(key, required, val)
+							})
+							.collect::<Vec<_>>();
+
+						let args = args.into_iter().map(|(key, required, val)| {
+								if required {
+									(key, Ok(0))
+								} else {
+									(key, self.compile(val))
+								}
+							})
+							.collect::<Vec<_>>();
+
+						let argoff = self.write_u8(ArgType::Dict.to());
+						self.write_usize(args.len());
+						for (key, off) in args {
+							let off = off?;
+
+							self.write_str(&key);
+							if off == 0 {
+								self.write_u8(ArgReq::Required.to());
+							} else {
+								self.write_u8(ArgReq::Optional.to());
+								self.write_usize(off);
+							}
+						}
+
+						argoff
+					}
+					::func::Arg::List(args) => {
+						let args = args.into_iter()
+							.map(|(key, required, val)| {
+								(self.scope_add(key, false), required, val)
+							})
+							.collect::<Vec<_>>();
+
+						let args = args.into_iter().map(|(id, required, val)| {
+								if required {
+									(id, Ok(0))
+								} else {
+									(id, self.compile(val))
+								}
+							})
+							.collect::<Vec<_>>();
+
+						let argoff = self.write_u8(ArgType::List.to());
+						self.write_usize(args.len());
+						for (id, off) in args {
+							let off = off?;
+
+							self.write_usize(id);
+							if off == 0 {
+								self.write_u8(ArgReq::Required.to());
+							} else {
+								self.write_u8(ArgReq::Optional.to());
+								self.write_usize(off);
+							}
+						}
+
+						argoff
+					}
+				};
+				self.compile(body)?;
+				self.scope_close();
+
+				self.set_jump(jump);
+				let off = self.write_op(Op::Func);
+				self.write_usize(argoff);
+				Ok(off)
+			}
+			::Almost::Index(_, left, right) => {
+				self.compile_binary_op(Op::Index, *left, *right)
+			}
+			::Almost::List(elements) => {
+				let jump = self.start_jump(Op::JumpLazy);
+
+				let offsets = elements.into_iter().map(|element| 
+					self.compile(Rc::try_unwrap(element).unwrap()))
+					.collect::<Vec<_>>();
+
+				self.set_jump(jump);
+				let off = self.write_op(Op::List);
+				self.write_usize(offsets.len());
+				for offset in offsets {
+					self.write_usize(offset?);
+				}
+				Ok(off)
+			},
+			::Almost::Neg(_, v) => {
+				let off = self.compile_expr(*v)?;
+				self.write_op(Op::Neg);
+				Ok(off)
+			}
+			::Almost::Nil => self.compile_global(0),
+			::Almost::Num(n) => {
+				let off = self.write_op(Op::Num);
+				self.write_f64(n);
+				Ok(off)
+			}
+			::Almost::Ref(loc, name) => {
+				if let Some((depth, id)) = self.scope_find(&name) {
+					let off = self.write_op(Op::Ref);
+					self.write_str(&name); // TODO: remove this.
+					self.write_usize(depth);
+					self.write_usize(id);
+					Ok(off)
+				} else if let Some(id) = ::builtins::builtin_id(&name) {
+					let off = self.write_op(Op::Global);
+					self.write_usize(id);
+					Ok(off)
+				} else {
+					Err(::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
+				}
+			}
+			::Almost::StructRef(_, depth, key) => {
+				if let Some(id) = self.scope_find_at(&key, depth) {
+					let off = self.write_op(Op::Ref);
+					self.write_str(&key); // TODO: remove this.
+					self.write_usize(depth);
+					self.write_usize(id);
+					Ok(off)
+				} else {
+					let off = self.write_op(Op::RefRel);
+					self.write_str(&key); // TODO: remove this.
+					self.write_usize(depth);
+					Ok(off)
+				}
+			}
+			::Almost::Str(parts) => {
+				let off = self.write_op(Op::Str);
+				self.write_str("");
+				for part in parts {
+					match part {
+						::StringPart::Exp(s) => {
+							self.compile_expr(s)?;
+						},
+						::StringPart::Lit(s) => {
+							self.write_op(Op::Str);
+							self.write_str(&s);
+						},
+					}
+					self.write_op(Op::Interpolate);
+				}
+				Ok(off)
+			}
+			::Almost::StrStatic(s) => {
+				let off = self.write_op(Op::Str);
+				self.write_str(&s);
+				Ok(off)
+			}
+			::Almost::Sub(_, left, right) => {
+				self.compile_binary_op(Op::Sub, *left, *right)
+			}
+			other => unimplemented!("compile({:?})", other),
+		}
+	}
+
+	fn compile_binary_op(&mut self, op: Op, left: ::Almost, right: ::Almost)
+		-> Result<usize,::Val>
+	{
+		let off = self.compile_expr(left)?;
+		self.compile_expr(right)?;
+		self.write_op(op);
+		Ok(off)
+	}
+
+	fn compile_global(&mut self, global: usize) -> Result<usize,::Val> {
+		let off = self.write_op(Op::Global);
+		self.write_usize(global);
+		Ok(off)
+	}
 }
 
 pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
@@ -444,7 +442,7 @@ pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 		depth: 0,
 		last_local: 0,
 	};
-	let start = compile(&mut ctx, ast)?;
+	let start = ctx.compile(ast)?;
 	let start = std::convert::TryFrom::try_from(start).unwrap();
 	EclByteOrder::write_u64(&mut ctx.bytes[START_OFFSET..START_OFFSET+8], start);
 	Ok(ctx.bytes)
