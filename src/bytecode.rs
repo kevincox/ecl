@@ -14,7 +14,7 @@ macro_rules! codes {
 		codes!{$type: u8 $( $item, )*}
 	};
 	( $type:ident : $repr:ident $first:ident , $( $item:ident, )* ) => {
-		#[derive(Debug)]
+		#[derive(Clone,Copy,Debug)]
 		enum $type { $first = 0, $( $item ),* }
 
 		impl $type {
@@ -683,11 +683,19 @@ impl<'a> DisassembeContext<'a> {
 		}
 	}
 
+	fn write_prefix(&mut self, op: Op) -> std::fmt::Result {
+		write!(self.out, "{:08} {:?}", self.cursor.position()-1, op)
+	}
+
+	fn write_continuation(&mut self) -> std::fmt::Result {
+		write!(self.out, "     ...")
+	}
+
 	fn disassemble(mut self) -> Result<String,::Val> {
 		while let Ok(op) = self.cursor.read_u8() {
 			let op = Op::from(op)?;
 
-			write!(self.out, "{:08} {:?}", self.cursor.position()-1, op)?;
+			self.write_prefix(op)?;
 
 			match op {
 				Op::Ret => writeln!(self.out)?,
@@ -711,15 +719,15 @@ impl<'a> DisassembeContext<'a> {
 					let len = self.cursor.read_usize();
 					writeln!(self.out, " {} items", len)?;
 					for _ in 0..len {
-						write!(self.out, "     ... ").unwrap();
+						self.write_continuation()?;
 						match DictItem::from(self.cursor.read_u8().unwrap())? {
 							DictItem::Pub => {
 								let key = self.cursor.read_str();
-								write!(self.out, "PUB   {:?}", key).unwrap()
+								write!(self.out, " PUB   {:?}", key).unwrap()
 							}
 							DictItem::Local => {
 								let mut id = self.cursor.read_usize();
-								write!(self.out, "LOCAL {:04x}", id).unwrap();
+								write!(self.out, " LOCAL {:04x}", id).unwrap();
 							},
 						}
 						let off = self.cursor.read_usize();
@@ -747,7 +755,8 @@ impl<'a> DisassembeContext<'a> {
 					writeln!(self.out, " {} items", len)?;
 					for i in 0..len {
 						let off = self.cursor.read_usize();
-						writeln!(self.out, "     ... {:2} @ {}", i, off)?;
+						self.write_continuation()?;
+						writeln!(self.out, " {:2} @ {}", i, off)?;
 					}
 				}
 				Op::Neg => writeln!(self.out)?,
