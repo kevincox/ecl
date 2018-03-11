@@ -15,8 +15,8 @@
       +9 Sub
       +1 Ret
       +1 Dict 4 items
-     ... PUB   "add" @ 00000025
-     ... PUB   "neg" @ 00000045
-     ... PUB   "sub" @ 00000056
-     ... PUB   "sub-net" @ 00000076
+     ... PUB   "add" @ -71
+     ... PUB   "neg" @ -51
+     ... PUB   "sub" @ -40
+     ... PUB   "sub-net" @ -20
      +93 Ret

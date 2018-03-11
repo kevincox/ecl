@@ -7,8 +7,8 @@
       +1 Num 5
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "unused" @ 00000034
-     ... PUB   "used" @ 00000074
+     ... PUB   "unused" @ -50
+     ... PUB   "used" @ -10
      +53 Ret
       +1 JumpFunc @00000285
     +147 Func @ 00000203
@@ -46,8 +46,8 @@
      +26 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "merged" @ 00000513
-     ... PUB   "not-merged" @ 00000531
+     ... PUB   "merged" @ -55
+     ... PUB   "not-merged" @ -37
      +59 Ret
       +1 Global 10 <builtin "panic">
       +9 Str "Unused local."
@@ -87,11 +87,11 @@
       +9 Num 6
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "b" @ 00000940
+     ... PUB   "b" @ -10
      +27 Call
       +1 Ret
       +1 Dict 1 items
-     ... PUB   "dict-passed" @ 00000897
+     ... PUB   "dict-passed" @ -82
      +37 Ret
       +1 Global 3 <builtin "index">
       +9 Ref depth:0 "list" id:4
@@ -107,20 +107,20 @@
       +1 Str "ok"
      +11 Ret
       +1 Dict 2 items
-     ... PUB   "merged" @ 00001118
-     ... PUB   "not-merged" @ 00001128
+     ... PUB   "merged" @ -22
+     ... PUB   "not-merged" @ -12
      +59 Call
       +1 Ret
       +1 Dict 11 items
-     ... LOCAL 0001 @ 00000084
-     ... LOCAL 0002 @ 00000285
-     ... LOCAL 0003 @ 00000323
-     ... LOCAL 0004 @ 00000424
-     ... LOCAL 0005 @ 00000568
-     ... LOCAL 0006 @ 00000628
-     ... PUB   "cond-eval" @ 00000661
-     ... PUB   "dict-eval" @ 00000844
-     ... PUB   "func-eval" @ 00000979
-     ... PUB   "list-eval" @ 00001017
-     ... PUB   "template-eval" @ 00001067
+     ... LOCAL 0001 @ -1117
+     ... LOCAL 0002 @ -916
+     ... LOCAL 0003 @ -878
+     ... LOCAL 0004 @ -777
+     ... LOCAL 0005 @ -633
+     ... LOCAL 0006 @ -573
+     ... PUB   "cond-eval" @ -540
+     ... PUB   "dict-eval" @ -357
+     ... PUB   "func-eval" @ -222
+     ... PUB   "list-eval" @ -184
+     ... PUB   "template-eval" @ -134
     +245 Ret

@@ -11,14 +11,14 @@
       +1 Ref depth:0 "hidden" id:0
      +31 Ret
       +1 Dict 3 items
-     ... PUB   "b" @ 00000054
-     ... PUB   "hidden" @ 00000081
-     ... PUB   "result" @ 00000108
+     ... PUB   "b" @ -86
+     ... PUB   "hidden" @ -59
+     ... PUB   "result" @ -32
      +73 Str "result"
      +15 Index
       +1 Ret
       +1 Dict 3 items
-     ... LOCAL 0001 @ 00000025
-     ... LOCAL 0002 @ 00000035
-     ... PUB   "r" @ 00000140
+     ... LOCAL 0001 @ -205
+     ... LOCAL 0002 @ -195
+     ... PUB   "r" @ -90
      +61 Ret

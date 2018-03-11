@@ -1,3 +1,4 @@
+#![feature(i128_type)]
 #![feature(io)]
 #![feature(plugin)]
 #![feature(proc_macro)]

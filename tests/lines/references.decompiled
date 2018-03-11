@@ -11,9 +11,9 @@
       +1 Ref depth:1 "b" id:0
      +26 Ret
       +1 Dict 3 items
-     ... PUB   "c" @ 00000054
-     ... PUB   "d" @ 00000081
-     ... PUB   "e" @ 00000108
+     ... PUB   "c" @ -81
+     ... PUB   "d" @ -54
+     ... PUB   "e" @ -27
      +63 Ret
       +1 JumpLazy @00000322
       +9 Ref depth:0 "c" id:0
@@ -34,8 +34,8 @@
      ...  2 @ 284
      +33 Ret
       +1 Dict 4 items
-     ... LOCAL 0001 @ 00000025
-     ... PUB   "b" @ 00000035
-     ... PUB   "c" @ 00000135
-     ... PUB   "d" @ 00000322
+     ... LOCAL 0001 @ -331
+     ... PUB   "b" @ -321
+     ... PUB   "c" @ -221
+     ... PUB   "d" @ -34
      +80 Ret

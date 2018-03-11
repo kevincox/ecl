@@ -4,6 +4,6 @@
       +1 Num 1
       +9 Ret
       +1 Dict 2 items
-     ... LOCAL 0001 @ 00000025
-     ... PUB   "r" @ 00000035
+     ... LOCAL 0001 @ -20
+     ... PUB   "r" @ -10
      +44 Ret

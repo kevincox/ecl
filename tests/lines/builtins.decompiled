@@ -5,8 +5,8 @@
       +1 Global 11 true
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "false_" @ 00000034
-     ... PUB   "true_" @ 00000044
+     ... PUB   "false_" @ -20
+     ... PUB   "true_" @ -10
      +54 Ret
       +1 JumpLazy @00000612
       +9 Global 1 <builtin "if">
@@ -88,10 +88,10 @@
      +33 Call
       +1 Ret
       +1 Dict 4 items
-     ... PUB   "multi_default" @ 00000118
-     ... PUB   "multi_found" @ 00000251
-     ... PUB   "simple_false" @ 00000426
-     ... PUB   "simple_true" @ 00000519
+     ... PUB   "multi_default" @ -494
+     ... PUB   "multi_found" @ -361
+     ... PUB   "simple_false" @ -186
+     ... PUB   "simple_true" @ -93
     +124 Ret
       +1 Global 8 <builtin "map">
       +9 JumpFunc @00000857
@@ -105,9 +105,9 @@
       +1 Num 3
       +9 Ret
       +1 Dict 3 items
-     ... PUB   "a" @ 00000876
-     ... PUB   "b" @ 00000886
-     ... PUB   "c" @ 00000896
+     ... PUB   "a" @ -30
+     ... PUB   "b" @ -20
+     ... PUB   "c" @ -10
      +63 Call
       +1 Ret
       +1 Global 5 <builtin "foldl">
@@ -187,13 +187,13 @@
       +1 Global 0 Nil
       +9 Ret
       +1 Dict 9 items
-     ... PUB   "bool" @ 00000054
-     ... PUB   "cond_" @ 00000612
-     ... PUB   "dict-map" @ 00000737
-     ... PUB   "list-foldl" @ 00000971
-     ... PUB   "list-foldr" @ 00001185
-     ... PUB   "list-map" @ 00001399
-     ... PUB   "list-reverse" @ 00001547
-     ... PUB   "list-reverse-empty" @ 00001630
-     ... PUB   "nil_" @ 00001659
+     ... PUB   "bool" @ -1615
+     ... PUB   "cond_" @ -1057
+     ... PUB   "dict-map" @ -932
+     ... PUB   "list-foldl" @ -698
+     ... PUB   "list-foldr" @ -484
+     ... PUB   "list-map" @ -270
+     ... PUB   "list-reverse" @ -122
+     ... PUB   "list-reverse-empty" @ -39
+     ... PUB   "nil_" @ -10
     +241 Ret

@@ -14,8 +14,8 @@
       +1 Num 2
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "a" @ 00000220
-     ... PUB   "b" @ 00000230
+     ... PUB   "a" @ -20
+     ... PUB   "b" @ -10
      +45 Call
       +1 Ret
       +1 JumpFunc @00000389
@@ -32,8 +32,8 @@
       +1 Num 2
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "a" @ 00000583
-     ... PUB   "b" @ 00000593
+     ... PUB   "a" @ -20
+     ... PUB   "b" @ -10
      +45 Call
       +1 Ret
       +1 JumpFunc @00000760
@@ -44,8 +44,8 @@
       +1 Num 2
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "a" @ 00000778
-     ... PUB   "b" @ 00000788
+     ... PUB   "a" @ -20
+     ... PUB   "b" @ -10
      +45 Call
       +1 Ret
       +1 JumpFunc @00000992
@@ -58,9 +58,9 @@
       +1 Num 6
       +9 Ret
       +1 Dict 3 items
-     ... PUB   "a" @ 00001010
-     ... PUB   "b" @ 00001020
-     ... PUB   "c" @ 00001030
+     ... PUB   "a" @ -30
+     ... PUB   "b" @ -20
+     ... PUB   "c" @ -10
      +63 Call
       +1 Ret
       +1 JumpFunc @00001195
@@ -104,15 +104,15 @@
       +9 Call
       +1 Ret
       +1 Dict 11 items
-     ... LOCAL 0001 @ 00000025
-     ... PUB   "add-two" @ 00000090
-     ... PUB   "destructure-dict" @ 00000202
-     ... PUB   "destructure-dict-closure" @ 00000389
-     ... PUB   "destructure-dict-default" @ 00000565
-     ... PUB   "destructure-dict-default-nil" @ 00000760
-     ... PUB   "destructure-dict-override" @ 00000992
-     ... PUB   "destructure-list" @ 00001195
-     ... PUB   "destructure-list-default" @ 00001368
-     ... PUB   "destructure-list-default-override" @ 00001523
-     ... PUB   "multi-arg" @ 00001688
+     ... LOCAL 0001 @ -1693
+     ... PUB   "add-two" @ -1628
+     ... PUB   "destructure-dict" @ -1516
+     ... PUB   "destructure-dict-closure" @ -1329
+     ... PUB   "destructure-dict-default" @ -1153
+     ... PUB   "destructure-dict-default-nil" @ -958
+     ... PUB   "destructure-dict-override" @ -726
+     ... PUB   "destructure-list" @ -523
+     ... PUB   "destructure-list-default" @ -350
+     ... PUB   "destructure-list-default-override" @ -195
+     ... PUB   "multi-arg" @ -30
     +402 Ret

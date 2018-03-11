@@ -6,15 +6,15 @@
       +9 JumpLazy @00000080
       +9 Num 1000000
       +9 Ret
-      +1 ADict "f"@00000070
+      +1 ADict "f"@-10
      +18 Ret
-      +1 ADict "e"@00000080
+      +1 ADict "e"@-19
      +18 Ret
-      +1 ADict "d"@00000099
+      +1 ADict "d"@-19
      +18 Ret
-      +1 ADict "c"@00000118
+      +1 ADict "c"@-19
      +18 Ret
-      +1 ADict "b"@00000137
+      +1 ADict "b"@-19
      +18 Ret
       +1 JumpLazy @00000268
       +9 JumpLazy @00000240
@@ -22,13 +22,13 @@
       +9 Num 1.5
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "j" @ 00000202
+     ... PUB   "j" @ -10
      +27 Ret
       +1 Dict 1 items
-     ... PUB   "i" @ 00000212
+     ... PUB   "i" @ -28
      +27 Ret
       +1 Dict 1 items
-     ... PUB   "h" @ 00000240
+     ... PUB   "h" @ -28
      +27 Ret
       +1 JumpLazy @00000447
       +9 Ref depth:0 "a" id:0
@@ -56,7 +56,7 @@
      ...  1 @ 387
      +25 Ret
       +1 Dict 3 items
-     ... PUB   "a" @ 00000156
-     ... PUB   "g" @ 00000268
-     ... PUB   "r" @ 00000447
+     ... PUB   "a" @ -317
+     ... PUB   "g" @ -205
+     ... PUB   "r" @ -26
      +63 Ret

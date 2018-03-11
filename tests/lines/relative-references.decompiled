@@ -7,13 +7,13 @@
       +9 Ref depth:1 "x" id:0
      +26 Ret
       +1 Dict 1 items
-     ... PUB   "x" @ 00000062
+     ... PUB   "x" @ -27
      +27 Ret
-      +1 ADict "z"@00000089
+      +1 ADict "z"@-28
      +18 Ret
       +1 Dict 2 items
-     ... PUB   "x" @ 00000034
-     ... PUB   "y" @ 00000117
+     ... PUB   "x" @ -102
+     ... PUB   "y" @ -19
      +45 Ret
       +1 JumpFunc @00000410
     +228 Func @ 00000218
@@ -34,13 +34,13 @@
       +9 Ref depth:1 "name" id:0
      +29 Ret
       +1 Dict 1 items
-     ... PUB   "name" @ 00000978
+     ... PUB   "name" @ -30
      +30 Ret
       +1 Str "base name"
      +18 Ret
       +1 Dict 2 items
-     ... PUB   "base-thing" @ 00001008
-     ... PUB   "name" @ 00001039
+     ... PUB   "base-thing" @ -50
+     ... PUB   "name" @ -19
      +57 Ret
       +1 Ref depth:0 "dict-dotted" id:1
      +36 Str "y"
@@ -55,7 +55,7 @@
       +9 Num 2
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "y" @ 00001229
+     ... PUB   "y" @ -10
      +27 Call
       +1 Ret
       +1 Ref depth:0 "func-list" id:3
@@ -82,7 +82,7 @@
       +9 RefRel depth:1 "name"
      +21 Ret
       +1 Dict 1 items
-     ... PUB   "r" @ 00001490
+     ... PUB   "r" @ -22
      +27 Str "r"
      +10 Index
       +1 Ret
@@ -90,25 +90,25 @@
       +9 RefRel depth:1 "name"
      +21 Ret
       +1 Dict 1 items
-     ... PUB   "bar" @ 00001560
+     ... PUB   "bar" @ -22
      +29 Ret
       +1 Dict 2 items
-     ... PUB   "same-level" @ 00001512
-     ... PUB   "sub-thing" @ 00001582
+     ... PUB   "same-level" @ -100
+     ... PUB   "sub-thing" @ -30
      +62 Call
       +1 Ret
       +1 Dict 13 items
-     ... LOCAL 0001 @ 00000136
-     ... LOCAL 0002 @ 00000410
-     ... LOCAL 0003 @ 00000646
-     ... LOCAL 0004 @ 00000738
-     ... LOCAL 0005 @ 00000940
-     ... LOCAL 0006 @ 00000950
-     ... PUB   "base" @ 00001058
-     ... PUB   "dict-dotted-val" @ 00001116
-     ... PUB   "func-dict-val" @ 00001186
-     ... PUB   "func-list-val" @ 00001268
-     ... PUB   "func-one-val" @ 00001340
-     ... PUB   "func-two-args-val" @ 00001384
-     ... PUB   "sub" @ 00001443
+     ... LOCAL 0001 @ -1540
+     ... LOCAL 0002 @ -1266
+     ... LOCAL 0003 @ -1030
+     ... LOCAL 0004 @ -938
+     ... LOCAL 0005 @ -736
+     ... LOCAL 0006 @ -726
+     ... PUB   "base" @ -618
+     ... PUB   "dict-dotted-val" @ -560
+     ... PUB   "func-dict-val" @ -490
+     ... PUB   "func-list-val" @ -408
+     ... PUB   "func-one-val" @ -336
+     ... PUB   "func-two-args-val" @ -292
+     ... PUB   "sub" @ -233
     +307 Ret

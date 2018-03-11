@@ -728,6 +728,14 @@ impl<'a> DisassembeContext<'a> {
 		write!(self.out, "     ...")
 	}
 
+	fn write_ref(&mut self, off: u64) -> std::fmt::Result {
+		if self.options.relative_offset_references {
+			write!(self.out, "{:+}", off as i128 - self.previous_pc as i128)
+		} else {
+			write!(self.out, "{:08}", off)
+		}
+	}
+
 	fn disassemble(mut self) -> Result<String,::Val> {
 		while let Ok(op) = self.cursor.read_u8() {
 			let op = Op::from(op)?;
@@ -748,12 +756,14 @@ impl<'a> DisassembeContext<'a> {
 				Op::Lt => writeln!(self.out)?,
 				Op::Le => writeln!(self.out)?,
 				Op::ADict => {
-					let childoff = self.cursor.read_usize();
+					let childoff = self.cursor.read_u64::<EclByteOrder>()?;
 					let key = self.cursor.read_str();
-					writeln!(self.out, " {:?}@{:08}", key, childoff)?;
+					write!(self.out, " {:?}@", key)?;
+					self.write_ref(childoff)?;
+					writeln!(self.out)?;
 				}
 				Op::Dict => {
-					let len = self.cursor.read_usize();
+					let len = self.cursor.read_u64::<EclByteOrder>()?;
 					writeln!(self.out, " {} items", len)?;
 					for _ in 0..len {
 						self.write_continuation()?;
@@ -767,8 +777,10 @@ impl<'a> DisassembeContext<'a> {
 								write!(self.out, " LOCAL {:04x}", id).unwrap();
 							},
 						}
-						let off = self.cursor.read_usize();
-						writeln!(self.out, " @ {:08}", off)?;
+						let off = self.cursor.read_u64::<EclByteOrder>()?;
+						write!(self.out, " @ ")?;
+						self.write_ref(off)?;
+						writeln!(self.out)?;
 					}
 				}
 				Op::Func => {

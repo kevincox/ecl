@@ -10,7 +10,7 @@
       +9 Num 1.3
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "val" @ 00000073
+     ... PUB   "val" @ -10
      +29 Ret
       +1 List 4 items
      ...  0 @ 34
@@ -26,14 +26,14 @@
       +1 Num 3
       +9 Ret
       +1 Dict 3 items
-     ... PUB   "a" @ 00000164
-     ... PUB   "b" @ 00000174
-     ... PUB   "c" @ 00000184
+     ... PUB   "a" @ -30
+     ... PUB   "b" @ -20
+     ... PUB   "c" @ -10
      +63 Ret
       +1 Num 2
       +9 Ret
       +1 Dict 3 items
-     ... PUB   "array" @ 00000113
-     ... PUB   "dict" @ 00000194
-     ... PUB   "other" @ 00000258
+     ... PUB   "array" @ -155
+     ... PUB   "dict" @ -74
+     ... PUB   "other" @ -10
      +74 Ret

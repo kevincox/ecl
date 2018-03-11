@@ -3,12 +3,12 @@
       +9 JumpLazy @00000053
       +9 Num 2
       +9 Ret
-      +1 ADict "val"@00000043
+      +1 ADict "val"@-10
      +20 Ret
       +1 JumpLazy @00000093
       +9 Num 5
       +9 Ret
-      +1 ADict "val"@00000083
+      +1 ADict "val"@-10
      +20 Ret
       +1 JumpLazy @00000172
       +9 Ref depth:0 "val" id:0
@@ -18,8 +18,8 @@
       +1 Num 4
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "use-val" @ 00000123
-     ... PUB   "val" @ 00000162
+     ... PUB   "use-val" @ -49
+     ... PUB   "val" @ -10
      +53 Ret
       +1 Ref depth:0 "dict" id:0
      +29 Str "val"
@@ -28,10 +28,10 @@
       +9 Add
       +1 Ret
       +1 Dict 4 items
-     ... PUB   "adict-add" @ 00000053
-     ... PUB   "adict-override" @ 00000093
-     ... PUB   "dict" @ 00000172
-     ... PUB   "dict-use-val" @ 00000226
+     ... PUB   "adict-add" @ -226
+     ... PUB   "adict-override" @ -186
+     ... PUB   "dict" @ -107
+     ... PUB   "dict-use-val" @ -53
     +116 Ret
       +1 Ref depth:0 "base" id:0
      +29 JumpLazy @00000572
@@ -39,26 +39,26 @@
       +9 Num 3
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "new" @ 00000443
+     ... PUB   "new" @ -10
      +29 Ret
       +1 JumpLazy @00000502
       +9 Num 4
       +9 Ret
       +1 Dict 1 items
-     ... PUB   "val" @ 00000492
+     ... PUB   "val" @ -10
      +29 Ret
       +1 JumpLazy @00000551
       +9 Num 6
       +9 Ret
-      +1 ADict "val"@00000541
+      +1 ADict "val"@-10
      +20 Ret
       +1 Dict 3 items
-     ... PUB   "adict-add" @ 00000453
-     ... PUB   "adict-override" @ 00000502
-     ... PUB   "dict" @ 00000551
+     ... PUB   "adict-add" @ -119
+     ... PUB   "adict-override" @ -70
+     ... PUB   "dict" @ -21
      +87 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "base" @ 00000279
-     ... PUB   "sub" @ 00000396
+     ... PUB   "base" @ -382
+     ... PUB   "sub" @ -265
      +50 Ret

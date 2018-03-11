@@ -28,8 +28,8 @@
      +30 Call
       +1 Ret
       +1 Dict 4 items
-     ... LOCAL 0001 @ 00000025
-     ... PUB   "added" @ 00000086
-     ... PUB   "num" @ 00000140
-     ... PUB   "recursive" @ 00000183
+     ... LOCAL 0001 @ -257
+     ... PUB   "added" @ -196
+     ... PUB   "num" @ -142
+     ... PUB   "recursive" @ -99
      +94 Ret

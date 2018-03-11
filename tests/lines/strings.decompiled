@@ -14,8 +14,8 @@
      +28 Interpolate
       +1 Ret
       +1 Dict 4 items
-     ... LOCAL 0001 @ 00000025
-     ... PUB   "basic" @ 00000035
-     ... PUB   "escape" @ 00000047
-     ... PUB   "interp" @ 00000068
+     ... LOCAL 0001 @ -126
+     ... PUB   "basic" @ -116
+     ... PUB   "escape" @ -104
+     ... PUB   "interp" @ -83
      +94 Ret

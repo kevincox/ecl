@@ -7,11 +7,11 @@
       +1 Num 5
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "f" @ 00000115
-     ... PUB   "i" @ 00000125
+     ... PUB   "f" @ -20
+     ... PUB   "i" @ -10
      +45 Ret
       +1 Dict 1 items
-     ... PUB   "b" @ 00000135
+     ... PUB   "b" @ -46
      +27 Ret
       +1 Str "1"
      +10 Num 1
@@ -102,19 +102,19 @@
       +1 Add
       +1 Ret
       +1 Dict 15 items
-     ... LOCAL 0001 @ 00000181
-     ... PUB   "cmp-eq-false" @ 00000209
-     ... PUB   "cmp-eq-true" @ 00000230
-     ... PUB   "cmp-ge-eq" @ 00000250
-     ... PUB   "cmp-ge-false" @ 00000270
-     ... PUB   "cmp-ge-true" @ 00000290
-     ... PUB   "cmp-gt-false" @ 00000311
-     ... PUB   "cmp-gt-true" @ 00000331
-     ... PUB   "cmp-le-eq" @ 00000351
-     ... PUB   "cmp-le-false" @ 00000372
-     ... PUB   "cmp-le-true" @ 00000393
-     ... PUB   "cmp-lt-false" @ 00000414
-     ... PUB   "cmp-lt-true" @ 00000434
-     ... PUB   "index" @ 00000454
-     ... PUB   "math" @ 00000552
+     ... LOCAL 0001 @ -548
+     ... PUB   "cmp-eq-false" @ -520
+     ... PUB   "cmp-eq-true" @ -499
+     ... PUB   "cmp-ge-eq" @ -479
+     ... PUB   "cmp-ge-false" @ -459
+     ... PUB   "cmp-ge-true" @ -439
+     ... PUB   "cmp-gt-false" @ -418
+     ... PUB   "cmp-gt-true" @ -398
+     ... PUB   "cmp-le-eq" @ -378
+     ... PUB   "cmp-le-false" @ -357
+     ... PUB   "cmp-le-true" @ -336
+     ... PUB   "cmp-lt-false" @ -315
+     ... PUB   "cmp-lt-true" @ -295
+     ... PUB   "index" @ -275
+     ... PUB   "math" @ -177
     +406 Ret

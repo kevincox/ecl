@@ -18,9 +18,9 @@
       +9 Call
       +1 Ret
       +1 Dict 3 items
-     ... PUB   "add" @ 00000034
-     ... PUB   "arg-twice" @ 00000074
-     ... PUB   "plain" @ 00000129
+     ... PUB   "add" @ -115
+     ... PUB   "arg-twice" @ -75
+     ... PUB   "plain" @ -20
      +77 Ret
       +1 JumpFunc @00000357
     +130 Func @ 00000256
@@ -83,10 +83,10 @@
      ...  2 @ 948
      +33 Ret
       +1 Dict 6 items
-     ... LOCAL 0001 @ 00000149
-     ... LOCAL 0002 @ 00000357
-     ... LOCAL 0003 @ 00000477
-     ... PUB   "add" @ 00000625
-     ... PUB   "arg-twice" @ 00000815
-     ... PUB   "plain" @ 00000993
+     ... LOCAL 0001 @ -878
+     ... LOCAL 0002 @ -670
+     ... LOCAL 0003 @ -550
+     ... PUB   "add" @ -402
+     ... PUB   "arg-twice" @ -212
+     ... PUB   "plain" @ -34
     +128 Ret

@@ -34,6 +34,6 @@
       +9 Add
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "list" @ 00000054
-     ... PUB   "num" @ 00000209
+     ... PUB   "list" @ -175
+     ... PUB   "num" @ -20
      +50 Ret
