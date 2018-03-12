@@ -1,47 +1,47 @@
-     +16 JumpLazy @00001676
-      +9 JumpLazy @00000136
+     +16 JumpLazy @00001585
+      +9 JumpLazy @00000129
       +9 Num 1
       +9 Ret
-      +1 JumpLazy @00000117
+      +1 JumpLazy @00000110
       +9 JumpLazy @00000089
       +9 Ref depth:1 "x" id:0
      +26 Ret
       +1 Dict 1 items
      ... PUB   "x" @ -27
-     +27 Ret
-      +1 ADict "z"@-28
+     +20 Ret
+      +1 ADict "z"@-21
      +18 Ret
       +1 Dict 2 items
-     ... PUB   "x" @ -102
+     ... PUB   "x" @ -95
      ... PUB   "y" @ -19
-     +45 Ret
-      +1 JumpFunc @00000410
-    +228 Func @ 00000218
+     +38 Ret
+      +1 JumpFunc @00000389
+    +221 Func @ 00000204
       +9 Ret
-      +1 JumpFunc @00000646
-    +226 Func @ 00000456
+      +1 JumpFunc @00000618
+    +219 Func @ 00000435
       +9 Ret
-      +1 JumpFunc @00000738
-     +82 Func @ 00000665
+      +1 JumpFunc @00000703
+     +75 Func @ 00000637
       +9 Ret
-      +1 JumpFunc @00000940
-    +192 Func @ 00000757
+      +1 JumpFunc @00000891
+    +178 Func @ 00000722
       +9 Ret
       +1 Num 1
       +9 Ret
-      +1 JumpLazy @00001058
-      +9 JumpLazy @00001008
+      +1 JumpLazy @00001002
+      +9 JumpLazy @00000959
       +9 Ref depth:1 "name" id:0
      +29 Ret
       +1 Dict 1 items
      ... PUB   "name" @ -30
-     +30 Ret
+     +23 Ret
       +1 Str "base name"
      +18 Ret
       +1 Dict 2 items
-     ... PUB   "base-thing" @ -50
+     ... PUB   "base-thing" @ -43
      ... PUB   "name" @ -19
-     +57 Ret
+     +50 Ret
       +1 Ref depth:0 "dict-dotted" id:1
      +36 Str "y"
      +10 Index
@@ -51,19 +51,19 @@
      +10 Index
       +1 Ret
       +1 Ref depth:0 "func-dict" id:2
-     +34 JumpLazy @00001239
+     +34 JumpLazy @00001176
       +9 Num 2
       +9 Ret
       +1 Dict 1 items
      ... PUB   "y" @ -10
-     +27 Call
+     +20 Call
       +1 Ret
       +1 Ref depth:0 "func-list" id:3
-     +34 JumpLazy @00001321
+     +34 JumpLazy @00001251
       +9 Num 2
       +9 Ret
       +1 List 1 items
-     ...  0 @ 1311
+     ...  0 @ 1241
      +17 Call
       +1 Ret
       +1 Ref depth:0 "func-one" id:4
@@ -77,38 +77,38 @@
       +9 Call
       +1 Ret
       +1 Ref depth:0 "base" id:0
-     +29 JumpLazy @00001612
-      +9 JumpLazy @00001512
+     +29 JumpLazy @00001528
+      +9 JumpLazy @00001442
       +9 RefRel depth:1 "name"
      +21 Ret
       +1 Dict 1 items
      ... PUB   "r" @ -22
-     +27 Str "r"
+     +20 Str "r"
      +10 Index
       +1 Ret
-      +1 JumpLazy @00001582
+      +1 JumpLazy @00001505
       +9 RefRel depth:1 "name"
      +21 Ret
       +1 Dict 1 items
      ... PUB   "bar" @ -22
-     +29 Ret
+     +22 Ret
       +1 Dict 2 items
-     ... PUB   "same-level" @ -100
-     ... PUB   "sub-thing" @ -30
-     +62 Call
+     ... PUB   "same-level" @ -86
+     ... PUB   "sub-thing" @ -23
+     +55 Call
       +1 Ret
       +1 Dict 13 items
-     ... LOCAL 0001 @ -1540
-     ... LOCAL 0002 @ -1266
-     ... LOCAL 0003 @ -1030
-     ... LOCAL 0004 @ -938
-     ... LOCAL 0005 @ -736
-     ... LOCAL 0006 @ -726
-     ... PUB   "base" @ -618
-     ... PUB   "dict-dotted-val" @ -560
-     ... PUB   "func-dict-val" @ -490
-     ... PUB   "func-list-val" @ -408
-     ... PUB   "func-one-val" @ -336
-     ... PUB   "func-two-args-val" @ -292
-     ... PUB   "sub" @ -233
-    +307 Ret
+     ... LOCAL 0001 @ -1456
+     ... LOCAL 0002 @ -1196
+     ... LOCAL 0003 @ -967
+     ... LOCAL 0004 @ -882
+     ... LOCAL 0005 @ -694
+     ... LOCAL 0006 @ -684
+     ... PUB   "base" @ -583
+     ... PUB   "dict-dotted-val" @ -532
+     ... PUB   "func-dict-val" @ -462
+     ... PUB   "func-list-val" @ -387
+     ... PUB   "func-one-val" @ -315
+     ... PUB   "func-two-args-val" @ -271
+     ... PUB   "sub" @ -212
+    +300 Ret

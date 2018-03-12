@@ -13,17 +13,22 @@ macro_rules! codes {
 	( $type:ident $( $item:ident, )* ) => {
 		codes!{$type: u8 $( $item, )*}
 	};
-	( $type:ident : $repr:ident $first:ident , $( $item:ident, )* ) => {
+	( $type:ident : $repr:ident $( $item:ident, )* ) => {
 		#[derive(Clone,Copy,Debug)]
-		enum $type { $first = 0, $( $item ),* }
+		enum $type { $( $item ),* }
 
 		impl $type {
 			fn from(i: $repr) -> Result<Self,::Val> {
-				if i == $type::$first as $repr { Ok($type::$first) }
-				$( else if i == $type::$item as $repr { Ok($type::$item) } )*
-				else { Err(::err::Err::new(format!("Unknown {} {:02x}", stringify!($type), i))) }
+				$( if i == $type::$item as $repr {
+					Ok($type::$item)
+				} else )* {
+					Err(::err::Err::new(
+						format!("Unknown {} {:02x}",
+							stringify!($type),
+							i)))
+				}
 			}
-			
+
 			fn to(self) -> $repr {
 				self as $repr
 			}
@@ -144,6 +149,31 @@ impl CompileContext {
 		self.write_u64(std::convert::TryFrom::try_from(n).unwrap())
 	}
 
+	fn write_varintpart(&mut self, bits: u8, bytes: u8, n: u64) -> Option<usize> {
+		let databits = bytes * 8 - bits;
+		if n >= 1 << databits { return None } // Can't be encoded.
+
+		let mask: u8 = 0xFF << (8 - bits);
+		let mask: u8 = mask << 1; // Otherwise rust complains about a shift by 8.
+		debug_assert_eq!(mask & n as u8, 0, "Applying tag {:02x} to {:x}", mask, n);
+		let off = self.write_u8(mask | n as u8);
+
+		for byte in 1..bytes {
+			self.write_u8((n >> (byte*8)) as u8);
+		}
+
+		Some(off)
+	}
+
+	fn write_varint(&mut self, n: usize) -> usize {
+		let n: u64 = std::convert::TryFrom::try_from(n).unwrap();
+		self.write_varintpart(1, 1, n)
+			.or_else(|| self.write_varintpart(2, 2, n))
+			.or_else(|| self.write_varintpart(3, 4, n))
+			.or_else(|| self.write_varintpart(4, 8, n))
+			.unwrap()
+	}
+
 	fn write_f64(&mut self, f: f64) -> usize {
 		let mut buf = [0; 8];
 		EclByteOrder::write_f64(&mut buf, f);
@@ -228,7 +258,7 @@ impl CompileContext {
 
 				self.set_jump(jump);
 				let off = self.write_op(Op::Dict);
-				self.write_usize(elements.len());
+				self.write_varint(elements.len());
 				for (key, id, offset) in elements {
 					match id {
 						0 => {
@@ -336,7 +366,7 @@ impl CompileContext {
 			::Almost::List(elements) => {
 				let jump = self.start_jump(Op::JumpLazy);
 
-				let offsets = elements.into_iter().map(|element| 
+				let offsets = elements.into_iter().map(|element|
 					self.compile(Rc::try_unwrap(element).unwrap()))
 					.collect::<Vec<_>>();
 
@@ -469,6 +499,7 @@ impl Module {
 
 trait CursorExt {
 	fn read_usize(&mut self) -> usize;
+	fn read_varint(&mut self) -> usize;
 	fn read_str(&mut self) -> String;
 }
 
@@ -477,7 +508,30 @@ impl<'a> CursorExt for std::io::Cursor<&'a [u8]> {
 		let n = self.read_u64::<EclByteOrder>().unwrap();
 		std::convert::TryFrom::try_from(n).unwrap()
 	}
-	
+
+	fn read_varint(&mut self) -> usize {
+		let first = self.read_u8().unwrap();
+		let bits = (!first).leading_zeros();
+
+		let bytes = match bits {
+			0 => 1,
+			1 => 2,
+			2 => 4,
+			3 => 8,
+			b => unreachable!("Bits: {}", b),
+		};
+
+		assert!(bytes <= std::mem::size_of::<usize>());
+
+		let mut r = (first & (0xFF >> bits)) as usize;
+		for _ in 1..bytes {
+			r <<= 8;
+			r += self.read_u8().unwrap() as usize;
+		}
+
+		r
+	}
+
 	fn read_str(&mut self) -> String {
 		let len = self.read_usize();
 		let mut buf = vec![0; len];
@@ -563,7 +617,7 @@ impl EvalContext {
 						Value::new(self.module.clone(), childoff)));
 				}
 				Op::Dict => {
-					let len = cursor.read_usize();
+					let len = cursor.read_varint();
 					let mut items = Vec::with_capacity(len);
 					for _ in 0..len {
 						let key = match DictItem::from(cursor.read_u8().unwrap())? {
@@ -763,7 +817,7 @@ impl<'a> DisassembeContext<'a> {
 					writeln!(self.out)?;
 				}
 				Op::Dict => {
-					let len = self.cursor.read_u64::<EclByteOrder>()?;
+					let len = self.cursor.read_varint();
 					writeln!(self.out, " {} items", len)?;
 					for _ in 0..len {
 						self.write_continuation()?;

@@ -1,14 +1,14 @@
-     +16 JumpLazy @00000684
-      +9 JumpLazy @00000209
+     +16 JumpLazy @00000635
+      +9 JumpLazy @00000195
       +9 JumpLazy @00000073
       +9 Ref depth:1 "name" id:0
      +29 Ret
       +1 Dict 1 items
      ... PUB   "ns" @ -30
-     +28 Ret
-      +1 JumpLazy @00000111
+     +21 Ret
+      +1 JumpLazy @00000104
       +9 Dict 0 items
-      +9 Ret
+      +2 Ret
       +1 Str "default app name"
      +25 Ret
       +1 Ref depth:0 "deployments" id:0
@@ -18,43 +18,43 @@
      +11 Index
       +1 Ret
       +1 Dict 4 items
-     ... PUB   "default-deployment" @ -136
-     ... PUB   "deployments" @ -98
+     ... PUB   "default-deployment" @ -122
+     ... PUB   "deployments" @ -91
      ... PUB   "name" @ -88
      ... PUB   "ns" @ -62
-    +112 Ret
+    +105 Ret
       +1 Ref depth:0 "App" id:0
-     +28 JumpLazy @00000545
-      +9 JumpLazy @00000368
+     +28 JumpLazy @00000503
+      +9 JumpLazy @00000347
       +9 Dict 0 items
-      +9 Ret
-      +1 JumpLazy @00000484
+      +2 Ret
+      +1 JumpLazy @00000449
       +9 Ref depth:1 "default-deployment" id:0
-     +43 JumpLazy @00000452
+     +43 JumpLazy @00000424
       +9 Str "foo"
      +12 Ret
       +1 Dict 1 items
      ... PUB   "name" @ -13
-     +30 Call
+     +23 Call
       +1 Ret
       +1 Dict 1 items
-     ... PUB   "foo" @ -97
-     +29 Ret
+     ... PUB   "foo" @ -90
+     +22 Ret
       +1 Global 11 true
       +9 Ret
       +1 Str "my app name"
      +20 Ret
       +1 Dict 4 items
-     ... PUB   "default-deployment" @ -177
-     ... PUB   "deployments" @ -61
+     ... PUB   "default-deployment" @ -156
+     ... PUB   "deployments" @ -54
      ... PUB   "derive-marker-for-debugging" @ -31
      ... PUB   "name" @ -21
-    +137 Call
+    +130 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "App" @ -475
-     ... PUB   "MyApp" @ -362
-     +51 Str "MyApp"
+     ... PUB   "App" @ -440
+     ... PUB   "MyApp" @ -334
+     +44 Str "MyApp"
      +14 Index
       +1 Str "ns"
      +11 Index

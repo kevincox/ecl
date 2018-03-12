@@ -1,5 +1,5 @@
-     +16 JumpLazy @00000729
-      +9 JumpLazy @00000181
+     +16 JumpLazy @00000715
+      +9 JumpLazy @00000174
       +9 JumpLazy @00000135
       +9 JumpFunc @00000115
      +72 Func @ 00000052
@@ -9,10 +9,10 @@
       +1 Dict 2 items
      ... PUB   "f" @ -20
      ... PUB   "i" @ -10
-     +45 Ret
+     +38 Ret
       +1 Dict 1 items
-     ... PUB   "b" @ -46
-     +27 Ret
+     ... PUB   "b" @ -39
+     +20 Ret
       +1 Str "1"
      +10 Num 1
       +9 Eq
@@ -102,7 +102,7 @@
       +1 Add
       +1 Ret
       +1 Dict 15 items
-     ... LOCAL 0001 @ -548
+     ... LOCAL 0001 @ -541
      ... PUB   "cmp-eq-false" @ -520
      ... PUB   "cmp-eq-true" @ -499
      ... PUB   "cmp-ge-eq" @ -479
@@ -117,4 +117,4 @@
      ... PUB   "cmp-lt-true" @ -295
      ... PUB   "index" @ -275
      ... PUB   "math" @ -177
-    +406 Ret
+    +399 Ret

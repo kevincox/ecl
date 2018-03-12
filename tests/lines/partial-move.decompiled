@@ -1,48 +1,48 @@
-     +16 JumpLazy @00000544
-      +9 JumpLazy @00000252
+     +16 JumpLazy @00000502
+      +9 JumpLazy @00000231
       +9 Ref depth:0 "default-deployment" id:0
      +43 Ref depth:0 "deployment" id:0
      +35 Call
       +1 Ret
       +1 JumpLazy @00000123
       +9 Dict 0 items
-      +9 JumpLazy @00000171
+      +2 JumpLazy @00000164
       +9 Ref depth:1 "name" id:0
      +29 Ret
       +1 Dict 1 items
      ... PUB   "namespace" @ -30
-     +35 Call
+     +28 Call
       +1 Ret
-      +1 JumpLazy @00000217
+      +1 JumpLazy @00000203
       +9 Dict 0 items
-      +9 Ret
+      +2 Ret
       +1 Str "DefaultApp Name"
      +24 Ret
       +1 Dict 4 items
-     ... PUB   "api" @ -218
-     ... PUB   "default-deployment" @ -129
-     ... PUB   "deployment" @ -35
+     ... PUB   "api" @ -197
+     ... PUB   "default-deployment" @ -108
+     ... PUB   "deployment" @ -28
      ... PUB   "name" @ -25
-    +112 Ret
+    +105 Ret
       +1 Ref depth:0 "App" id:0
-     +28 JumpLazy @00000485
-      +9 JumpLazy @00000434
+     +28 JumpLazy @00000450
+      +9 JumpLazy @00000406
       +9 Str "My Deployment"
      +22 Ret
       +1 Dict 1 items
      ... PUB   "name" @ -23
-     +30 Ret
+     +23 Ret
       +1 Str "MyApp Name"
      +19 Ret
       +1 Dict 2 items
-     ... PUB   "deployment" @ -51
+     ... PUB   "deployment" @ -44
      ... PUB   "name" @ -20
-     +57 Call
+     +50 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "App" @ -292
-     ... PUB   "MyApp" @ -179
-     +51 Str "MyApp"
+     ... PUB   "App" @ -271
+     ... PUB   "MyApp" @ -165
+     +44 Str "MyApp"
      +14 Index
       +1 Str "api"
      +12 Index

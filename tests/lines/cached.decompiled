@@ -1,5 +1,5 @@
-     +16 JumpLazy @00001027
-      +9 JumpLazy @00000149
+     +16 JumpLazy @00001013
+      +9 JumpLazy @00000142
       +9 Global 13 <builtin "_testing_assert_eval_once">
       +9 Num 6
       +9 Call
@@ -11,24 +11,24 @@
       +1 Ref depth:1 "func-twice" id:3
      +35 JumpLazy @00000118
       +9 Dict 0 items
-      +9 Call
+      +2 Call
       +1 Ret
       +1 Global 13 <builtin "_testing_assert_eval_once">
       +9 Num 5
       +9 Call
       +1 Ret
       +1 Dict 3 items
-     ... PUB   "add" @ -115
-     ... PUB   "arg-twice" @ -75
+     ... PUB   "add" @ -108
+     ... PUB   "arg-twice" @ -68
      ... PUB   "plain" @ -20
-     +77 Ret
-      +1 JumpFunc @00000357
-    +130 Func @ 00000256
+     +70 Ret
+      +1 JumpFunc @00000343
+    +130 Func @ 00000242
       +9 Ret
-      +1 JumpFunc @00000477
-    +110 Func @ 00000396
+      +1 JumpFunc @00000463
+    +110 Func @ 00000382
       +9 Ret
-      +1 JumpLazy @00000625
+      +1 JumpLazy @00000611
       +9 Ref depth:0 "dict" id:1
      +29 Str "add"
      +12 Index
@@ -42,11 +42,11 @@
      +12 Index
       +1 Ret
       +1 List 3 items
-     ...  0 @ 496
-     ...  1 @ 539
-     ...  2 @ 582
+     ...  0 @ 482
+     ...  1 @ 525
+     ...  2 @ 568
      +33 Ret
-      +1 JumpLazy @00000815
+      +1 JumpLazy @00000801
       +9 Ref depth:0 "dict" id:1
      +29 Str "arg-twice"
      +18 Index
@@ -60,11 +60,11 @@
      +18 Index
       +1 Ret
       +1 List 3 items
-     ...  0 @ 668
-     ...  1 @ 717
-     ...  2 @ 766
+     ...  0 @ 654
+     ...  1 @ 703
+     ...  2 @ 752
      +33 Ret
-      +1 JumpLazy @00000993
+      +1 JumpLazy @00000979
       +9 Ref depth:0 "dict" id:1
      +29 Str "plain"
      +14 Index
@@ -78,15 +78,15 @@
      +14 Index
       +1 Ret
       +1 List 3 items
-     ...  0 @ 858
-     ...  1 @ 903
-     ...  2 @ 948
+     ...  0 @ 844
+     ...  1 @ 889
+     ...  2 @ 934
      +33 Ret
       +1 Dict 6 items
-     ... LOCAL 0001 @ -878
+     ... LOCAL 0001 @ -871
      ... LOCAL 0002 @ -670
      ... LOCAL 0003 @ -550
      ... PUB   "add" @ -402
      ... PUB   "arg-twice" @ -212
      ... PUB   "plain" @ -34
-    +128 Ret
+    +121 Ret

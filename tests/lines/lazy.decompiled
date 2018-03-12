@@ -1,4 +1,4 @@
-     +16 JumpLazy @00001201
+     +16 JumpLazy @00001159
       +9 JumpLazy @00000084
       +9 Global 10 <builtin "panic">
       +9 Str "Unused dict element."
@@ -9,14 +9,14 @@
       +1 Dict 2 items
      ... PUB   "unused" @ -50
      ... PUB   "used" @ -10
-     +53 Ret
-      +1 JumpFunc @00000285
-    +147 Func @ 00000203
+     +46 Ret
+      +1 JumpFunc @00000278
+    +147 Func @ 00000196
       +9 Ret
-      +1 JumpFunc @00000323
-     +28 Func @ 00000304
+      +1 JumpFunc @00000316
+     +28 Func @ 00000297
       +9 Ret
-      +1 JumpLazy @00000424
+      +1 JumpLazy @00000417
       +9 Global 10 <builtin "panic">
       +9 Str "Unused list head"
      +25 Call
@@ -28,18 +28,18 @@
      +25 Call
       +1 Ret
       +1 List 3 items
-     ...  0 @ 342
-     ...  1 @ 378
-     ...  2 @ 388
+     ...  0 @ 335
+     ...  1 @ 371
+     ...  2 @ 381
      +33 Ret
-      +1 JumpLazy @00000568
-      +9 JumpLazy @00000513
+      +1 JumpLazy @00000561
+      +9 JumpLazy @00000506
       +9 Global 10 <builtin "panic">
       +9 Str "Overridden value."
      +26 Call
       +1 Ret
       +1 List 1 items
-     ...  0 @ 476
+     ...  0 @ 469
      +17 Ret
       +1 Global 10 <builtin "panic">
       +9 Str "Overridden value."
@@ -48,13 +48,13 @@
       +1 Dict 2 items
      ... PUB   "merged" @ -55
      ... PUB   "not-merged" @ -37
-     +59 Ret
+     +52 Ret
       +1 Global 10 <builtin "panic">
       +9 Str "Unused local."
      +22 Call
       +1 Ret
       +1 Global 1 <builtin "if">
-      +9 JumpLazy @00000793
+      +9 JumpLazy @00000779
       +9 Global 4 false
       +9 Ret
       +1 Global 10 <builtin "panic">
@@ -70,29 +70,29 @@
       +1 Num 42
       +9 Ret
       +1 List 5 items
-     ...  0 @ 679
-     ...  1 @ 689
-     ...  2 @ 731
-     ...  3 @ 741
-     ...  4 @ 783
+     ...  0 @ 665
+     ...  1 @ 675
+     ...  2 @ 717
+     ...  3 @ 727
+     ...  4 @ 769
      +49 Call
       +1 Ret
       +1 Ref depth:0 "dict" id:1
      +29 Str "used"
      +13 Index
       +1 Ret
-      +1 JumpLazy @00000979
+      +1 JumpLazy @00000958
       +9 Ref depth:1 "func-dict" id:2
-     +34 JumpLazy @00000950
+     +34 JumpLazy @00000936
       +9 Num 6
       +9 Ret
       +1 Dict 1 items
      ... PUB   "b" @ -10
-     +27 Call
+     +20 Call
       +1 Ret
       +1 Dict 1 items
-     ... PUB   "dict-passed" @ -82
-     +37 Ret
+     ... PUB   "dict-passed" @ -75
+     +30 Ret
       +1 Global 3 <builtin "index">
       +9 Ref depth:0 "list" id:4
      +29 Call
@@ -100,27 +100,27 @@
       +9 Call
       +1 Ret
       +1 Ref depth:0 "template" id:5
-     +33 JumpLazy @00001140
-      +9 JumpLazy @00001118
+     +33 JumpLazy @00001105
+      +9 JumpLazy @00001090
       +9 Dict 0 items
-      +9 Ret
+      +2 Ret
       +1 Str "ok"
      +11 Ret
       +1 Dict 2 items
-     ... PUB   "merged" @ -22
+     ... PUB   "merged" @ -15
      ... PUB   "not-merged" @ -12
-     +59 Call
+     +52 Call
       +1 Ret
       +1 Dict 11 items
-     ... LOCAL 0001 @ -1117
-     ... LOCAL 0002 @ -916
-     ... LOCAL 0003 @ -878
-     ... LOCAL 0004 @ -777
-     ... LOCAL 0005 @ -633
-     ... LOCAL 0006 @ -573
-     ... PUB   "cond-eval" @ -540
-     ... PUB   "dict-eval" @ -357
-     ... PUB   "func-eval" @ -222
-     ... PUB   "list-eval" @ -184
-     ... PUB   "template-eval" @ -134
-    +245 Ret
+     ... LOCAL 0001 @ -1075
+     ... LOCAL 0002 @ -881
+     ... LOCAL 0003 @ -843
+     ... LOCAL 0004 @ -742
+     ... LOCAL 0005 @ -598
+     ... LOCAL 0006 @ -545
+     ... PUB   "cond-eval" @ -512
+     ... PUB   "dict-eval" @ -329
+     ... PUB   "func-eval" @ -201
+     ... PUB   "list-eval" @ -170
+     ... PUB   "template-eval" @ -120
+    +238 Ret

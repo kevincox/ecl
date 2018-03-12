@@ -1,4 +1,4 @@
-     +16 JumpLazy @00001669
+     +16 JumpLazy @00001648
       +9 JumpLazy @00000054
       +9 Global 4 false
       +9 Ret
@@ -7,10 +7,10 @@
       +1 Dict 2 items
      ... PUB   "false_" @ -20
      ... PUB   "true_" @ -10
-     +54 Ret
-      +1 JumpLazy @00000612
+     +47 Ret
+      +1 JumpLazy @00000605
       +9 Global 1 <builtin "if">
-      +9 JumpLazy @00000200
+      +9 JumpLazy @00000193
       +9 Global 4 false
       +9 Ret
       +1 Str "skip"
@@ -22,15 +22,15 @@
       +1 Str "else"
      +13 Ret
       +1 List 5 items
-     ...  0 @ 136
-     ...  1 @ 146
-     ...  2 @ 160
-     ...  3 @ 170
-     ...  4 @ 186
+     ...  0 @ 129
+     ...  1 @ 139
+     ...  2 @ 153
+     ...  3 @ 163
+     ...  4 @ 179
      +49 Call
       +1 Ret
       +1 Global 1 <builtin "if">
-      +9 JumpLazy @00000359
+      +9 JumpLazy @00000352
       +9 Global 4 false
       +9 Ret
       +1 Str "skip"
@@ -46,17 +46,17 @@
       +1 Str "else"
      +13 Ret
       +1 List 7 items
-     ...  0 @ 269
-     ...  1 @ 279
-     ...  2 @ 293
-     ...  3 @ 303
-     ...  4 @ 319
-     ...  5 @ 329
-     ...  6 @ 345
+     ...  0 @ 262
+     ...  1 @ 272
+     ...  2 @ 286
+     ...  3 @ 296
+     ...  4 @ 312
+     ...  5 @ 322
+     ...  6 @ 338
      +65 Call
       +1 Ret
       +1 Global 1 <builtin "if">
-      +9 JumpLazy @00000484
+      +9 JumpLazy @00000477
       +9 Num 1
       +9 Num 5
       +9 Eq
@@ -66,13 +66,13 @@
       +1 Num 2
       +9 Ret
       +1 List 3 items
-     ...  0 @ 444
-     ...  1 @ 464
-     ...  2 @ 474
+     ...  0 @ 437
+     ...  1 @ 457
+     ...  2 @ 467
      +33 Call
       +1 Ret
       +1 Global 1 <builtin "if">
-      +9 JumpLazy @00000577
+      +9 JumpLazy @00000570
       +9 Num 1
       +9 Num 1
       +9 Eq
@@ -82,9 +82,9 @@
       +1 Num 28
       +9 Ret
       +1 List 3 items
-     ...  0 @ 537
-     ...  1 @ 557
-     ...  2 @ 567
+     ...  0 @ 530
+     ...  1 @ 550
+     ...  2 @ 560
      +33 Call
       +1 Ret
       +1 Dict 4 items
@@ -92,12 +92,12 @@
      ... PUB   "multi_found" @ -361
      ... PUB   "simple_false" @ -186
      ... PUB   "simple_true" @ -93
-    +124 Ret
+    +117 Ret
       +1 Global 8 <builtin "map">
-      +9 JumpFunc @00000857
-    +111 Func @ 00000755
+      +9 JumpFunc @00000843
+    +111 Func @ 00000741
       +9 Call
-      +1 JumpLazy @00000906
+      +1 JumpLazy @00000892
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -108,15 +108,15 @@
      ... PUB   "a" @ -30
      ... PUB   "b" @ -20
      ... PUB   "c" @ -10
-     +63 Call
+     +56 Call
       +1 Ret
       +1 Global 5 <builtin "foldl">
-      +9 JumpFunc @00001087
-    +107 Func @ 00000989
+      +9 JumpFunc @00001066
+    +107 Func @ 00000968
       +9 Call
       +1 Str "s"
      +10 Call
-      +1 JumpLazy @00001150
+      +1 JumpLazy @00001129
       +9 Str "a"
      +10 Ret
       +1 Str "b"
@@ -124,18 +124,18 @@
       +1 Str "c"
      +10 Ret
       +1 List 3 items
-     ...  0 @ 1117
-     ...  1 @ 1128
-     ...  2 @ 1139
+     ...  0 @ 1096
+     ...  1 @ 1107
+     ...  2 @ 1118
      +33 Call
       +1 Ret
       +1 Global 6 <builtin "foldr">
-      +9 JumpFunc @00001301
-    +107 Func @ 00001203
+      +9 JumpFunc @00001280
+    +107 Func @ 00001182
       +9 Call
       +1 Str "s"
      +10 Call
-      +1 JumpLazy @00001364
+      +1 JumpLazy @00001343
       +9 Str "a"
      +10 Ret
       +1 Str "b"
@@ -143,16 +143,16 @@
       +1 Str "c"
      +10 Ret
       +1 List 3 items
-     ...  0 @ 1331
-     ...  1 @ 1342
-     ...  2 @ 1353
+     ...  0 @ 1310
+     ...  1 @ 1321
+     ...  2 @ 1332
      +33 Call
       +1 Ret
       +1 Global 8 <builtin "map">
-      +9 JumpFunc @00001463
-     +55 Func @ 00001417
+      +9 JumpFunc @00001442
+     +55 Func @ 00001396
       +9 Call
-      +1 JumpLazy @00001512
+      +1 JumpLazy @00001491
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -160,13 +160,13 @@
       +1 Num 3
       +9 Ret
       +1 List 3 items
-     ...  0 @ 1482
-     ...  1 @ 1492
-     ...  2 @ 1502
+     ...  0 @ 1461
+     ...  1 @ 1471
+     ...  2 @ 1481
      +33 Call
       +1 Ret
       +1 Global 9 <builtin "reverse">
-      +9 JumpLazy @00001595
+      +9 JumpLazy @00001574
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -174,26 +174,26 @@
       +1 Num 3
       +9 Ret
       +1 List 3 items
-     ...  0 @ 1565
-     ...  1 @ 1575
-     ...  2 @ 1585
+     ...  0 @ 1544
+     ...  1 @ 1554
+     ...  2 @ 1564
      +33 Call
       +1 Ret
       +1 Global 9 <builtin "reverse">
-      +9 JumpLazy @00001648
+      +9 JumpLazy @00001627
       +9 List 0 items
       +9 Call
       +1 Ret
       +1 Global 0 Nil
       +9 Ret
       +1 Dict 9 items
-     ... PUB   "bool" @ -1615
-     ... PUB   "cond_" @ -1057
-     ... PUB   "dict-map" @ -932
+     ... PUB   "bool" @ -1594
+     ... PUB   "cond_" @ -1043
+     ... PUB   "dict-map" @ -925
      ... PUB   "list-foldl" @ -698
      ... PUB   "list-foldr" @ -484
      ... PUB   "list-map" @ -270
      ... PUB   "list-reverse" @ -122
      ... PUB   "list-reverse-empty" @ -39
      ... PUB   "nil_" @ -10
-    +241 Ret
+    +234 Ret

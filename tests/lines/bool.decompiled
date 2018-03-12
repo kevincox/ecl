@@ -1,4 +1,4 @@
-     +16 JumpLazy @00000171
+     +16 JumpLazy @00000164
       +9 Global 4 false
       +9 Ret
       +1 Global 11 true
@@ -14,9 +14,9 @@
      ... PUB   "f" @ -50
      ... PUB   "t" @ -40
      ... PUB   "true" @ -10
-     +66 Ret
+     +59 Ret
       +1 Dict 3 items
-     ... PUB   "f" @ -146
-     ... PUB   "t" @ -136
-     ... PUB   "weird" @ -67
-     +67 Ret
+     ... PUB   "f" @ -139
+     ... PUB   "t" @ -129
+     ... PUB   "weird" @ -60
+     +60 Ret

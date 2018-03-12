@@ -1,5 +1,5 @@
-     +16 JumpLazy @00000350
-      +9 JumpLazy @00000113
+     +16 JumpLazy @00000336
+      +9 JumpLazy @00000106
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -11,14 +11,14 @@
       +9 Ret
       +1 Dict 1 items
      ... PUB   "val" @ -10
-     +29 Ret
+     +22 Ret
       +1 List 4 items
      ...  0 @ 34
      ...  1 @ 44
      ...  2 @ 54
      ...  3 @ 83
      +41 Ret
-      +1 JumpLazy @00000194
+      +1 JumpLazy @00000187
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -29,9 +29,9 @@
      ... PUB   "a" @ -30
      ... PUB   "b" @ -20
      ... PUB   "c" @ -10
-     +63 Ret
-      +1 JumpLazy @00000308
-      +9 JumpLazy @00000286
+     +56 Ret
+      +1 JumpLazy @00000294
+      +9 JumpLazy @00000272
       +9 Num 5
       +9 Ret
       +1 ADict "dict"@-10
@@ -43,9 +43,9 @@
       +1 Num 4
       +9 Ret
       +1 Dict 5 items
-     ... PUB   "array" @ -237
-     ... PUB   "dict" @ -156
+     ... PUB   "array" @ -230
+     ... PUB   "dict" @ -149
      ... PUB   "dotted" @ -42
      ... PUB   "other" @ -20
      ... PUB   "quoted" @ -10
-    +120 Ret
+    +113 Ret
