@@ -23,6 +23,9 @@ humanbool = "1.0"
 procinfo = "0.4.2"
 serde_derive = "0.8"
 
+[profile.release]
+debug = true
+
 [[test]]
 name = "compile"
 harness = false
