@@ -18,17 +18,16 @@ macro_rules! codes {
 		enum $type { $( $item ),* }
 
 		impl $type {
+			#[inline(always)]
 			fn from(i: $repr) -> Result<Self,::Val> {
 				$( if i == $type::$item as $repr {
 					Ok($type::$item)
 				} else )* {
-					Err(::err::Err::new(
-						format!("Unknown {} {:02x}",
-							stringify!($type),
-							i)))
+					panic!("Unknown {} {:02x}", stringify!($type), i)
 				}
 			}
 
+			#[inline]
 			fn to(self) -> $repr {
 				self as $repr
 			}
@@ -185,7 +184,7 @@ impl CompileContext {
 	}
 
 	fn write_str(&mut self, s: &str) -> usize {
-		let off = self.write_usize(s.len());
+		let off = self.write_varint(s.len());
 		self.write(s.bytes());
 		off
 	}
@@ -267,7 +266,7 @@ impl CompileContext {
 						}
 						id => {
 							self.write_u8(DictItem::Local.to());
-							self.write_usize(id);
+							self.write_varint(id);
 						}
 					}
 					self.write_usize(offset?);
@@ -283,7 +282,7 @@ impl CompileContext {
 					::func::Arg::One(arg) => {
 						let argoff = self.write_u8(ArgType::One.to());
 						let id = self.scope_add(arg.clone(), false);
-						self.write_usize(id);
+						self.write_varint(id);
 						argoff
 					}
 					::func::Arg::Dict(args) => {
@@ -336,7 +335,7 @@ impl CompileContext {
 							.collect::<Vec<_>>();
 
 						let argoff = self.write_u8(ArgType::List.to());
-						self.write_usize(args.len());
+						self.write_varint(args.len());
 						for (id, off) in args {
 							let off = off?;
 
@@ -357,7 +356,7 @@ impl CompileContext {
 
 				self.set_jump(jump);
 				let off = self.write_op(Op::Func);
-				self.write_usize(argoff);
+				self.write_varint(argoff);
 				Ok(off)
 			}
 			::Almost::Index(_, left, right) => {
@@ -372,7 +371,7 @@ impl CompileContext {
 
 				self.set_jump(jump);
 				let off = self.write_op(Op::List);
-				self.write_usize(offsets.len());
+				self.write_varint(offsets.len());
 				for offset in offsets {
 					self.write_usize(offset?);
 				}
@@ -393,12 +392,12 @@ impl CompileContext {
 				if let Some((depth, id)) = self.scope_find(&name) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&name); // TODO: remove this.
-					self.write_usize(depth);
-					self.write_usize(id);
+					self.write_varint(depth);
+					self.write_varint(id);
 					Ok(off)
 				} else if let Some(id) = ::builtins::builtin_id(&name) {
 					let off = self.write_op(Op::Global);
-					self.write_usize(id);
+					self.write_varint(id);
 					Ok(off)
 				} else {
 					Err(::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
@@ -408,13 +407,13 @@ impl CompileContext {
 				if let Some(id) = self.scope_find_at(&key, depth) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&key); // TODO: remove this.
-					self.write_usize(depth);
-					self.write_usize(id);
+					self.write_varint(depth);
+					self.write_varint(id);
 					Ok(off)
 				} else {
 					let off = self.write_op(Op::RefRel);
 					self.write_str(&key); // TODO: remove this.
-					self.write_usize(depth);
+					self.write_varint(depth);
 					Ok(off)
 				}
 			}
@@ -457,7 +456,7 @@ impl CompileContext {
 
 	fn compile_global(&mut self, global: usize) -> Result<usize,::Val> {
 		let off = self.write_op(Op::Global);
-		self.write_usize(global);
+		self.write_varint(global);
 		Ok(off)
 	}
 }
@@ -504,36 +503,41 @@ trait CursorExt {
 }
 
 impl<'a> CursorExt for std::io::Cursor<&'a [u8]> {
+	#[inline]
 	fn read_usize(&mut self) -> usize {
 		let n = self.read_u64::<EclByteOrder>().unwrap();
 		std::convert::TryFrom::try_from(n).unwrap()
 	}
 
 	fn read_varint(&mut self) -> usize {
-		let first = self.read_u8().unwrap();
-		let bits = (!first).leading_zeros();
+		let off = self.position() as usize;
 
-		let bytes = match bits {
-			0 => 1,
-			1 => 2,
-			2 => 4,
-			3 => 8,
-			b => unreachable!("Bits: {}", b),
+		let (bytes, val) = {
+			let buf = &self.get_ref()[off..];
+
+			let bits = (!buf[0]).leading_zeros();
+			let bytes = match bits {
+				0 => 1,
+				1 => 2,
+				2 => 4,
+				3 => 8,
+				b => unreachable!("Bits: {}", b),
+			};
+
+			let mut r = (buf[0] & (0xFF >> bits)) as u64;
+			for i in 1..bytes {
+				r |= (buf[i] as u64) << (i*8);
+			}
+
+			(bytes, r)
 		};
 
-		assert!(bytes <= std::mem::size_of::<usize>());
-
-		let mut r = (first & (0xFF >> bits)) as usize;
-		for _ in 1..bytes {
-			r <<= 8;
-			r += self.read_u8().unwrap() as usize;
-		}
-
-		r
+		self.set_position(off as u64 + bytes as u64);
+		std::convert::TryFrom::try_from(val).unwrap()
 	}
 
 	fn read_str(&mut self) -> String {
-		let len = self.read_usize();
+		let len = self.read_varint();
 		let mut buf = vec![0; len];
 		self.read_exact(&mut buf).unwrap();
 		String::from_utf8(buf).unwrap()
@@ -554,21 +558,21 @@ struct EvalContext {
 
 impl EvalContext {
 	pub fn eval(&mut self) -> ::Val {
-		// eprintln!("Executing @ {}", pc);
+		// eprintln!("Executing @ {}", self.pc);
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
-		cursor.seek(std::io::SeekFrom::Start(self.pc)).unwrap();
+		cursor.set_position(self.pc as u64);
 
 		let mut stack = Vec::new();
 		let r = loop {
 			let op = Op::from(cursor.read_u8().unwrap())?;
-			// eprintln!("Executing OP {:?} @ {}", op, pc + cursor.position() as usize - 1);
+			// eprintln!("Executing OP {:?} @ {}", op, cursor.position() as usize - 1);
 			match op {
 				Op::Ret => {
 					assert_eq!(stack.len(), 1);
 					break stack.pop().unwrap()
 				},
 				Op::Global => {
-					let id = cursor.read_usize();
+					let id = cursor.read_varint();
 					stack.push(::builtins::get_id(id));
 				}
 				Op::Add => {
@@ -623,7 +627,7 @@ impl EvalContext {
 						let key = match DictItem::from(cursor.read_u8().unwrap())? {
 							DictItem::Pub => ::dict::Key::Pub(cursor.read_str()),
 							DictItem::Local => {
-								let mut id = cursor.read_usize();
+								let mut id = cursor.read_varint();
 								id += self.module.unique_id();
 								::dict::Key::Local(id)
 							},
@@ -634,7 +638,7 @@ impl EvalContext {
 					stack.push(::dict::Dict::new(self.pstruct.clone(), items));
 				}
 				Op::Func => {
-					let bodyoff = cursor.read_usize();
+					let bodyoff = cursor.read_varint();
 					stack.push(::func::Func::new(
 						self.pstruct.clone(),
 						Func::new(self.module.clone(), bodyoff)));
@@ -660,7 +664,7 @@ impl EvalContext {
 					cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 				}
 				Op::List => {
-					let len = cursor.read_usize();
+					let len = cursor.read_varint();
 					let mut items = Vec::with_capacity(len);
 					for _ in 0..len {
 						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
@@ -677,8 +681,8 @@ impl EvalContext {
 				}
 				Op::Ref => {
 					let strkey = cursor.read_str();
-					let depth = cursor.read_usize();
-					let mut id = cursor.read_usize();
+					let depth = cursor.read_varint();
+					let mut id = cursor.read_varint();
 					let key = if id == 0 {
 						::dict::Key::Pub(strkey.clone())
 					} else {
@@ -691,7 +695,7 @@ impl EvalContext {
 				}
 				Op::RefRel => {
 					let key = cursor.read_str();
-					let depth = cursor.read_usize();
+					let depth = cursor.read_varint();
 					let key = ::dict::Key::Pub(key);
 					stack.push(self.pstruct.structural_lookup(depth, &key));
 				}
@@ -799,7 +803,7 @@ impl<'a> DisassembeContext<'a> {
 			match op {
 				Op::Ret => writeln!(self.out)?,
 				Op::Global => {
-					let id = self.cursor.read_usize();
+					let id = self.cursor.read_varint();
 					writeln!(self.out, " {} {:?}", id, ::builtins::get_id(id))?;
 				}
 				Op::Add => writeln!(self.out)?,
@@ -827,7 +831,7 @@ impl<'a> DisassembeContext<'a> {
 								write!(self.out, " PUB   {:?}", key).unwrap()
 							}
 							DictItem::Local => {
-								let mut id = self.cursor.read_usize();
+								let mut id = self.cursor.read_varint();
 								write!(self.out, " LOCAL {:04x}", id).unwrap();
 							},
 						}
@@ -838,7 +842,7 @@ impl<'a> DisassembeContext<'a> {
 					}
 				}
 				Op::Func => {
-					let off = self.cursor.read_usize();
+					let off = self.cursor.read_varint();
 					writeln!(self.out, " @ {:08}", off)?;
 				}
 				Op::Index => writeln!(self.out)?,
@@ -854,7 +858,7 @@ impl<'a> DisassembeContext<'a> {
 					writeln!(self.out, " @{:08}", target)?;
 				}
 				Op::List => {
-					let len = self.cursor.read_usize();
+					let len = self.cursor.read_varint();
 					writeln!(self.out, " {} items", len)?;
 					for i in 0..len {
 						let off = self.cursor.read_usize();
@@ -869,13 +873,13 @@ impl<'a> DisassembeContext<'a> {
 				}
 				Op::Ref => {
 					let key = self.cursor.read_str();
-					let depth = self.cursor.read_usize();
-					let mut id = self.cursor.read_usize();
+					let depth = self.cursor.read_varint();
+					let mut id = self.cursor.read_varint();
 					writeln!(self.out, " depth:{} {:?} id:{}", depth, key, id)?;
 				}
 				Op::RefRel => {
 					let key = self.cursor.read_str();
-					let depth = self.cursor.read_usize();
+					let depth = self.cursor.read_varint();
 					writeln!(self.out, " depth:{} {:?}", depth, key)?;
 				}
 				Op::Str => {
@@ -925,7 +929,7 @@ impl Func {
 
 	pub fn call(&self, parent: ::Val, arg: ::Val) -> ::Val {
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
-		cursor.seek(std::io::SeekFrom::Start(self.offset as u64)).unwrap();
+		cursor.set_position(self.offset as u64);
 
 		let args = ::dict::Dict::new(parent.clone(), Vec::new());
 		let dict = args.clone();
@@ -938,7 +942,7 @@ impl Func {
 
 		match ArgType::from(cursor.read_u8().unwrap())? {
 			ArgType::One => {
-				let mut id = cursor.read_usize();
+				let mut id = cursor.read_varint();
 				id += self.module.unique_id();
 				dict._set_val(::dict::Key::Local(id), ::thunk::shim(arg));
 			}
@@ -1008,7 +1012,7 @@ impl Func {
 				}
 
 				for i in 0..len {
-					let mut id = cursor.read_usize();
+					let mut id = cursor.read_varint();
 					id += self.module.unique_id();
 
 					let passed = list.get(i);
@@ -1049,6 +1053,6 @@ mod tests {
 	fn compile_global() {
 		assert_eq!(
 			compile_to_vec(::Almost::Nil),
-			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0\x00".as_ref().into()));
+			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\0\0".as_ref().into()));
 	}
 }
