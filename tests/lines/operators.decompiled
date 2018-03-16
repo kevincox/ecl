@@ -1,20 +1,20 @@
-     +16 JumpLazy @00000715
-      +9 JumpLazy @00000174
-      +9 JumpLazy @00000135
-      +9 JumpFunc @00000115
-     +72 Func @ 00000052
-      +9 Ret
+     +16 JumpLazy @00000456
+      +9 JumpLazy @00000104
+      +9 JumpLazy @00000079
+      +9 JumpFunc @00000066
+     +23 Func @ 00000052
+      +2 Ret
       +1 Num 5
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "f" @ -20
+     ... PUB   "f" @ -13
      ... PUB   "i" @ -10
-     +38 Ret
+     +24 Ret
       +1 Dict 1 items
-     ... PUB   "b" @ -39
-     +20 Ret
+     ... PUB   "b" @ -25
+     +13 Ret
       +1 Str "1"
-     +10 Num 1
+      +3 Num 1
       +9 Eq
       +1 Ret
       +1 Num 1
@@ -66,55 +66,55 @@
       +9 Lt
       +1 Ret
       +1 Ref depth:0 "a" id:1
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "f"
-     +10 Index
+      +3 Index
       +1 Ref depth:0 "a" id:1
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "i"
-     +10 Index
+      +3 Index
       +1 Call
       +1 Ret
       +1 Ref depth:0 "a" id:1
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "f"
-     +10 Index
+      +3 Index
       +1 Num 4
       +9 Call
       +1 Ref depth:0 "a" id:1
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "f"
-     +10 Index
+      +3 Index
       +1 Num 5
       +9 Call
       +1 Add
       +1 Ref depth:0 "a" id:1
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "f"
-     +10 Index
+      +3 Index
       +1 Num 6
       +9 Call
       +1 Add
       +1 Ret
       +1 Dict 15 items
-     ... LOCAL 0001 @ -541
-     ... PUB   "cmp-eq-false" @ -520
-     ... PUB   "cmp-eq-true" @ -499
-     ... PUB   "cmp-ge-eq" @ -479
-     ... PUB   "cmp-ge-false" @ -459
-     ... PUB   "cmp-ge-true" @ -439
-     ... PUB   "cmp-gt-false" @ -418
-     ... PUB   "cmp-gt-true" @ -398
-     ... PUB   "cmp-le-eq" @ -378
-     ... PUB   "cmp-le-false" @ -357
-     ... PUB   "cmp-le-true" @ -336
-     ... PUB   "cmp-lt-false" @ -315
-     ... PUB   "cmp-lt-true" @ -295
-     ... PUB   "index" @ -275
-     ... PUB   "math" @ -177
-    +399 Ret
+     ... LOCAL 0001 @ -352
+     ... PUB   "cmp-eq-false" @ -338
+     ... PUB   "cmp-eq-true" @ -324
+     ... PUB   "cmp-ge-eq" @ -304
+     ... PUB   "cmp-ge-false" @ -284
+     ... PUB   "cmp-ge-true" @ -264
+     ... PUB   "cmp-gt-false" @ -243
+     ... PUB   "cmp-gt-true" @ -223
+     ... PUB   "cmp-le-eq" @ -203
+     ... PUB   "cmp-le-false" @ -182
+     ... PUB   "cmp-le-true" @ -161
+     ... PUB   "cmp-lt-false" @ -140
+     ... PUB   "cmp-lt-true" @ -120
+     ... PUB   "index" @ -100
+     ... PUB   "math" @ -72
+    +294 Ret

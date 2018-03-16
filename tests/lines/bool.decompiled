@@ -1,22 +1,22 @@
-     +16 JumpLazy @00000164
+     +16 JumpLazy @00000101
       +9 Global 4 false
-      +9 Ret
+      +2 Ret
       +1 Global 11 true
-      +9 Ret
-      +1 JumpLazy @00000104
+      +2 Ret
+      +1 JumpLazy @00000062
       +9 Global 4 false
-      +9 Ret
+      +2 Ret
       +1 Ref depth:0 "true" id:0
-     +29 Ret
+      +8 Ret
       +1 Num 4
       +9 Ret
       +1 Dict 3 items
-     ... PUB   "f" @ -50
-     ... PUB   "t" @ -40
+     ... PUB   "f" @ -22
+     ... PUB   "t" @ -19
      ... PUB   "true" @ -10
-     +59 Ret
+     +38 Ret
       +1 Dict 3 items
-     ... PUB   "f" @ -139
-     ... PUB   "t" @ -129
-     ... PUB   "weird" @ -60
-     +60 Ret
+     ... PUB   "f" @ -76
+     ... PUB   "t" @ -73
+     ... PUB   "weird" @ -39
+     +39 Ret

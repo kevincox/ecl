@@ -1,14 +1,14 @@
-     +16 JumpLazy @00001683
+     +16 JumpLazy @00000922
       +9 Num 5
       +9 Ret
-      +1 JumpFunc @00000090
-     +55 Func @ 00000044
-      +9 Num 5
+      +1 JumpFunc @00000062
+     +27 Func @ 00000044
+      +2 Num 5
       +9 Call
       +1 Ret
-      +1 JumpFunc @00000202
-     +92 Func @ 00000119
-      +9 JumpLazy @00000240
+      +1 JumpFunc @00000111
+     +36 Func @ 00000084
+      +2 JumpLazy @00000142
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -16,17 +16,17 @@
       +1 Dict 2 items
      ... PUB   "a" @ -20
      ... PUB   "b" @ -10
-     +38 Call
+     +24 Call
       +1 Ret
-      +1 JumpFunc @00000382
-    +102 Func @ 00000299
-      +9 JumpLazy @00000400
+      +1 JumpFunc @00000221
+     +53 Func @ 00000187
+      +3 JumpLazy @00000233
       +9 Dict 0 items
       +2 Call
       +1 Ret
-      +1 JumpFunc @00000551
-    +147 Func @ 00000423
-      +9 JumpLazy @00000589
+      +1 JumpFunc @00000300
+     +63 Func @ 00000256
+      +3 JumpLazy @00000332
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -34,11 +34,11 @@
       +1 Dict 2 items
      ... PUB   "a" @ -20
      ... PUB   "b" @ -10
-     +38 Call
+     +24 Call
       +1 Ret
-      +1 JumpFunc @00000739
-    +110 Func @ 00000648
-      +9 JumpLazy @00000777
+      +1 JumpFunc @00000405
+     +47 Func @ 00000370
+      +3 JumpLazy @00000437
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -46,11 +46,11 @@
       +1 Dict 2 items
      ... PUB   "a" @ -20
      ... PUB   "b" @ -10
-     +38 Call
+     +24 Call
       +1 Ret
-      +1 JumpFunc @00000964
-    +147 Func @ 00000836
-      +9 JumpLazy @00001012
+      +1 JumpFunc @00000526
+     +63 Func @ 00000482
+      +3 JumpLazy @00000568
       +9 Num 1
       +9 Ret
       +1 Num 2
@@ -61,58 +61,58 @@
      ... PUB   "a" @ -30
      ... PUB   "b" @ -20
      ... PUB   "c" @ -10
-     +56 Call
+     +35 Call
       +1 Ret
-      +1 JumpFunc @00001160
-     +90 Func @ 00001079
-      +9 JumpLazy @00001198
+      +1 JumpFunc @00000632
+     +27 Func @ 00000614
+      +3 JumpLazy @00000664
       +9 Num 1
       +9 Ret
       +1 Num 2
       +9 Ret
       +1 List 2 items
-     ...  0 @ 1178
-     ...  1 @ 1188
-     +25 Call
+     ...  0 @ 644
+     ...  1 @ 654
+     +18 Call
       +1 Ret
-      +1 JumpFunc @00001333
-    +108 Func @ 00001244
-      +9 JumpLazy @00001361
+      +1 JumpFunc @00000729
+     +45 Func @ 00000703
+      +3 JumpLazy @00000751
       +9 Num 1
       +9 Ret
       +1 List 1 items
-     ...  0 @ 1351
-     +17 Call
+     ...  0 @ 741
+     +10 Call
       +1 Ret
-      +1 JumpFunc @00001488
-    +108 Func @ 00001399
-      +9 JumpLazy @00001526
+      +1 JumpFunc @00000808
+     +45 Func @ 00000782
+      +3 JumpLazy @00000840
       +9 Num 1
       +9 Ret
       +1 Num 3
       +9 Ret
       +1 List 2 items
-     ...  0 @ 1506
-     ...  1 @ 1516
-     +25 Call
+     ...  0 @ 820
+     ...  1 @ 830
+     +18 Call
       +1 Ret
-      +1 JumpFunc @00001653
-    +100 Func @ 00001562
-      +9 Num 1
+      +1 JumpFunc @00000898
+     +38 Func @ 00000869
+      +3 Num 1
       +9 Call
       +1 Num 2
       +9 Call
       +1 Ret
       +1 Dict 11 items
-     ... LOCAL 0001 @ -1658
-     ... PUB   "add-two" @ -1593
-     ... PUB   "destructure-dict" @ -1481
-     ... PUB   "destructure-dict-closure" @ -1301
-     ... PUB   "destructure-dict-default" @ -1132
-     ... PUB   "destructure-dict-default-nil" @ -944
-     ... PUB   "destructure-dict-override" @ -719
-     ... PUB   "destructure-list" @ -523
-     ... PUB   "destructure-list-default" @ -350
-     ... PUB   "destructure-list-default-override" @ -195
-     ... PUB   "multi-arg" @ -30
-    +395 Ret
+     ... LOCAL 0001 @ -897
+     ... PUB   "add-two" @ -860
+     ... PUB   "destructure-dict" @ -811
+     ... PUB   "destructure-dict-closure" @ -701
+     ... PUB   "destructure-dict-default" @ -622
+     ... PUB   "destructure-dict-default-nil" @ -517
+     ... PUB   "destructure-dict-override" @ -396
+     ... PUB   "destructure-list" @ -290
+     ... PUB   "destructure-list-default" @ -193
+     ... PUB   "destructure-list-default-override" @ -114
+     ... PUB   "multi-arg" @ -24
+    +318 Ret

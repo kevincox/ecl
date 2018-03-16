@@ -1,62 +1,62 @@
-     +16 JumpLazy @00000452
-      +9 JumpLazy @00000156
-      +9 JumpLazy @00000137
-      +9 JumpLazy @00000118
-      +9 JumpLazy @00000099
+     +16 JumpLazy @00000291
+      +9 JumpLazy @00000128
+      +9 JumpLazy @00000116
+      +9 JumpLazy @00000104
+      +9 JumpLazy @00000092
       +9 JumpLazy @00000080
       +9 Num 1000000
       +9 Ret
       +1 ADict "f"@-10
-     +18 Ret
-      +1 ADict "e"@-19
-     +18 Ret
-      +1 ADict "d"@-19
-     +18 Ret
-      +1 ADict "c"@-19
-     +18 Ret
-      +1 ADict "b"@-19
-     +18 Ret
-      +1 JumpLazy @00000254
-      +9 JumpLazy @00000233
-      +9 JumpLazy @00000212
+     +11 Ret
+      +1 ADict "e"@-12
+     +11 Ret
+      +1 ADict "d"@-12
+     +11 Ret
+      +1 ADict "c"@-12
+     +11 Ret
+      +1 ADict "b"@-12
+     +11 Ret
+      +1 JumpLazy @00000205
+      +9 JumpLazy @00000191
+      +9 JumpLazy @00000177
       +9 Num 1.5
       +9 Ret
       +1 Dict 1 items
      ... PUB   "j" @ -10
-     +20 Ret
+     +13 Ret
       +1 Dict 1 items
-     ... PUB   "i" @ -21
-     +20 Ret
+     ... PUB   "i" @ -14
+     +13 Ret
       +1 Dict 1 items
-     ... PUB   "h" @ -21
-     +20 Ret
-      +1 JumpLazy @00000426
+     ... PUB   "h" @ -14
+     +13 Ret
+      +1 JumpLazy @00000272
       +9 Ref depth:0 "a" id:0
-     +26 Str "b"
-     +10 Index
+      +5 Str "b"
+      +3 Index
       +1 Str "c"
-     +10 Index
+      +3 Index
       +1 Str "d"
-     +10 Index
+      +3 Index
       +1 Str "e"
-     +10 Index
+      +3 Index
       +1 Str "f"
-     +10 Index
+      +3 Index
       +1 Ret
       +1 Ref depth:0 "g" id:0
-     +26 Str "h"
-     +10 Index
+      +5 Str "h"
+      +3 Index
       +1 Str "i"
-     +10 Index
+      +3 Index
       +1 Str "j"
-     +10 Index
+      +3 Index
       +1 Ret
       +1 List 2 items
-     ...  0 @ 284
-     ...  1 @ 366
-     +25 Ret
+     ...  0 @ 228
+     ...  1 @ 254
+     +18 Ret
       +1 Dict 3 items
-     ... PUB   "a" @ -296
-     ... PUB   "g" @ -198
-     ... PUB   "r" @ -26
-     +56 Ret
+     ... PUB   "a" @ -163
+     ... PUB   "g" @ -86
+     ... PUB   "r" @ -19
+     +35 Ret

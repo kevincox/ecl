@@ -1,22 +1,22 @@
-     +16 JumpLazy @00000338
-      +9 JumpLazy @00000127
+     +16 JumpLazy @00000233
+      +9 JumpLazy @00000085
       +9 Ref depth:0 "some-option" id:0
-     +36 Ret
-      +1 JumpLazy @00000080
+     +15 Ret
+      +1 JumpLazy @00000059
       +9 Dict 0 items
       +2 Ret
       +1 Ref depth:0 "my-local" id:1
-     +33 Ret
+     +12 Ret
       +1 Num 5
       +9 Ret
       +1 Dict 4 items
-     ... LOCAL 0001 @ -93
-     ... PUB   "dict-val" @ -47
-     ... PUB   "output" @ -44
+     ... LOCAL 0001 @ -51
+     ... PUB   "dict-val" @ -26
+     ... PUB   "output" @ -23
      ... PUB   "some-option" @ -10
-     +95 Ret
+     +67 Ret
       +1 Ref depth:0 "base" id:0
-     +29 JumpLazy @00000281
+      +8 JumpLazy @00000190
       +9 Num 8
       +9 Ret
       +1 Num 16
@@ -24,9 +24,9 @@
       +1 Dict 2 items
      ... PUB   "dict-val" @ -20
      ... PUB   "some-option" @ -10
-     +55 Call
+     +41 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "base" @ -211
-     ... PUB   "sub" @ -115
-     +43 Ret
+     ... PUB   "base" @ -148
+     ... PUB   "sub" @ -80
+     +29 Ret

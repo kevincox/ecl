@@ -1,64 +1,64 @@
-     +16 JumpLazy @00000626
-      +9 JumpLazy @00000272
+     +16 JumpLazy @00000458
+      +9 JumpLazy @00000195
       +9 JumpLazy @00000053
       +9 Num 2
       +9 Ret
       +1 ADict "val"@-10
-     +20 Ret
-      +1 JumpLazy @00000093
+     +13 Ret
+      +1 JumpLazy @00000086
       +9 Num 5
       +9 Ret
       +1 ADict "val"@-10
-     +20 Ret
-      +1 JumpLazy @00000172
+     +13 Ret
+      +1 JumpLazy @00000137
       +9 Ref depth:0 "val" id:0
-     +28 Num 2
+      +7 Num 2
       +9 Add
       +1 Ret
       +1 Num 4
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "use-val" @ -49
+     ... PUB   "use-val" @ -28
      ... PUB   "val" @ -10
-     +46 Ret
+     +32 Ret
       +1 Ref depth:0 "dict" id:0
-     +29 Str "val"
-     +12 Index
+      +8 Str "val"
+      +5 Index
       +1 Num 3
       +9 Add
       +1 Ret
       +1 Dict 4 items
-     ... PUB   "adict-add" @ -219
-     ... PUB   "adict-override" @ -179
-     ... PUB   "dict" @ -100
-     ... PUB   "dict-use-val" @ -53
-    +109 Ret
+     ... PUB   "adict-add" @ -142
+     ... PUB   "adict-override" @ -109
+     ... PUB   "dict" @ -58
+     ... PUB   "dict-use-val" @ -25
+     +81 Ret
       +1 Ref depth:0 "base" id:0
-     +29 JumpLazy @00000544
-      +9 JumpLazy @00000439
+      +8 JumpLazy @00000397
+      +9 JumpLazy @00000313
       +9 Num 3
       +9 Ret
       +1 Dict 1 items
      ... PUB   "new" @ -10
-     +22 Ret
-      +1 JumpLazy @00000481
+     +15 Ret
+      +1 JumpLazy @00000348
       +9 Num 4
       +9 Ret
       +1 Dict 1 items
      ... PUB   "val" @ -10
-     +22 Ret
-      +1 JumpLazy @00000523
+     +15 Ret
+      +1 JumpLazy @00000383
       +9 Num 6
       +9 Ret
       +1 ADict "val"@-10
-     +20 Ret
+     +13 Ret
       +1 Dict 3 items
-     ... PUB   "adict-add" @ -105
-     ... PUB   "adict-override" @ -63
-     ... PUB   "dict" @ -21
-     +80 Call
+     ... PUB   "adict-add" @ -84
+     ... PUB   "adict-override" @ -49
+     ... PUB   "dict" @ -14
+     +59 Call
       +1 Ret
       +1 Dict 2 items
-     ... PUB   "base" @ -354
-     ... PUB   "sub" @ -244
-     +43 Ret
+     ... PUB   "base" @ -263
+     ... PUB   "sub" @ -181
+     +29 Ret

@@ -1,35 +1,35 @@
-     +16 JumpLazy @00000282
+     +16 JumpLazy @00000135
       +9 Global 7 <builtin "load">
-      +9 Str ""
-      +9 Str "tests/lines/"
-     +21 Interpolate
+      +2 Str ""
+      +2 Str "tests/lines/"
+     +14 Interpolate
       +1 Str "_data.ecl"
-     +18 Interpolate
+     +11 Interpolate
       +1 Call
       +1 Ret
       +1 Ref depth:0 "data" id:1
-     +29 Str "func"
-     +13 Index
+      +8 Str "func"
+      +6 Index
       +1 Num 2
       +9 Call
       +1 Ret
       +1 Ref depth:0 "data" id:1
-     +29 Str "num"
-     +12 Index
+      +8 Str "num"
+      +5 Index
       +1 Ret
       +1 Global 7 <builtin "load">
-      +9 Ref depth:0 "data" id:1
-     +29 Str "path"
-     +13 Index
+      +2 Ref depth:0 "data" id:1
+      +8 Str "path"
+      +6 Index
       +1 Call
       +1 Str "func"
-     +13 Index
+      +6 Index
       +1 Ref depth:0 "added" id:0
-     +30 Call
+      +9 Call
       +1 Ret
       +1 Dict 4 items
-     ... LOCAL 0001 @ -257
-     ... PUB   "added" @ -196
-     ... PUB   "num" @ -142
-     ... PUB   "recursive" @ -99
-     +87 Ret
+     ... LOCAL 0001 @ -110
+     ... PUB   "added" @ -77
+     ... PUB   "num" @ -51
+     ... PUB   "recursive" @ -36
+     +59 Ret

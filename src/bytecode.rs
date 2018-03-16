@@ -23,7 +23,7 @@ macro_rules! codes {
 				$( if i == $type::$item as $repr {
 					Ok($type::$item)
 				} else )* {
-					panic!("Unknown {} {:02x}", stringify!($type), i)
+					panic!("Unknown {} 0x{:02x}", stringify!($type), i)
 				}
 			}
 
@@ -138,6 +138,18 @@ impl CompileContext {
 		self.write(Some(byte))
 	}
 
+	fn write_u16(&mut self, n: u16) -> usize {
+		let mut buf = [0; 2];
+		EclByteOrder::write_u16(&mut buf, n);
+		self.write(buf.into_iter().cloned())
+	}
+
+	fn write_u32(&mut self, n: u32) -> usize {
+		let mut buf = [0; 4];
+		EclByteOrder::write_u32(&mut buf, n);
+		self.write(buf.into_iter().cloned())
+	}
+
 	fn write_u64(&mut self, n: u64) -> usize {
 		let mut buf = [0; 8];
 		EclByteOrder::write_u64(&mut buf, n);
@@ -148,29 +160,19 @@ impl CompileContext {
 		self.write_u64(std::convert::TryFrom::try_from(n).unwrap())
 	}
 
-	fn write_varintpart(&mut self, bits: u8, bytes: u8, n: u64) -> Option<usize> {
-		let databits = bytes * 8 - bits;
-		if n >= 1 << databits { return None } // Can't be encoded.
-
-		let mask: u8 = 0xFF << (8 - bits);
-		let mask: u8 = mask << 1; // Otherwise rust complains about a shift by 8.
-		debug_assert_eq!(mask & n as u8, 0, "Applying tag {:02x} to {:x}", mask, n);
-		let off = self.write_u8(mask | n as u8);
-
-		for byte in 1..bytes {
-			self.write_u8((n >> (byte*8)) as u8);
-		}
-
-		Some(off)
-	}
-
 	fn write_varint(&mut self, n: usize) -> usize {
 		let n: u64 = std::convert::TryFrom::try_from(n).unwrap();
-		self.write_varintpart(1, 1, n)
-			.or_else(|| self.write_varintpart(2, 2, n))
-			.or_else(|| self.write_varintpart(3, 4, n))
-			.or_else(|| self.write_varintpart(4, 8, n))
-			.unwrap()
+		if n < 1 << 7 {
+			self.write_u8((n as u8) << 1 | 0b1)
+		} else if n < 1 << 14 {
+			self.write_u16((n as u16) << 2 | 0b10)
+		} else if n < 1 << 29 {
+			self.write_u32((n as u32) << 3 | 0b100)
+		} else {
+			let r = self.write_u8(0);
+			self.write_u64(n);
+			r
+		}
 	}
 
 	fn write_f64(&mut self, f: f64) -> usize {
@@ -339,7 +341,7 @@ impl CompileContext {
 						for (id, off) in args {
 							let off = off?;
 
-							self.write_usize(id);
+							self.write_varint(id);
 							if off == 0 {
 								self.write_u8(ArgReq::Required.to());
 							} else {
@@ -514,25 +516,16 @@ impl<'a> CursorExt for std::io::Cursor<&'a [u8]> {
 
 		let (bytes, val) = {
 			let buf = &self.get_ref()[off..];
-
-			let bits = (!buf[0]).leading_zeros();
-			let bytes = match bits {
-				0 => 1,
-				1 => 2,
-				2 => 4,
-				3 => 8,
+			match buf[0].trailing_zeros() {
+				0 => (1, (buf[0] >> 1) as u64),
+				1 => (2, (EclByteOrder::read_u16(&buf) >> 2) as u64),
+				2 => (4, (EclByteOrder::read_u32(&buf) >> 3) as u64),
+				8 => (9, EclByteOrder::read_u64(&buf[1..])),
 				b => unreachable!("Bits: {}", b),
-			};
-
-			let mut r = (buf[0] & (0xFF >> bits)) as u64;
-			for i in 1..bytes {
-				r |= (buf[i] as u64) << (i*8);
 			}
-
-			(bytes, r)
 		};
 
-		self.set_position(off as u64 + bytes as u64);
+		self.set_position(off as u64 + bytes);
 		std::convert::TryFrom::try_from(val).unwrap()
 	}
 
@@ -928,6 +921,8 @@ impl Func {
 	}
 
 	pub fn call(&self, parent: ::Val, arg: ::Val) -> ::Val {
+		// eprintln!("Executing {:?}", self);
+
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
 		cursor.set_position(self.offset as u64);
 
@@ -1004,7 +999,7 @@ impl Func {
 						arg)),
 				};
 
-				let len = cursor.read_usize();
+				let len = cursor.read_varint();
 				if list.len() > len {
 					return ::err::Err::new(format!(
 						"Function called with too many arguments, expected {} got {}",
@@ -1053,6 +1048,6 @@ mod tests {
 	fn compile_global() {
 		assert_eq!(
 			compile_to_vec(::Almost::Nil),
-			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\0\0".as_ref().into()));
+			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\x01\0".as_ref().into()));
 	}
 }
