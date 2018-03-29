@@ -1,13 +1,24 @@
 use erased_serde;
+use std::rc::Rc;
 
 thread_local! {
-	static TRUE: ::Val = ::Val::new(true);
-	static FALSE: ::Val = ::Val::new(false);
+	static TRUE: Rc<bool> = Rc::new(true);
+	static FALSE: Rc<bool> = Rc::new(false);
 }
 
 pub fn get(b: bool) -> ::Val { if b { get_true() } else { get_false() } }
-pub fn get_true() -> ::Val { TRUE.with(|t| t.clone()) }
-pub fn get_false() -> ::Val { FALSE.with(|f| f.clone()) }
+pub fn get_true() -> ::Val {
+	::Val{
+		pool: ::mem::PoolHandle::new(),
+		value: TRUE.with(|n| Rc::downgrade(n)),
+	}
+}
+pub fn get_false() -> ::Val {
+	::Val{
+		pool: ::mem::PoolHandle::new(),
+		value: FALSE.with(|n| Rc::downgrade(n)),
+	}
+}
 
 impl ::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }
@@ -18,7 +29,7 @@ impl ::Value for bool {
 	}
 
 	fn to_string(&self) -> ::Val {
-		::Val::new(ToString::to_string(self))
+		::Val::new_atomic(ToString::to_string(self))
 	}
 
 	fn to_bool(&self) -> bool {

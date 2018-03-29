@@ -15,7 +15,7 @@ impl ::Value for String {
 
 impl ::SameOps for String {
 	fn add(&self, that: &Self) -> ::Val {
-		::Val::new(self.clone() + that)
+		::Val::new_atomic(self.clone() + that)
 	}
 
 	fn eq(&self, that: &Self) -> ::Val {

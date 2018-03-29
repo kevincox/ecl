@@ -1,27 +1,20 @@
-use gc;
 use std;
-
-#[derive(PartialEq,Trace)]
-struct Empty;
-
-#[derive(PartialEq,Trace)]
-struct Two(::Val, ::Val);
 
 static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("nil", &|| ::nil::get()),
 	("cond", &|| new("if", |v| cond(v))),
 	("error", &|| new("error", |msg|
 		::err::Err::new(format!("Error: {:?}", msg)))),
-	("index", &|| new("index", |l| Builtin::new("index curried", l, |l, i| l.index(i)))),
+	("index", &|| new("index", |l| Builtin::new("index curried", &[l], |l, i| l[0].index(i)))),
 	("false", &|| ::bool::get_false()),
 	("foldl", &|| new("foldl",
-		|f| Builtin::new("foldl:func", f,
-			|f, accum| Builtin::new("foldl:func:accum", Two(f.clone(), accum.clone()),
-				|&Two(ref f, ref accum), o| o.foldl(f.clone(), accum.clone()))))),
+		|f| Builtin::new("foldl:func", &[f],
+			|d, accum| Builtin::new("foldl:func:accum", &[d[0].clone(), accum.clone()],
+				|d, o| o.foldl(d[0].clone(), d[1].clone()))))),
 	("foldr", &|| new("foldr",
-		|f| Builtin::new("foldr:func", f,
-			|f, accum| Builtin::new("foldr:func:accum", Two(f.clone(), accum.clone()),
-				|&Two(ref f, ref accum), o| o.foldr(f.clone(), accum.clone()))))),
+		|f| Builtin::new("foldr:func", &[f],
+			|d, accum| Builtin::new("foldr:func:accum", &[d[0].clone(), accum.clone()],
+				|d, o| o.foldr(d[0].clone(), d[1].clone()))))),
 	("load", &|| new("load", |path| {
 		if path.is_err() { return path }
 		match path.get_str() {
@@ -31,12 +24,12 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 				format!("load expects string argument, got {:?}", path)),
 		}
 	})),
-	("map", &|| new("map", |f| Builtin::new("map:func", f, |f, o| o.map(f.clone())))),
+	("map", &|| new("map", |f| Builtin::new("map:func", &[f], |f, o| o.map(f[0].clone())))),
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|
 		panic!("Script called panic: {:?}", msg))),
 	("true", &|| ::bool::get_true()),
-	("type", &|| new("type", |v| ::Val::new(v.type_str().to_owned()))),
+	("type", &|| new("type", |v| ::Val::new_atomic(v.type_str().to_owned()))),
 	("_testing_assert_cache_eval", &|| {
 		let unevaluated = std::cell::Cell::new(true);
 		let func = move |r| {
@@ -56,42 +49,55 @@ pub fn get_id(id: usize) -> ::Val {
 	BUILTINS[id].1()
 }
 
-#[derive(Trace)]
-pub struct Builtin<D: gc::Trace, F>{
+pub struct Builtin<F>{
 	name: &'static str,
-	data: D,
-	#[unsafe_ignore_trace]
 	func: F,
+	pool: ::mem::WeakPoolHandle,
+	data: Vec<std::rc::Weak<::Value>>,
 }
 
 fn new<F: Fn(::Val) -> ::Val + 'static>(name: &'static str, func: F) -> ::Val {
-	Builtin::new(name, Empty, move |_, a| func(a))
+	Builtin::new(name, &[], move |_, a| func(a))
 }
 
-impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> Builtin<D, F> {
-	fn new(name: &'static str, d: D, func: F) -> ::Val {
-		::Val::new(Builtin{name: name, data: d, func: func})
+impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> Builtin<F> {
+	fn new(name: &'static str, d: &[::Val], func: F) -> ::Val {
+		let pool = {
+			let mut iter = d.into_iter();
+			match iter.next() {
+				None => ::mem::PoolHandle::new(),
+				Some(v) => {
+					let pool = v.pool.clone();
+					for v in iter {
+						pool.merge(v.pool.clone());
+					}
+					pool
+				}
+			}
+		};
+		let data = d.into_iter().map(|v| v.value.clone()).collect();
+		::Val::new(pool.clone(), Builtin{name, func, pool: pool.downgrade(), data})
 	}
 }
 
-impl<
-	D: PartialEq + gc::Trace + 'static,
-	F: Fn(&D, ::Val) -> ::Val + 'static>
-::SameOps for Builtin<D, F> {
+impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> ::SameOps for Builtin<F> {
 	fn eq(&self, that: &Self) -> ::Val {
-		::bool::get(self.name as *const str == that.name as *const str && self.data == that.data)
+		::bool::get(self as *const Builtin<F> == that as *const Builtin<F>)
 	}
 }
 
-impl<D: PartialEq + gc::Trace + 'static, F: Fn(&D, ::Val) -> ::Val + 'static> ::Value for Builtin<D, F> {
+impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> ::Value for Builtin<F> {
 	fn call(&self, arg: ::Val) -> ::Val {
-		(self.func)(&self.data, arg)
+		let data = self.data.iter()
+			.map(|v| ::Val{pool: self.pool.upgrade(), value: v.clone()})
+			.collect();
+		(self.func)(data, arg)
 	}
 
 	fn type_str(&self) -> &'static str { "builtin" }
 }
 
-impl<D: gc::Trace, F: Fn(&D, ::Val) -> ::Val + 'static> std::fmt::Debug for Builtin<D, F> {
+impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> std::fmt::Debug for Builtin<F> {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "<builtin {:?}>", self.name)
 	}
@@ -136,14 +142,14 @@ mod tests {
 	#[test]
 	fn assert_once_once() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
+		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
 	}
 
 	#[test]
 	#[should_panic(expected="Called twice")]
 	fn assert_once_twice() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
-		assert_eq!(v.call(::Val::new(5.1)), ::Val::new(5.1));
+		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
+		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
 	}
 }

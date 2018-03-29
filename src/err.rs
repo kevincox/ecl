@@ -1,11 +1,11 @@
 use std;
+use std::rc::Rc;
 
-#[derive(Clone,Trace)]
+#[derive(Clone)]
 pub struct Err {
 	msg: String,
-	#[unsafe_ignore_trace]
 	loc: ::grammar::Loc,
-	chained: ::Val
+	chained: Rc<::Value>,
 }
 
 impl Err {
@@ -18,7 +18,7 @@ impl Err {
 	}
 
 	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
-		::Val::new(Err{msg: msg, loc: loc, chained: chained})
+		::Val::new_atomic(Err{msg, loc, chained: chained.value.upgrade().expect("upgrade error")})
 	}
 
 	fn from(e: &std::error::Error) -> ::Val {
@@ -35,7 +35,7 @@ impl ::Value for Err {
 	fn is_err(&self) -> bool { true }
 
 	fn eval(&self) -> Result<(),::Val> {
-		Err(::Val::new((*self).clone()))
+		Err(::Val::new_atomic((*self).clone()))
 	}
 }
 

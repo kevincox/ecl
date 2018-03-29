@@ -1,10 +1,20 @@
 	DICT	{
-base	DICT	{
-base.base-thing	DICT	{
-base.base-thing.name	STR	"base name"
-base.base-thing	DICT	}
-base.name	STR	"base name"
-base	DICT	}
+a-base	DICT	{
+a-base.base-thing	DICT	{
+a-base.base-thing.name	STR	"base name"
+a-base.base-thing	DICT	}
+a-base.name	STR	"base name"
+a-base	DICT	}
+a-sub	DICT	{
+a-sub.base-thing	DICT	{
+a-sub.base-thing.name	STR	"base name"
+a-sub.base-thing	DICT	}
+a-sub.name	STR	"base name"
+a-sub.same-level	STR	"base name"
+a-sub.sub-thing	DICT	{
+a-sub.sub-thing.bar	STR	"base name"
+a-sub.sub-thing	DICT	}
+a-sub	DICT	}
 dict-dotted-val	NUM	1
 func-dict-val	DICT	{
 func-dict-val.x	NUM	1
@@ -25,14 +35,4 @@ func-two-args-val.y	DICT	{
 func-two-args-val.y.y	NUM	2
 func-two-args-val.y	DICT	}
 func-two-args-val	DICT	}
-sub	DICT	{
-sub.base-thing	DICT	{
-sub.base-thing.name	STR	"base name"
-sub.base-thing	DICT	}
-sub.name	STR	"base name"
-sub.same-level	STR	"base name"
-sub.sub-thing	DICT	{
-sub.sub-thing.bar	STR	"base name"
-sub.sub-thing	DICT	}
-sub	DICT	}
 	DICT	}

@@ -1,4 +1,5 @@
 use std;
+use std::rc::Rc;
 
 #[derive(PartialEq)]
 pub enum Arg {
@@ -35,9 +36,8 @@ impl std::fmt::Debug for Arg {
 	}
 }
 
-#[derive(Trace)]
 pub struct Func {
-	pstruct: ::Val,
+	parent: Rc<::Parent>,
 	body: ::bytecode::Func,
 }
 
@@ -48,8 +48,8 @@ pub struct FuncData {
 }
 
 impl Func {
-	pub fn new(parent: ::Val, body: ::bytecode::Func) -> ::Val {
-		::Val::new(Func{pstruct: parent, body})
+	pub fn new(parent: Rc<::Parent>, body: ::bytecode::Func) -> ::Val {
+		::Val::new_atomic(Func{parent, body})
 	}
 }
 
@@ -57,7 +57,7 @@ impl ::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
 
 	fn call(&self, arg: ::Val) -> ::Val {
-		self.body.call(self.pstruct.clone(), arg)
+		self.body.call(self.parent.clone(), arg)
 	}
 }
 

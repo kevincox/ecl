@@ -546,7 +546,7 @@ impl std::fmt::Debug for Module {
 struct EvalContext {
 	module: Rc<Module>,
 	pc: u64,
-	pstruct: ::Val,
+	parent: Rc<::Parent>,
 }
 
 impl EvalContext {
@@ -609,7 +609,7 @@ impl EvalContext {
 					let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
 					let key = cursor.read_str();
 					stack.push(::dict::Dict::new_adict(
-						self.pstruct.clone(),
+						self.parent.clone(),
 						key,
 						Value::new(self.module.clone(), childoff)));
 				}
@@ -628,12 +628,12 @@ impl EvalContext {
 						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 						items.push((key, Value::new(self.module.clone(), offset)));
 					}
-					stack.push(::dict::Dict::new(self.pstruct.clone(), items));
+					stack.push(::dict::Dict::new(self.parent.clone(), items));
 				}
 				Op::Func => {
 					let bodyoff = cursor.read_varint();
 					stack.push(::func::Func::new(
-						self.pstruct.clone(),
+						self.parent.clone(),
 						Func::new(self.module.clone(), bodyoff)));
 				}
 				Op::Index => {
@@ -650,7 +650,7 @@ impl EvalContext {
 					let a = a.get_str().expect("Interpolating to something not a string.");
 
 					let r = a.to_owned() + b;
-					stack.push(::Val::new(r))
+					stack.push(::Val::new_atomic(r))
 				}
 				Op::JumpFunc | Op::JumpLazy => {
 					let target = cursor.read_u64::<EclByteOrder>().unwrap();
@@ -663,14 +663,16 @@ impl EvalContext {
 						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 						items.push(Value::new(self.module.clone(), offset));
 					}
-					stack.push(::list::List::new(self.pstruct.clone(), items));
+					stack.push(::list::List::new(self.parent.clone(), items));
 				}
 				Op::Neg => {
 					let v = stack.pop().expect("No items in stack for neg");
 					stack.push(v.neg());
 				}
 				Op::Num => {
-					stack.push(::Val::new(cursor.read_f64::<EclByteOrder>().unwrap()));
+					let num = cursor.read_f64::<EclByteOrder>().unwrap();
+					// eprintln!("Num: {}", num);
+					stack.push(::Val::new_atomic(num));
 				}
 				Op::Ref => {
 					let strkey = cursor.read_str();
@@ -682,7 +684,8 @@ impl EvalContext {
 						id += self.module.unique_id();
 						::dict::Key::Local(id)
 					};
-					let v = self.pstruct.structural_lookup(depth, &key)
+					// eprintln!("Ref: {:?} {:?}", key, strkey);
+					let v = self.parent.structural_lookup(depth, &key)
 						.annotate_with(|| format!("Referenced by {:?}", strkey));
 					stack.push(v);
 				}
@@ -690,11 +693,11 @@ impl EvalContext {
 					let key = cursor.read_str();
 					let depth = cursor.read_varint();
 					let key = ::dict::Key::Pub(key);
-					stack.push(self.pstruct.structural_lookup(depth, &key));
+					stack.push(self.parent.structural_lookup(depth, &key));
 				}
 				Op::Str => {
 					let s = cursor.read_str();
-					stack.push(::Val::new(s));
+					stack.push(::Val::new_atomic(s));
 				}
 				Op::Sub => {
 					let right = stack.pop().expect("One item in stack for add");
@@ -715,7 +718,11 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 	});
 
 	let pc = module.start_pc();
-	EvalContext{module, pc, pstruct: ::nil::get()}.eval()
+	let parent = Rc::new(::dict::ParentSplitter{
+		parent: ::nil::get().value,
+		grandparent: None,
+	});
+	EvalContext{module, pc, parent}.eval()
 }
 
 #[derive(Clone,Copy)]
@@ -887,9 +894,8 @@ impl<'a> DisassembeContext<'a> {
 	}
 }
 
-#[derive(Clone,Debug,Trace)]
+#[derive(Clone,Debug)]
 pub struct Value {
-	#[unsafe_ignore_trace]
 	module: Rc<Module>,
 	offset: u64,
 }
@@ -899,18 +905,17 @@ impl Value {
 		Value{module, offset}
 	}
 
-	pub fn eval(&self, parent: ::Val) -> ::Val {
+	pub fn eval(&self, parent: Rc<::Parent>) -> ::Val {
 		EvalContext{
 			module: self.module.clone(),
 			pc: self.offset,
-			pstruct: parent,
+			parent: parent,
 		}.eval()
 	}
 }
 
-#[derive(Clone,Debug,Trace)]
+#[derive(Clone,Debug)]
 pub struct Func {
-	#[unsafe_ignore_trace]
 	module: std::rc::Rc<Module>,
 	offset: usize,
 }
@@ -920,7 +925,7 @@ impl Func {
 		Func{module, offset}
 	}
 
-	pub fn call(&self, parent: ::Val, arg: ::Val) -> ::Val {
+	pub fn call(&self, parent: Rc<::Parent>, arg: ::Val) -> ::Val {
 		// eprintln!("Executing {:?}", self);
 
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
@@ -928,17 +933,19 @@ impl Func {
 
 		let args = ::dict::Dict::new(parent.clone(), Vec::new());
 		let dict = args.clone();
+		let pool = dict.pool.clone();
 		let dict = dict.downcast_ref::<::dict::Dict>().unwrap();
 
-		let parent = ::Val::new(::dict::ParentSplitter{
-			parent: args.clone(),
-			grandparent: parent,
+		let parent = Rc::new(::dict::ParentSplitter{
+			parent: args.value.clone(),
+			grandparent: Some(parent),
 		});
 
 		match ArgType::from(cursor.read_u8().unwrap())? {
 			ArgType::One => {
 				let mut id = cursor.read_varint();
 				id += self.module.unique_id();
+				pool.merge(arg.pool.clone());
 				dict._set_val(::dict::Key::Local(id), ::thunk::shim(arg));
 			}
 			ArgType::Dict => {
@@ -961,6 +968,7 @@ impl Func {
 						ArgReq::Required => match passed {
 							Some(val) => {
 								unused_args -= 1;
+								pool.merge(val.pool.clone());
 								::thunk::shim(val)
 							}
 							None => return ::err::Err::new(format!(
@@ -976,7 +984,7 @@ impl Func {
 								}
 								None => {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(parent.clone(), value)
+									::thunk::bytecode(pool.downgrade(), parent.clone(), value)
 								}
 							}
 						}
@@ -1013,7 +1021,10 @@ impl Func {
 					let passed = list.get(i);
 					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
 						ArgReq::Required => match passed {
-							Some(val) => ::thunk::shim(val),
+							Some(val) => {
+								pool.merge(val.pool.clone());
+								::thunk::shim(val)
+							}
 							None => return ::err::Err::new(format!(
 								"Required argument {} not provided.", i)),
 						}
@@ -1023,7 +1034,7 @@ impl Func {
 								.map(::thunk::shim)
 								.unwrap_or_else(|| {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(parent.clone(), value)
+									::thunk::bytecode(pool.downgrade(), parent.clone(), value)
 								})
 						}
 					};
@@ -1032,11 +1043,13 @@ impl Func {
 			}
 		};
 
-		EvalContext{
+		let r = EvalContext{
 			module: self.module.clone(),
 			pc: cursor.position(),
-			pstruct: parent,
-		}.eval()
+			parent: parent,
+		}.eval();
+		pool.merge(r.pool.clone());
+		r
 	}
 }
 

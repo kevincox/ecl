@@ -10,7 +10,7 @@ impl ::Value for f64 {
 	}
 
 	fn to_string(&self) -> ::Val {
-		::Val::new(ToString::to_string(self))
+		::Val::new_atomic(ToString::to_string(self))
 	}
 
 	fn get_num(&self) -> Option<f64> {
@@ -18,17 +18,17 @@ impl ::Value for f64 {
 	}
 
 	fn neg(&self) -> ::Val {
-		::Val::new(-self)
+		::Val::new_atomic(-self)
 	}
 }
 
 impl ::SameOps for f64 {
 	fn add(&self, that: &Self) -> ::Val {
-		::Val::new(*self + *that)
+		::Val::new_atomic(*self + *that)
 	}
 
 	fn subtract(&self, that: &Self) -> ::Val {
-		::Val::new(*self - *that)
+		::Val::new_atomic(*self - *that)
 	}
 
 	fn eq(&self, that: &Self) -> ::Val {

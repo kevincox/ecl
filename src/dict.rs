@@ -1,18 +1,17 @@
-use erased_serde;
-use gc;
-use gc::Gc;
-use std;
-use std::fmt;
+extern crate erased_serde;
+extern crate serde;
 
-#[derive(Clone,Debug,Trace)]
+use std;
+use std::rc::Rc;
+
+#[derive(Clone,Debug)]
 struct Source {
-	parent_structual: ::Val,
-	#[unsafe_ignore_trace]
+	parent: Rc<::Parent>,
 	key: Key,
 	almost: ::bytecode::Value,
 }
 
-#[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd,Trace)]
+#[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd)]
 pub enum Key {
 	Local(usize),
 	Pub(String),
@@ -36,21 +35,20 @@ impl std::fmt::Display for Key {
 	}
 }
 
-#[derive(Trace)]
 pub struct Dict {
-	prv: gc::GcCell<DictData>,
+	pool: ::mem::WeakPoolHandle,
+	prv: std::cell::RefCell<DictData>,
 }
 
-#[derive(Trace)]
 struct DictData {
 	data: Vec<DictPair>,
 	source: Vec<Source>,
 }
 
-#[derive(Debug,Trace)]
+#[derive(Debug)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: Gc<::thunk::Thunky>,
+	pub val: Rc<::thunk::Thunky>,
 }
 
 impl DictPair {
@@ -60,17 +58,20 @@ impl DictPair {
 }
 
 impl Dict {
-	pub fn new(pstruct: ::Val, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
-		let this = ::Val::new(Dict{
-			prv: gc::GcCell::new(DictData{
+	pub fn new(parent: Rc<::Parent>, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
+		let pool = ::mem::PoolHandle::new();
+
+		let this = ::Val::new(pool.clone(), Dict{
+			pool: pool.downgrade(),
+			prv: std::cell::RefCell::new(DictData{
 				data: Vec::with_capacity(items.len()),
 				source: Vec::with_capacity(items.len()),
 			}),
 		});
 
-		let this_pstruct = ::Val::new(ParentSplitter{
-			parent: this.clone(),
-			grandparent: pstruct.clone(),
+		let this_parent = Rc::new(ParentSplitter{
+			parent: this.value.clone(),
+			grandparent: Some(parent.clone()),
 		});
 
 		{
@@ -79,11 +80,11 @@ impl Dict {
 
 			for (key, item) in items {
 				prv.source.push(Source{
-					parent_structual: pstruct.clone(),
+					parent: parent.clone(),
 					key: key.clone(),
 					almost: item.clone()
 				});
-				let val = ::thunk::bytecode(this_pstruct.clone(), item);
+				let val = ::thunk::bytecode(pool.downgrade(), this_parent.clone(), item);
 				prv.data.push(DictPair{key, val});
 			}
 		}
@@ -91,21 +92,24 @@ impl Dict {
 		this
 	}
 
-	pub fn new_adict(pstruct: ::Val, k: String, item: ::bytecode::Value) -> ::Val {
+	pub fn new_adict(parent: Rc<::Parent>, k: String, item: ::bytecode::Value) -> ::Val {
+		let pool = ::mem::PoolHandle::new();
+
 		let key = Key::Pub(k.clone());
 
-		let val = ::thunk::bytecode(pstruct.clone(), item.clone());
+		let val = ::thunk::bytecode(pool.downgrade(), parent.clone(), item.clone());
 		let data = vec![
 			DictPair{key, val: val}];
 
 		let source = Source{
-			parent_structual: pstruct,
+			parent: parent,
 			key: Key::Pub(k),
 			almost: item,
 		};
 
-		::Val::new(Dict{
-			prv: gc::GcCell::new(DictData{
+		::Val::new(pool.clone(), Dict{
+			pool: pool.downgrade(),
+			prv: std::cell::RefCell::new(DictData{
 				data: data,
 				source: vec![source],
 			}),
@@ -115,8 +119,8 @@ impl Dict {
 	fn source(&self) -> &[Source] {
 		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
-
-	pub fn _set_val(&self, key: Key, val: Gc<::thunk::Thunky>) {
+	
+	pub fn _set_val(&self, key: Key, val: Rc<::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -133,8 +137,10 @@ impl Dict {
 	}
 
 	fn call(&self, that: &Dict) -> ::Val {
-		let this = ::Val::new(Dict{
-			prv: gc::GcCell::new(DictData {
+		let pool = ::mem::PoolHandle::new();
+		let this = ::Val::new(pool.clone(), Dict{
+			pool: pool.downgrade(),
+			prv: std::cell::RefCell::new(DictData {
 				data: Vec::new(),
 				source: Vec::new(),
 			}),
@@ -167,15 +173,18 @@ impl Dict {
 					v
 				};
 
-				let pstruct = ::Val::new(ParentSplitter{
-					parent: this.clone(),
-					grandparent: s.parent_structual.clone(),
+				let parent = Rc::new(ParentSplitter{
+					parent: this.value.clone(),
+					grandparent: Some(s.parent.clone()),
 				});
 
-				let mut val = ::thunk::bytecode(pstruct, s.almost.clone());
+				let mut val = ::thunk::bytecode(
+					pool.downgrade(),
+					parent,
+					s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
 					let sup = data.pop().unwrap();
-					val = override_(sup.val.clone(), val);
+					val = override_(pool.downgrade(), sup.val.clone(), val);
 				}
 				data.push(DictPair{key: s.key.clone(), val});
 				source.push(s);
@@ -186,8 +195,12 @@ impl Dict {
 	}
 }
 
-pub fn override_(sup: Gc<::thunk::Thunky>, sub: Gc<::thunk::Thunky>) -> Gc<::thunk::Thunky> {
-	const F: &Fn((Gc<::thunk::Thunky>, Gc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
+pub fn override_(
+	pool: ::mem::WeakPoolHandle,
+	sup: Rc<::thunk::Thunky>,
+	sub: Rc<::thunk::Thunky>,
+) -> Rc<::thunk::Thunky> {
+	const F: &Fn((Rc<::thunk::Thunky>, Rc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
 		let sub = sub.eval();
 
 		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
@@ -200,12 +213,15 @@ pub fn override_(sup: Gc<::thunk::Thunky>, sub: Gc<::thunk::Thunky>) -> Gc<::thu
 		return sub
 	};
 
-	::thunk::Thunk::new((sup, sub), F)
+	::thunk::Thunk::new(pool, (sup, sub), F)
 }
 
-impl fmt::Debug for Dict {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let prv = self.prv.borrow();
+impl std::fmt::Debug for Dict {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let prv = match self.prv.try_borrow() {
+			Ok(prv) => prv,
+			Err(e) => return write!(f, "{{<borrowed {:?}>}}", e),
+		};
 
 		if prv.data.is_empty() {
 			return write!(f, "{{}}")
@@ -269,24 +285,24 @@ impl ::Value for Dict {
 		}
 	}
 
-	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
+	fn iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
 		// This is fine because the dict has been fully evaluated.
 		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
 
-		Some(Box::new(
+		Some((self.pool.upgrade(), Box::new(
 			data
 				.iter()
 				.filter(|pair| pair.key.is_public())
-				.filter_map(|pair| match pair.key {
+				.filter_map(move |pair| match pair.key {
 					Key::Pub(ref s) => {
 						let data = vec![
-							::thunk::Thunk::new(s.clone(), &::Val::new),
+							::thunk::shim(::Val::new(self.pool.upgrade(), s.clone())),
 							::thunk::shim(pair.val()),
 						];
-						Some(::list::List::of_vals(data))
+						Some(::list::List::of_vals(self.pool.upgrade(), data))
 					}
 					_ => None
-				})))
+				}))))
 	}
 
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
@@ -336,8 +352,8 @@ impl AlmostDictElement {
 	}
 }
 
-impl fmt::Debug for AlmostDictElement {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Debug for AlmostDictElement {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		let vis = match self.visibility {
 			Visibility::Pub => "pub  ",
 			Visibility::Local => "local",
@@ -346,24 +362,20 @@ impl fmt::Debug for AlmostDictElement {
 	}
 }
 
-#[derive(Clone,Debug,Trace)]
+#[derive(Clone,Debug)]
 pub struct ParentSplitter {
-	pub parent: ::Val,
-	pub grandparent: ::Val,
+	pub parent: std::rc::Weak<::Value>,
+	pub grandparent: Option<Rc<::Parent>>,
 }
 
-impl ::Value for ParentSplitter {
-	fn type_str(&self) -> &'static str { "parentsplitter" }
-
+impl ::Parent for ParentSplitter {
 	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		match depth {
-			0 => self.parent.structural_lookup(0, key),
-			n => self.grandparent.structural_lookup(n-1, key),
+			0 => self.parent.upgrade().expect("parent upgrade").structural_lookup(0, key),
+			n => self.grandparent.as_ref().expect("grandparent access").structural_lookup(n-1, key),
 		}
 	}
 }
-
-impl ::SameOps for ParentSplitter { }
 
 #[cfg(test)]
 mod tests {
@@ -374,11 +386,11 @@ mod tests {
 		assert!(eval("<str>", "{}").is_empty());
 
 		let v = eval("<str>", "{a=4 b = 0}");
-		assert_eq!(v.index_str("a"), ::Val::new(4.0));
-		assert_eq!(v.index_str("b"), ::Val::new(0.0));
+		assert_eq!(v.index_str("a"), ::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("b"), ::Val::new_atomic(0.0));
 
 		let v = eval("<str>", "{a=4 b=a}");
-		assert_eq!(v.index_str("a"), ::Val::new(4.0));
-		assert_eq!(v.index_str("b"), ::Val::new(4.0));
+		assert_eq!(v.index_str("a"), ::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("b"), ::Val::new_atomic(4.0));
 	}
 }

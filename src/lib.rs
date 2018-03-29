@@ -8,8 +8,6 @@
 
 extern crate byteorder;
 extern crate erased_serde;
-#[macro_use] extern crate gc;
-#[macro_use] extern crate gc_derive;
 #[macro_use] extern crate lazy_static;
 extern crate regex;
 extern crate serde;
@@ -28,6 +26,7 @@ pub mod lines;
 mod list;
 mod nil;
 mod num;
+mod mem;
 mod str;
 mod thunk;
 
@@ -38,7 +37,8 @@ fn i_promise_this_will_stay_alive<T: ?Sized>(v: &T) -> &'static T {
 pub trait Value:
 	std::any::Any +
 	std::fmt::Debug +
-	gc::Trace +
+	std::any::Any +
+	std::fmt::Debug +
 	SameOpsTrait +
 	'static
 {
@@ -62,8 +62,8 @@ pub trait Value:
 	fn neg(&self) -> Val { err::Err::new(format!("Can't negate {:?}", self)) }
 	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
-	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
-	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> { None }
+	fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> { None }
+	fn reverse_iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> { None }
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
@@ -122,21 +122,37 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 	}
 }
 
-#[derive(Clone,Trace)]
-pub struct Val(gc::Gc<Value>);
+#[derive(Clone)]
+pub struct Val {
+	pool: mem::PoolHandle,
+	value: std::rc::Weak<Value>,
+}
 
 unsafe impl Sync for Val { }
 
 impl Val {
-	fn new<T: Value + Sized>(v: T) -> Val {
-		Val(gc::Gc::new(v))
+	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Val {
+		let rc = Rc::new(value);
+		let value = Rc::downgrade(&rc);
+		pool.push(rc);
+		Val{pool, value}
 	}
 
-	fn value(&self) -> Result<&Value,Val> {
-		Ok(i_promise_this_will_stay_alive(self.clone()?.deref()))
+	fn new_atomic<T: Value + Sized>(value: T) -> Val {
+		Self::new(mem::PoolHandle::new(), value)
 	}
 
-	fn deref(&self) -> &Value { &*self.0 }
+	fn value(&self) -> Result<Rc<Value>,Val> {
+		let this = self.deref();
+		if this.is_err() { Err(self.clone()) } else { Ok(this) }
+	}
+
+	fn deref(&self) -> Rc<Value> { self.value.upgrade().expect("Val upgrade") }
+
+	fn merge(&self, val: Val) -> Val {
+		self.pool.merge(val.pool);
+		Val{pool: self.pool.clone(), value: val.value}
+	}
 
 	fn annotate(&self, msg: &str) -> Val {
 		self.annotate_at(::grammar::Loc{line: 0, col: 0}, msg)
@@ -163,7 +179,7 @@ impl Val {
 	}
 
 	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-		self.deref().as_any().downcast_ref::<T>()
+		self.deref().as_any().downcast_ref::<T>().map(i_promise_this_will_stay_alive)
 	}
 
 	pub fn type_str(&self) -> &'static str {
@@ -207,17 +223,12 @@ impl Val {
 		self.value().unwrap().index_str(key)
 	}
 
-	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> Val {
-		// eprintln!("Lookup {} {:?} in {:?}", depth, key, self);
-		self.deref().structural_lookup(depth, key)
-	}
-
 	fn add(&self, that: Val) -> Val {
-		self.value()?.add(that.value()?)
+		self.value()?.add(&*that.value()?)
 	}
 
 	fn subtract(&self, that: Val) -> Val {
-		self.value()?.subtract(that.value()?)
+		self.value()?.subtract(&*that.value()?)
 	}
 
 	fn neg(&self) -> Val {
@@ -225,11 +236,13 @@ impl Val {
 	}
 
 	fn cmp(&self, that: ::Val) -> Result<std::cmp::Ordering,Val> {
-		self.value()?.cmp(that.value()?)
+		self.value()?.cmp(&*that.value()?)
 	}
 
 	pub fn call(&self, arg: Val) -> Val {
-		self.value()?.call(arg)
+		let v = self.value()?.call(arg);
+		self.pool.merge(v.pool.clone());
+		v
 	}
 
 	fn get_str(&self) -> Result<&str,Val> {
@@ -248,13 +261,14 @@ impl Val {
 		self.value().unwrap().to_bool()
 	}
 
-	pub fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=Val> + 'a>> {
-		i_promise_this_will_stay_alive(self.deref()).iter()
+	pub fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> {
+		i_promise_this_will_stay_alive(&*self.deref()).iter()
 	}
 
 	fn foldl(&self, f: Val, accum: Val) -> Val {
-		let iter = match self.deref().iter() {
-			Some(iter) => iter,
+		let this = self.deref();
+		let (_pool, iter) = match this.iter() {
+			Some(t) => t,
 			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
 
@@ -262,8 +276,9 @@ impl Val {
 	}
 
 	fn foldr(&self, f: Val, accum: Val) -> Val {
-		let iter = match self.deref().reverse_iter() {
-			Some(iter) => iter,
+		let this = self.deref();
+		let (_pool, iter) = match this.reverse_iter() {
+			Some(t) => t,
 			None => return err::Err::new(format!("Can't reverse iterate over {:?}", self)),
 		};
 
@@ -271,24 +286,40 @@ impl Val {
 	}
 
 	fn map(&self, f: Val) -> Val {
-		let iter = match self.deref().iter() {
-			Some(iter) => iter,
+		let this = self.deref();
+		let (pool, iter) = match this.iter() {
+			Some(t) => t,
 			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
-		const F: &Fn((Val,Val)) -> Val = &|(f, v)| f.call(v);
+		pool.merge(f.pool.clone());
+		fn do_map((p, f, v): (
+			mem::WeakPoolHandle,
+			std::rc::Weak<Value>,
+			std::rc::Weak<Value>)) -> Val
+		{
+			f.upgrade().expect("map upgrade").call(Val{pool: p.upgrade(), value: v})
+		}
+		let map_pool = pool.downgrade();
 		let vals = iter
-			.map(move |v| thunk::Thunk::new((f.clone(), v.clone()), F))
+			.map(move |v| {
+				thunk::Thunk::new(
+					map_pool.clone(),
+					(map_pool.clone(), f.value.clone(), v.value.clone()),
+					&do_map)
+			})
 			.collect();
-		list::List::of_vals(vals)
+
+		list::List::of_vals(pool, vals)
 	}
 
 
 	fn reverse(&self) -> Val {
-		self.value()?.reverse()
+		let val = self.value()?.reverse();
+		self.merge(val)
 	}
 
 	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
-		let selfp = self.deref() as *const Value;
+		let selfp = &*self.deref() as *const Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 
@@ -306,7 +337,7 @@ impl Val {
 
 impl PartialEq for Val {
 	fn eq(&self, that: &Val) -> bool {
-		self.value().unwrap().eq(that.value().unwrap()).to_bool()
+		self.value().unwrap().eq(&*that.deref()).to_bool()
 	}
 }
 
@@ -358,7 +389,7 @@ impl serde::Serialize for Val {
 
 #[derive(PartialEq)]
 pub enum Almost {
-	ADict(String, Rc<Almost>),
+	ADict(String,Rc<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -430,6 +461,10 @@ impl std::fmt::Debug for Almost {
 			}
 		}
 	}
+}
+
+pub trait Parent: std::fmt::Debug {
+	fn structural_lookup(&self, depth: usize, key: &::dict::Key) -> ::Val;
 }
 
 pub fn eval(source: &str, doc: &str) -> Val {
@@ -536,26 +571,26 @@ fn format_ref(depth: usize, ident: &str) -> String {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn val_is_gc_sized() {
-		// Testing an implementation detail. A value should be one word.
-		// If more falls out of https://github.com/rust-lang/rfcs/issues/1230
-		// we can probably pack more types into the enum safely. Otherwise we
-		// can consider having a pointer and doing the checking ourselves unsafely.
-		assert_eq!(std::mem::size_of::<gc::Gc<Value>>(), std::mem::size_of::<Val>());
-	}
+	// #[test]
+	// fn val_is_rc_sized() {
+	// 	// Testing an implementation detail. A value should be one word.
+	// 	// If more falls out of https://github.com/rust-lang/rfcs/issues/1230
+	// 	// we can probably pack more types into the enum safely. Otherwise we
+	// 	// can consider having a pointer and doing the checking ourselves unsafely.
+	// 	assert_eq!(std::mem::size_of::<Rc<Value>>(), std::mem::size_of::<Val>());
+	// }
 
 	#[test]
 	fn list() {
 		assert!(eval("<str>", "[]").is_empty());
 		let v = eval("<str>", "[0d29 0b1.1]");
-		assert_eq!(v.index_int(0), Val::new(29.0));
-		assert_eq!(v.index_int(1), Val::new(1.5));
+		assert_eq!(v.index_int(0), Val::new_atomic(29.0));
+		assert_eq!(v.index_int(1), Val::new_atomic(1.5));
 	}
 
 	#[test]
 	fn ident() {
-		assert_eq!(eval("<str>","{b = 4}.b"), Val::new(4.0));
+		assert_eq!(eval("<str>","{b = 4}.b"), Val::new_atomic(4.0));
 	}
 
 	#[test]

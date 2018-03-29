@@ -1,22 +1,31 @@
-use erased_serde;
-use std;
-use gc::Gc;
+extern crate erased_serde;
 
-#[derive(Trace)]
+use std;
+use std::rc::Rc;
+
 pub struct List {
-	data: Vec<Gc<::thunk::Thunky>>,
+	pool: ::mem::WeakPoolHandle,
+	data: Vec<Rc<::thunk::Thunky>>,
 }
 
 impl List {
-	pub fn new(pstruct: ::Val, items: Vec<::bytecode::Value>) -> ::Val {
-		::Val::new(List {
-			data: items.iter().map(|item|
-				::thunk::bytecode(pstruct.clone(), item.clone())).collect(),
+	pub fn new(parent: Rc<::Parent>, items: Vec<::bytecode::Value>) -> ::Val {
+		let pool = ::mem::PoolHandle::new();
+		::Val::new(pool.clone(), List {
+			pool: pool.downgrade(),
+			data: items.iter()
+				.map(|item| {
+					::thunk::bytecode(
+						pool.downgrade(),
+						parent.clone(),
+						item.clone())
+				})
+				.collect(),
 		})
 	}
 
-	pub fn of_vals(data: Vec<Gc<::thunk::Thunky>>) -> ::Val {
-		::Val::new(List{data})
+	pub fn of_vals(pool: ::mem::PoolHandle, data: Vec<Rc<::thunk::Thunky>>) -> ::Val {
+		::Val::new(pool.clone(), List{pool: pool.downgrade(), data})
 	}
 
 	pub fn get(&self, i: usize) -> Option<::Val> {
@@ -43,18 +52,19 @@ impl ::Value for List {
 		s.erased_serialize_seq_end(state)
 	}
 
-	fn iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
-		Some(Box::new(self.data.iter().map(|v| v.eval())))
+	fn iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
+		Some((self.pool.upgrade(), Box::new(self.data.iter().map(|v| v.eval()))))
 	}
 
-	fn reverse_iter<'a>(&'a self) -> Option<Box<Iterator<Item=::Val> + 'a>> {
-		Some(Box::new(self.data.iter().rev().map(|v| v.eval())))
+	fn reverse_iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
+		Some((self.pool.upgrade(), Box::new(self.data.iter().rev().map(|v| v.eval()))))
 	}
 
 	fn reverse(&self) -> ::Val {
 		let mut data: Vec<_> = self.data.clone();
 		data.reverse();
-		::Val::new(List {
+		::Val::new(self.pool.upgrade(), List {
+			pool: self.pool.clone(),
 			data: data,
 		})
 	}
@@ -62,10 +72,11 @@ impl ::Value for List {
 
 impl ::SameOps for List {
 	fn add(&self, that: &Self) -> ::Val {
+		self.pool.merge(that.pool.upgrade());
 		let mut data = Vec::with_capacity(self.data.len() + that.data.len());
 		data.extend(self.data.iter().cloned());
 		data.extend(that.data.iter().cloned());
-		::Val::new(List{data})
+		::Val::new(self.pool.upgrade(), List{pool: self.pool.clone(), data})
 	}
 }
 

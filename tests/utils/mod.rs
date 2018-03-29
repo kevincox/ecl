@@ -12,10 +12,21 @@ fn regen_regression_tests() -> bool {
 	humanbool::env("ECL_REGEN", "n").unwrap()
 }
 
+fn fail_fast() -> bool {
+	humanbool::env("ECL_FF", "n").unwrap()
+}
+
 pub fn scan_dir(dir: &str, ext: &'static str)
 	-> Box<Iterator<Item=std::path::PathBuf>>
 {
-	Box::new(std::fs::read_dir(format!("tests/{}", dir)).unwrap()
+	let dir = format!("tests/{}", dir);
+
+	if let Some(file) = std::env::args().nth(1) {
+		let file = std::path::PathBuf::from(dir).join(format!("{}.{}", file, ext));
+		return Box::new(Some(file).into_iter())
+	}
+
+	Box::new(std::fs::read_dir(dir).unwrap()
 		.map(|f| f.unwrap().path())
 		.filter(|p| p.file_name().map_or(false, |n| !n.to_string_lossy().starts_with('_')))
 		.filter(move |p| p.extension().map_or(false, |e| e == ext)))
@@ -33,13 +44,17 @@ pub fn test_dir<
 		if let Err(_) = std::panic::catch_unwind(|| f(&path)) {
 			errors += 1;
 			println!("Error testing {:?}", path);
+			if fail_fast() {
+				std::process::exit(1)
+			}
 		}
 	}
 
 	if errors == 0 {
 		eprintln!("{} tests completed successfully.", tests);
 	} else {
-		panic!("{}/{} tests failed.", errors, tests);
+		eprintln!("{}/{} tests failed.", errors, tests);
+		std::process::exit(1)
 	}
 }
 

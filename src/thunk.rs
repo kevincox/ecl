@@ -1,73 +1,74 @@
-use gc;
 use std;
+use std::rc::Rc;
 
-pub enum State<T: 'static + gc::Trace> {
-	Code(T, &'static Fn(T) -> ::Val),
+pub enum State<T: 'static> {
+	Code(::mem::WeakPoolHandle, T, &'static Fn(T) -> ::Val),
 	Working,
-	Val(::Val),
+	Val(::mem::WeakPoolHandle, std::rc::Weak<::Value>),
 }
 
-unsafe impl<T: 'static + gc::Trace> gc::Trace for State<T> {
-	custom_trace!(this, {
-		match *this {
-			State::Code(ref data, _) => mark(data),
-			State::Working => {},
-			State::Val(ref v) => mark(v),
-		}
-	});
-}
+pub struct Thunk<T: 'static>(std::cell::RefCell<State<T>>);
 
-#[derive(Trace)]
-pub struct Thunk<T: 'static + gc::Trace>(gc::GcCell<State<T>>);
-
-impl<T: 'static + gc::Trace> Thunk<T> {
-	pub fn new(data: T, code: &'static Fn(T) -> ::Val) -> gc::Gc<Thunky> {
-		gc::Gc::new(Thunk(gc::GcCell::new(State::Code(data, code))))
+impl<T: 'static> Thunk<T> {
+	pub fn new(
+		pool: ::mem::WeakPoolHandle,
+		data: T,
+		code: &'static Fn(T) -> ::Val,
+	) -> Rc<Thunky> {
+		Rc::new(Thunk(std::cell::RefCell::new(State::Code(pool, data, code))))
 	}
 
-	pub fn shim(v: ::Val) -> gc::Gc<Thunk<T>> {
-		gc::Gc::new(Thunk(gc::GcCell::new(State::Val(v))))
+	pub fn shim(pool: ::mem::WeakPoolHandle, v: std::rc::Weak<::Value>) -> Rc<Thunk<T>> {
+		Rc::new(Thunk(std::cell::RefCell::new(State::Val(pool, v))))
 	}
 }
 
-pub fn shim(v: ::Val) -> gc::Gc<Thunky> {
-	Thunk::<()>::shim(v)
+pub fn shim(v: ::Val) -> Rc<Thunky> {
+	Thunk::<()>::shim(v.pool.downgrade(), v.value)
 }
 
-pub fn bytecode(pstruct: ::Val, code: ::bytecode::Value) -> gc::Gc<Thunky> {
-	const F: &Fn((::Val, ::bytecode::Value)) -> ::Val = &|a| a.1.eval(a.0);
-	Thunk::new((pstruct, code), F)
+pub fn bytecode(
+	pool: ::mem::WeakPoolHandle,
+	parent: Rc<::Parent>,
+	code: ::bytecode::Value,
+) -> Rc<Thunky> {
+	const F: &Fn((Rc<::Parent>, ::bytecode::Value)) -> ::Val = &|a| a.1.eval(a.0);
+	Thunk::new(pool, (parent, code), F)
 }
 
-pub trait Thunky: gc::Trace + std::fmt::Debug {
+pub trait Thunky:  std::fmt::Debug {
 	fn eval(&self) -> ::Val;
 }
 
-impl<T: 'static + gc::Trace> Thunky for Thunk<T> {
+impl<T: 'static> Thunky for Thunk<T> {
 	fn eval(&self) -> ::Val {
-		if let State::Val(ref v) = *self.0.borrow_mut() {
-			return v.clone()
+		if let State::Val(ref p, ref v) = *self.0.borrow_mut() {
+			return ::Val{
+				pool: p.upgrade(),
+				value: v.clone(),
+			}
 		}
 
 		let state = std::mem::replace(&mut*self.0.borrow_mut(), State::Working);
-		let (data, code) = match state {
-			State::Val(_) => unreachable!(),
+		let (pool, data, code) = match state {
+			State::Val(..) => unreachable!(),
 			State::Working =>
 				return ::err::Err::new("Dependency cycle detected.".to_owned()),
-			State::Code(data, code) => (data, code),
+			State::Code(pool, data, code) => (pool, data, code),
 		};
 		let v = code(data);
-		std::mem::replace(&mut*self.0.borrow_mut(), State::Val(v.clone()));
+		pool.merge(v.pool.clone());
+		std::mem::replace(&mut*self.0.borrow_mut(), State::Val(pool, v.value.clone()));
 		v
 	}
 }
 
-impl<T: 'static + gc::Trace> std::fmt::Debug for Thunk<T> {
+impl<T: 'static> std::fmt::Debug for Thunk<T> {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		match *self.0.borrow_mut() {
-			State::Code(_,_) => write!(f, "<code>"),
+			State::Code(..) => write!(f, "<code>"),
 			State::Working => write!(f, "<evaling>"),
-			State::Val(ref v) => write!(f, "Thunk({:?})", v),
+			State::Val(_, ref v) => write!(f, "Thunk({:?})", v),
 		}
 	}
 }
