@@ -6,7 +6,7 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("error", &|| new("error", |msg|
 		::err::Err::new(format!("Error: {:?}", msg)))),
 	("index", &|| new("index", |l| Builtin::new("index curried", &[l], |l, i| l[0].index(i)))),
-	("false", &|| ::bool::get_false()),
+	("false", &|| ::bool::get(false)),
 	("foldl", &|| new("foldl",
 		|f| Builtin::new("foldl:func", &[f],
 			|d, accum| Builtin::new("foldl:func:accum", &[d[0].clone(), accum.clone()],
@@ -28,7 +28,7 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|
 		panic!("Script called panic: {:?}", msg))),
-	("true", &|| ::bool::get_true()),
+	("true", &|| ::bool::get(true)),
 	("type", &|| new("type", |v| ::Val::new_atomic(v.type_str().to_owned()))),
 	("_testing_assert_cache_eval", &|| {
 		let unevaluated = std::cell::Cell::new(true);

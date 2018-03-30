@@ -13,10 +13,11 @@ impl Err {
 	}
 
 	pub fn new_at(loc: ::grammar::Loc, msg: String) -> ::Val {
-		Self::new_from_at(::nil::get(), loc, msg)
+		::Val::new_atomic(Err{msg, loc, chained: ::Inline::Nil})
 	}
 
 	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
+		debug_assert!(chained.is_err(), "Expected to chain to error got {:#?}", chained);
 		::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
 	}
 

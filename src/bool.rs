@@ -1,24 +1,6 @@
 use erased_serde;
-use std::rc::Rc;
 
-thread_local! {
-	static TRUE: Rc<bool> = Rc::new(true);
-	static FALSE: Rc<bool> = Rc::new(false);
-}
-
-pub fn get(b: bool) -> ::Val { if b { get_true() } else { get_false() } }
-pub fn get_true() -> ::Val {
-	::Val{
-		pool: ::mem::PoolHandle::new(),
-		value: ::Inline::Heap(TRUE.with(|n| Rc::downgrade(n))),
-	}
-}
-pub fn get_false() -> ::Val {
-	::Val{
-		pool: ::mem::PoolHandle::new(),
-		value: ::Inline::Heap(FALSE.with(|n| Rc::downgrade(n))),
-	}
-}
+pub fn get(b: bool) -> ::Val { ::Val::new_inline(::Inline::Bool(b)) }
 
 impl ::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }

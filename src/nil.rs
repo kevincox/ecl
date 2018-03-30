@@ -1,20 +1,11 @@
 use erased_serde;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Nil;
 
-thread_local! {
-	static NIL: Rc<Nil> = Rc::new(Nil);
-}
-
 pub fn get() -> ::Val {
-	::Val{
-		pool: ::mem::PoolHandle::new(),
-		value: ::Inline::Heap(NIL.with(|n| Rc::downgrade(n))),
-	}
+	::Val::new_inline(::Inline::Nil)
 }
-// pub fn get() -> ::Val { ::Val::new_atomic(Nil) }
 
 impl ::Value for Nil {
 	fn type_str(&self) -> &'static str { "nil" }
@@ -35,6 +26,6 @@ impl ::Value for Nil {
 
 impl ::SameOps for Nil {
 	fn eq(&self, _: &Self) -> ::Val {
-		::bool::get_true()
+		::bool::get(true)
 	}
 }

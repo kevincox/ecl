@@ -109,7 +109,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
-			bool::get_false()
+			bool::get(false)
 		}
 	}
 
@@ -124,7 +124,9 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 
 #[derive(Clone,Debug)]
 pub enum Inline {
+	Bool(bool),
 	Heap(std::rc::Weak<Value>),
+	Nil,
 	Num(f64),
 }
 
@@ -133,9 +135,11 @@ impl std::ops::Deref for Inline {
 
 	fn deref(&self) -> &Value {
 		match *self {
+			Inline::Bool(ref b) => b,
 			Inline::Heap(ref weak) => {
 				i_promise_this_will_stay_alive(&*weak.upgrade().expect("inline upgrade"))
 			}
+			Inline::Nil => &nil::Nil,
 			Inline::Num(ref n) => n,
 		}
 	}
@@ -151,7 +155,7 @@ unsafe impl Sync for Val { }
 
 impl Val {
 	fn new_num(n: f64) -> Self {
-		Val{pool: mem::PoolHandle::none(), value: Inline::Num(n)}
+		Self::new_inline(Inline::Num(n))
 	}
 
 	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Self {
@@ -161,9 +165,14 @@ impl Val {
 		Val{pool, value: Inline::Heap(value)}
 	}
 
+	fn new_inline(value: Inline) -> Val {
+		Val{pool: mem::PoolHandle::none(), value}
+	}
+
 	fn new_atomic<T: Value + Sized>(value: T) -> Val {
 		Self::new(mem::PoolHandle::new(), value)
 	}
+
 
 	fn value(&self) -> Result<&Value,Val> {
 		let this = self.deref();
