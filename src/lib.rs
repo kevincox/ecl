@@ -151,7 +151,7 @@ unsafe impl Sync for Val { }
 
 impl Val {
 	fn new_num(n: f64) -> Self {
-		Val{pool: mem::PoolHandle::new(), value: Inline::Num(n)}
+		Val{pool: mem::PoolHandle::none(), value: Inline::Num(n)}
 	}
 
 	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Self {
@@ -322,7 +322,6 @@ impl Val {
 		let vals = iter
 			.map(move |v| {
 				thunk::Thunk::new(
-					map_pool.clone(),
 					(map_pool.clone(), f.value.clone(), v.value.clone()),
 					&do_map)
 			})
@@ -590,14 +589,19 @@ fn format_ref(depth: usize, ident: &str) -> String {
 mod tests {
 	use super::*;
 
-	// #[test]
-	// fn val_is_rc_sized() {
-	// 	// Testing an implementation detail. A value should be one word.
-	// 	// If more falls out of https://github.com/rust-lang/rfcs/issues/1230
-	// 	// we can probably pack more types into the enum safely. Otherwise we
-	// 	// can consider having a pointer and doing the checking ourselves unsafely.
-	// 	assert_eq!(std::mem::size_of::<Rc<Value>>(), std::mem::size_of::<Val>());
-	// }
+	#[test]
+	fn val_is_rc_sized() {
+		// Testing an implementation detail. A Inline should be two words. One
+		// is for the target and one is for the vtable. Right now we also
+		// have a discriminant which we should hide.
+		assert_eq!(
+			std::mem::size_of::<Inline>(),
+			3*std::mem::size_of::<*const bool>());
+		// Val also contains a pool pointer.
+		assert_eq!(
+			std::mem::size_of::<Val>(),
+			4*std::mem::size_of::<*const bool>());
+	}
 
 	#[test]
 	fn list() {

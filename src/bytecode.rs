@@ -984,7 +984,7 @@ impl Func {
 								}
 								None => {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(pool.downgrade(), parent.clone(), value)
+									::thunk::bytecode(parent.clone(), value)
 								}
 							}
 						}
@@ -1034,7 +1034,7 @@ impl Func {
 								.map(::thunk::shim)
 								.unwrap_or_else(|| {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(pool.downgrade(), parent.clone(), value)
+									::thunk::bytecode(parent.clone(), value)
 								})
 						}
 					};

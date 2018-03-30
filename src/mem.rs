@@ -46,6 +46,10 @@ impl Handle {
 		Handle(std::cell::Cell::new(p))
 	}
 
+	fn is_empty(&self) -> bool {
+		self.0.get().is_null()
+	}
+
 	fn get(&self) -> &Pool {
 		let this = unsafe { &*self.0.get() };
 		match *this.state.borrow_mut() {
@@ -184,12 +188,24 @@ impl PoolHandle {
 		PoolHandle(ptr)
 	}
 
+	pub fn none() -> Self {
+		PoolHandle(Handle(std::cell::Cell::new(std::ptr::null_mut())))
+	}
+
+	fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+
 	pub fn downgrade(&self) -> WeakPoolHandle {
+		debug_assert!(!self.is_empty());
+
 		self.0.inc_weak();
 		WeakPoolHandle(self.0.clone())
 	}
 
 	pub fn push(&self, v: Rc<::Value>) {
+		debug_assert!(!self.is_empty());
+
 		let pool = self.0.get();
 		// eprintln!("push({:?})", v);
 		match *pool.state.borrow_mut() {
@@ -199,12 +215,16 @@ impl PoolHandle {
 	}
 
 	pub fn merge(&self, h: PoolHandle) {
+		debug_assert!(!self.is_empty());
+		if h.is_empty() { return }
 		self.0.merge(h.0.clone(), true)
 	}
 }
 
 impl Clone for PoolHandle {
 	fn clone(&self) -> Self {
+		if self.is_empty() { return PoolHandle(self.0.clone()) }
+
 		self.0.inc_strong();
 		PoolHandle(self.0.clone())
 	}
@@ -212,6 +232,7 @@ impl Clone for PoolHandle {
 
 impl Drop for PoolHandle {
 	fn drop(&mut self) {
+		if self.is_empty() { return }
 		self.0.dec_strong()
 	}
 }
@@ -221,6 +242,7 @@ pub struct WeakPoolHandle(Handle);
 
 impl WeakPoolHandle {
 	pub fn merge(&self, h: PoolHandle) {
+		if h.is_empty() { return }
 		self.0.merge(h.0.clone(), false)
 	}
 

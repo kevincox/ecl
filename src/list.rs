@@ -16,7 +16,6 @@ impl List {
 			data: items.iter()
 				.map(|item| {
 					::thunk::bytecode(
-						pool.downgrade(),
 						parent.clone(),
 						item.clone())
 				})
@@ -29,7 +28,7 @@ impl List {
 	}
 
 	pub fn get(&self, i: usize) -> Option<::Val> {
-		self.data.get(i).map(|i| i.eval())
+		self.data.get(i).map(|i| i.eval(self.pool.upgrade()))
 	}
 }
 
@@ -39,7 +38,7 @@ impl ::Value for List {
 	fn len(&self) -> usize { self.data.len() }
 
 	fn index_int(&self, k: usize) -> ::Val {
-		self.data[k].eval()
+		self.data[k].eval(self.pool.upgrade())
 	}
 
 	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
@@ -47,17 +46,23 @@ impl ::Value for List {
 		let len = self.data.len();
 		let mut state = try!(s.erased_serialize_seq_fixed_size(len));
 		for e in &self.data {
-			try!(s.erased_serialize_seq_elt(&mut state, &e.eval().rec_ser(visited)));
+			s.erased_serialize_seq_elt(&mut state, &e.eval(self.pool.upgrade()).rec_ser(visited))?;
 		}
 		s.erased_serialize_seq_end(state)
 	}
 
 	fn iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
-		Some((self.pool.upgrade(), Box::new(self.data.iter().map(|v| v.eval()))))
+		let pool = self.pool.upgrade();
+		Some((
+			pool.clone(),
+			Box::new(self.data.iter().map(move |v| v.eval(pool.clone())))))
 	}
 
 	fn reverse_iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
-		Some((self.pool.upgrade(), Box::new(self.data.iter().rev().map(|v| v.eval()))))
+		let pool = self.pool.upgrade();
+		Some((
+			pool.clone(),
+			Box::new(self.data.iter().rev().map(move |v| v.eval(pool.clone())))))
 	}
 
 	fn reverse(&self) -> ::Val {

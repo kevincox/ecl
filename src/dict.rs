@@ -52,8 +52,8 @@ pub struct DictPair {
 }
 
 impl DictPair {
-	fn val(&self) -> ::Val {
-		self.val.eval()
+	fn val(&self, pool: ::mem::PoolHandle) -> ::Val {
+		self.val.eval(pool)
 	}
 }
 
@@ -84,7 +84,7 @@ impl Dict {
 					key: key.clone(),
 					almost: item.clone()
 				});
-				let val = ::thunk::bytecode(pool.downgrade(), this_parent.clone(), item);
+				let val = ::thunk::bytecode(this_parent.clone(), item);
 				prv.data.push(DictPair{key, val});
 			}
 		}
@@ -97,7 +97,7 @@ impl Dict {
 
 		let key = Key::Pub(k.clone());
 
-		let val = ::thunk::bytecode(pool.downgrade(), parent.clone(), item.clone());
+		let val = ::thunk::bytecode(parent.clone(), item.clone());
 		let data = vec![
 			DictPair{key, val: val}];
 
@@ -131,7 +131,7 @@ impl Dict {
 	pub fn index(&self, key: &Key) -> Option<::Val> {
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
-			.map(|pair| pair.val())
+			.map(|pair| pair.val(self.pool.upgrade()))
 		// prv.data.binary_search_by(|pair| pair.key.cmp(key))
 		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
@@ -179,12 +179,11 @@ impl Dict {
 				});
 
 				let mut val = ::thunk::bytecode(
-					pool.downgrade(),
 					parent,
 					s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
 					let sup = data.pop().unwrap();
-					val = override_(pool.downgrade(), sup.val.clone(), val);
+					val = override_(sup.val.clone(), val);
 				}
 				data.push(DictPair{key: s.key.clone(), val});
 				source.push(s);
@@ -196,15 +195,14 @@ impl Dict {
 }
 
 pub fn override_(
-	pool: ::mem::WeakPoolHandle,
 	sup: Rc<::thunk::Thunky>,
 	sub: Rc<::thunk::Thunky>,
 ) -> Rc<::thunk::Thunky> {
 	const F: &Fn((Rc<::thunk::Thunky>, Rc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
-		let sub = sub.eval();
+		let sub = sub.eval(::mem::PoolHandle::new());
 
 		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
-			let sup = sup.eval().annotate("overriding error value")?;
+			let sup = sup.eval(sub.pool.clone()).annotate("overriding error value")?;
 			if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
 				return sup_dict.call(sub_dict)
 			}
@@ -213,7 +211,7 @@ pub fn override_(
 		return sub
 	};
 
-	::thunk::Thunk::new(pool, (sup, sub), F)
+	::thunk::Thunk::new((sup, sub), F)
 }
 
 impl std::fmt::Debug for Dict {
@@ -248,7 +246,7 @@ impl ::Value for Dict {
 	fn eval(&self) -> Result<(),::Val> {
 		for pair in &self.prv.borrow().data {
 			if pair.key.is_public() {
-				pair.val().eval()?;
+				pair.val(self.pool.upgrade()).eval()?;
 			}
 		}
 
@@ -289,15 +287,17 @@ impl ::Value for Dict {
 		// This is fine because the dict has been fully evaluated.
 		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
 
-		Some((self.pool.upgrade(), Box::new(
-			data
+		let pool = self.pool.upgrade();
+		Some((
+			pool.clone(),
+			Box::new(data
 				.iter()
 				.filter(|pair| pair.key.is_public())
 				.filter_map(move |pair| match pair.key {
 					Key::Pub(ref s) => {
 						let data = vec![
 							::thunk::shim(::Val::new(self.pool.upgrade(), s.clone())),
-							::thunk::shim(pair.val()),
+							::thunk::shim(pair.val(pool.clone())),
 						];
 						Some(::list::List::of_vals(self.pool.upgrade(), data))
 					}
@@ -313,7 +313,8 @@ impl ::Value for Dict {
 		for pair in &prv.data {
 			if let Key::Pub(ref k) = pair.key {
 				s.erased_serialize_map_key(&mut state, k)?;
-				s.erased_serialize_map_value(&mut state, &pair.val().rec_ser(visited))?;
+				s.erased_serialize_map_value(&mut state,
+					&pair.val(self.pool.upgrade()).rec_ser(visited))?;
 			}
 		}
 		s.erased_serialize_map_end(state)
