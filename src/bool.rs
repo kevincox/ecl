@@ -10,13 +10,13 @@ pub fn get(b: bool) -> ::Val { if b { get_true() } else { get_false() } }
 pub fn get_true() -> ::Val {
 	::Val{
 		pool: ::mem::PoolHandle::new(),
-		value: TRUE.with(|n| Rc::downgrade(n)),
+		value: ::Inline::Heap(TRUE.with(|n| Rc::downgrade(n))),
 	}
 }
 pub fn get_false() -> ::Val {
 	::Val{
 		pool: ::mem::PoolHandle::new(),
-		value: FALSE.with(|n| Rc::downgrade(n)),
+		value: ::Inline::Heap(FALSE.with(|n| Rc::downgrade(n))),
 	}
 }
 

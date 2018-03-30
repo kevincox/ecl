@@ -1,11 +1,10 @@
 use std;
-use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct Err {
 	msg: String,
 	loc: ::grammar::Loc,
-	chained: Rc<::Value>,
+	chained: ::Inline,
 }
 
 impl Err {
@@ -18,7 +17,7 @@ impl Err {
 	}
 
 	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
-		::Val::new_atomic(Err{msg, loc, chained: chained.value.upgrade().expect("upgrade error")})
+		::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
 	}
 
 	fn from(e: &std::error::Error) -> ::Val {
@@ -49,7 +48,7 @@ impl std::fmt::Debug for Err {
 		}
 		writeln!(f, "{}", self.msg)?;
 		if self.chained.is_err() {
-			write!(f, "{:?}", self.chained)?;
+			write!(f, "{:?}", &*self.chained)?;
 		}
 		Ok(())
 	}

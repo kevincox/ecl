@@ -4,7 +4,7 @@ use std::rc::Rc;
 pub enum State<T: 'static> {
 	Code(::mem::WeakPoolHandle, T, &'static Fn(T) -> ::Val),
 	Working,
-	Val(::mem::WeakPoolHandle, std::rc::Weak<::Value>),
+	Val(::mem::WeakPoolHandle, ::Inline),
 }
 
 pub struct Thunk<T: 'static>(std::cell::RefCell<State<T>>);
@@ -18,7 +18,7 @@ impl<T: 'static> Thunk<T> {
 		Rc::new(Thunk(std::cell::RefCell::new(State::Code(pool, data, code))))
 	}
 
-	pub fn shim(pool: ::mem::WeakPoolHandle, v: std::rc::Weak<::Value>) -> Rc<Thunk<T>> {
+	pub fn shim(pool: ::mem::WeakPoolHandle, v: ::Inline) -> Rc<Thunk<T>> {
 		Rc::new(Thunk(std::cell::RefCell::new(State::Val(pool, v))))
 	}
 }

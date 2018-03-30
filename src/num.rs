@@ -24,11 +24,11 @@ impl ::Value for f64 {
 
 impl ::SameOps for f64 {
 	fn add(&self, that: &Self) -> ::Val {
-		::Val::new_atomic(*self + *that)
+		::Val::new_num(*self + *that)
 	}
 
 	fn subtract(&self, that: &Self) -> ::Val {
-		::Val::new_atomic(*self - *that)
+		::Val::new_num(*self - *that)
 	}
 
 	fn eq(&self, that: &Self) -> ::Val {

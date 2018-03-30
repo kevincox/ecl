@@ -364,14 +364,14 @@ impl std::fmt::Debug for AlmostDictElement {
 
 #[derive(Clone,Debug)]
 pub struct ParentSplitter {
-	pub parent: std::rc::Weak<::Value>,
+	pub parent: ::Inline,
 	pub grandparent: Option<Rc<::Parent>>,
 }
 
 impl ::Parent for ParentSplitter {
 	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
 		match depth {
-			0 => self.parent.upgrade().expect("parent upgrade").structural_lookup(0, key),
+			0 => self.parent.structural_lookup(0, key),
 			n => self.grandparent.as_ref().expect("grandparent access").structural_lookup(n-1, key),
 		}
 	}

@@ -11,7 +11,7 @@ thread_local! {
 pub fn get() -> ::Val {
 	::Val{
 		pool: ::mem::PoolHandle::new(),
-		value: NIL.with(|n| Rc::downgrade(n)),
+		value: ::Inline::Heap(NIL.with(|n| Rc::downgrade(n))),
 	}
 }
 // pub fn get() -> ::Val { ::Val::new_atomic(Nil) }

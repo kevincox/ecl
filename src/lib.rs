@@ -122,32 +122,55 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 	}
 }
 
+#[derive(Clone,Debug)]
+pub enum Inline {
+	Heap(std::rc::Weak<Value>),
+	Num(f64),
+}
+
+impl std::ops::Deref for Inline {
+	type Target = Value;
+
+	fn deref(&self) -> &Value {
+		match *self {
+			Inline::Heap(ref weak) => {
+				i_promise_this_will_stay_alive(&*weak.upgrade().expect("inline upgrade"))
+			}
+			Inline::Num(ref n) => n,
+		}
+	}
+}
+
 #[derive(Clone)]
 pub struct Val {
 	pool: mem::PoolHandle,
-	value: std::rc::Weak<Value>,
+	value: Inline,
 }
 
 unsafe impl Sync for Val { }
 
 impl Val {
-	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Val {
+	fn new_num(n: f64) -> Self {
+		Val{pool: mem::PoolHandle::new(), value: Inline::Num(n)}
+	}
+
+	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Self {
 		let rc = Rc::new(value);
 		let value = Rc::downgrade(&rc);
 		pool.push(rc);
-		Val{pool, value}
+		Val{pool, value: Inline::Heap(value)}
 	}
 
 	fn new_atomic<T: Value + Sized>(value: T) -> Val {
 		Self::new(mem::PoolHandle::new(), value)
 	}
 
-	fn value(&self) -> Result<Rc<Value>,Val> {
+	fn value(&self) -> Result<&Value,Val> {
 		let this = self.deref();
 		if this.is_err() { Err(self.clone()) } else { Ok(this) }
 	}
 
-	fn deref(&self) -> Rc<Value> { self.value.upgrade().expect("Val upgrade") }
+	fn deref(&self) -> &Value { &*self.value }
 
 	fn merge(&self, val: Val) -> Val {
 		self.pool.merge(val.pool);
@@ -292,12 +315,8 @@ impl Val {
 			None => return err::Err::new(format!("Can't iterate over {:?}", self)),
 		};
 		pool.merge(f.pool.clone());
-		fn do_map((p, f, v): (
-			mem::WeakPoolHandle,
-			std::rc::Weak<Value>,
-			std::rc::Weak<Value>)) -> Val
-		{
-			f.upgrade().expect("map upgrade").call(Val{pool: p.upgrade(), value: v})
+		fn do_map((p, f, v): (mem::WeakPoolHandle, Inline, Inline)) -> Val {
+			f.call(Val{pool: p.upgrade(), value: v})
 		}
 		let map_pool = pool.downgrade();
 		let vals = iter

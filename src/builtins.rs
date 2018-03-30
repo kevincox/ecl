@@ -53,7 +53,7 @@ pub struct Builtin<F>{
 	name: &'static str,
 	func: F,
 	pool: ::mem::WeakPoolHandle,
-	data: Vec<std::rc::Weak<::Value>>,
+	data: Vec<::Inline>,
 }
 
 fn new<F: Fn(::Val) -> ::Val + 'static>(name: &'static str, func: F) -> ::Val {

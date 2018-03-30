@@ -672,7 +672,7 @@ impl EvalContext {
 				Op::Num => {
 					let num = cursor.read_f64::<EclByteOrder>().unwrap();
 					// eprintln!("Num: {}", num);
-					stack.push(::Val::new_atomic(num));
+					stack.push(::Val::new_num(num));
 				}
 				Op::Ref => {
 					let strkey = cursor.read_str();
