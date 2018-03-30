@@ -12,7 +12,7 @@ fn main() {
 		(0..10).for_each(&testcase);
 
 		let statm_pre = procinfo::pid::statm_self().unwrap();
-		(0..100).for_each(&testcase);
+		(0..1000).for_each(&testcase);
 		let statm_post = procinfo::pid::statm_self().unwrap();
 
 		// Surprisingly this appears to be predictable enough.
