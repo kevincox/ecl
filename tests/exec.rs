@@ -24,7 +24,7 @@ fn main() {
 		let cmd = format!("exec {:?} {}", ecl, config.cmd);
 		let out = std::process::Command::new("bash")
 			.arg("-c").arg(&cmd)
-			.current_dir("/home/kevincox/p/ecl/tests/exec/")
+			.current_dir("tests/exec/")
 			.output().expect(&format!("Failed to {:?}", cmd));
 
 		utils::diff(&out.stderr, &path.with_extension("stderr"));
