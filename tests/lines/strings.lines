@@ -1,5 +1,6 @@
 	DICT	{
 basic	STR	"hi"
+code-and-dynamic	STR	"foobarbazboz"
 escape	STR	"\${basic} \t\n"
 interp	STR	"hi - 4"
 	DICT	}

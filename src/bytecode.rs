@@ -1,7 +1,7 @@
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std;
 use std::fmt::Write;
-use std::io::{Read, Seek};
+use std::io::{BufRead, Read, Seek};
 use std::rc::Rc;
 
 const MAGIC: &[u8] = b"ECL\0v001";
@@ -480,8 +480,8 @@ pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 
 #[derive(PartialEq)]
 pub struct Module {
-	file: std::path::PathBuf,
-	code: Vec<u8>,
+	pub file: std::path::PathBuf,
+	pub code: Vec<u8>,
 }
 
 impl Module {
@@ -696,7 +696,12 @@ impl EvalContext {
 					stack.push(self.parent.structural_lookup(depth, &key));
 				}
 				Op::Str => {
-					let s = cursor.read_str();
+					let s = ::str::CodeString {
+						module: self.module.clone(),
+						len: cursor.read_varint(),
+						offset: std::convert::TryInto::try_into(cursor.position()).unwrap(),
+					};
+					cursor.consume(s.len);
 					stack.push(::Val::new_atomic(s));
 				}
 				Op::Sub => {

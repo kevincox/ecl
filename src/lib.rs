@@ -67,22 +67,41 @@ pub trait Value:
 }
 
 pub trait SameOps: std::fmt::Debug {
-	fn add(&self, that: &Self) -> Val { err::Err::new(format!("Can't add {:?} and {:?}", self, that)) }
-	fn subtract(&self, that: &Self) -> Val { err::Err::new(format!("Can't subtract {:?} and {:?}", self, that)) }
-	fn eq(&self, that: &Self) -> Val { err::Err::new(format!("Can't compare {:?} and {:?}", self, that)) }
+	fn add(&self, that: &Self) -> Val {
+		err::Err::new(format!("Can't add {:?} and {:?}", self, that))
+	}
+
+	fn subtract(&self, that: &Self) -> Val {
+		err::Err::new(format!("Can't subtract {:?} and {:?}", self, that))
+	}
+
+	fn eq(&self, that: &Self) -> Val {
+		err::Err::new(format!("Can't compare {:?} and {:?}", self, that))
+	}
 
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,Val> {
 		Err(err::Err::new(format!("Can't compare {:?} and {:?}", self, that)))
 	}
 }
 
-pub trait SameOpsTrait {
+pub trait SameOpsTrait: std::fmt::Debug {
 	fn as_any(&self) -> &std::any::Any;
 
-	fn add(&self, that: &Value) -> Val;
-	fn subtract(&self, that: &Value) -> Val;
-	fn eq(&self, that: &Value) -> Val;
-	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val>;
+	fn add(&self, that: &Value) -> Val {
+		err::Err::new(format!("Can't add {:?} and {:?}", self, that))
+	}
+
+	fn subtract(&self, that: &Value) -> Val {
+		err::Err::new(format!("Can't subtract {:?} and {:?}", self, that))
+	}
+
+	fn eq(&self, that: &Value) -> Val {
+		err::Err::new(format!("Can't compare {:?} and {:?}", self, that))
+	}
+
+	fn cmp(&self, _that: &Value) -> Result<std::cmp::Ordering,Val> {
+		Err(bool::get(false))
+	}
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
