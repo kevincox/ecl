@@ -31,10 +31,6 @@ impl ::SameOps for f64 {
 		::Val::new_num(*self - *that)
 	}
 
-	fn eq(&self, that: &Self) -> ::Val {
-		::bool::get(*self == *that)
-	}
-
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,::Val> {
 		self.partial_cmp(that)
 			.ok_or_else(||

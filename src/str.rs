@@ -22,14 +22,6 @@ fn str_cmp(this: &str, that: &::Value) -> Result<std::cmp::Ordering,::Val> {
 	}
 }
 
-fn str_eq(this: &str, that: &::Value) -> ::Val {
-	if let Some(s) = that.get_str() {
-		::bool::get(this == s)
-	} else {
-		::bool::get(false)
-	}
-}
-
 impl ::Value for String {
 	fn type_str(&self) -> &'static str { "string" }
 
@@ -48,7 +40,6 @@ impl ::SameOpsTrait for String {
 
 	fn add(&self, that: &::Value) -> ::Val { str_add(self, that) }
 	fn cmp(&self, that: &::Value) -> Result<std::cmp::Ordering,::Val> { str_cmp(self, that) }
-	fn eq(&self, that: &::Value) -> ::Val { str_eq(self, that) }
 }
 
 pub struct CodeString {
@@ -82,7 +73,6 @@ impl ::SameOpsTrait for CodeString {
 
 	fn add(&self, that: &::Value) -> ::Val { str_add(self.get(), that) }
 	fn cmp(&self, that: &::Value) -> Result<std::cmp::Ordering,::Val> { str_cmp(self.get(), that) }
-	fn eq(&self, that: &::Value) -> ::Val { str_eq(self.get(), that) }
 }
 
 impl std::fmt::Debug for CodeString {

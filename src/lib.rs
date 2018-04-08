@@ -76,7 +76,7 @@ pub trait SameOps: std::fmt::Debug {
 	}
 
 	fn eq(&self, that: &Self) -> Val {
-		err::Err::new(format!("Can't compare {:?} and {:?}", self, that))
+		bool::get(self.cmp(that)? == std::cmp::Ordering::Equal)
 	}
 
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,Val> {
@@ -96,11 +96,11 @@ pub trait SameOpsTrait: std::fmt::Debug {
 	}
 
 	fn eq(&self, that: &Value) -> Val {
-		err::Err::new(format!("Can't compare {:?} and {:?}", self, that))
+		bool::get(self.cmp(that) == Ok(std::cmp::Ordering::Equal))
 	}
 
-	fn cmp(&self, _that: &Value) -> Result<std::cmp::Ordering,Val> {
-		Err(bool::get(false))
+	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
+		Err(err::Err::new(format!("Can't compare {:?} and {:?}", self, that)))
 	}
 }
 
