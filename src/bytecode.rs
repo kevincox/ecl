@@ -1,7 +1,7 @@
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std;
 use std::fmt::Write;
-use std::io::{BufRead, Read, Seek};
+use std::io::{BufRead, Seek};
 use std::rc::Rc;
 
 const MAGIC: &[u8] = b"ECL\0v001";
@@ -498,13 +498,13 @@ impl Module {
 	}
 }
 
-trait CursorExt {
+trait CursorExt<'a> {
 	fn read_usize(&mut self) -> usize;
 	fn read_varint(&mut self) -> usize;
-	fn read_str(&mut self) -> String;
+	fn read_str(&mut self) -> &'a str;
 }
 
-impl<'a> CursorExt for std::io::Cursor<&'a [u8]> {
+impl<'a> CursorExt<'a> for std::io::Cursor<&'a [u8]> {
 	#[inline]
 	fn read_usize(&mut self) -> usize {
 		let n = self.read_u64::<EclByteOrder>().unwrap();
@@ -529,11 +529,12 @@ impl<'a> CursorExt for std::io::Cursor<&'a [u8]> {
 		std::convert::TryFrom::try_from(val).unwrap()
 	}
 
-	fn read_str(&mut self) -> String {
+	fn read_str(&mut self) -> &'a str {
 		let len = self.read_varint();
-		let mut buf = vec![0; len];
-		self.read_exact(&mut buf).unwrap();
-		String::from_utf8(buf).unwrap()
+		let off = std::convert::TryInto::try_into(self.position()).unwrap();
+		self.consume(len);
+		let bytes = &self.get_ref()[off..][..len];
+		std::str::from_utf8(bytes).unwrap()
 	}
 }
 
@@ -610,7 +611,7 @@ impl EvalContext {
 					let key = cursor.read_str();
 					stack.push(::dict::Dict::new_adict(
 						self.parent.clone(),
-						key,
+						key.to_owned(),
 						Value::new(self.module.clone(), childoff)));
 				}
 				Op::Dict => {
@@ -618,7 +619,7 @@ impl EvalContext {
 					let mut items = Vec::with_capacity(len);
 					for _ in 0..len {
 						let key = match DictItem::from(cursor.read_u8().unwrap())? {
-							DictItem::Pub => ::dict::Key::Pub(cursor.read_str()),
+							DictItem::Pub => ::dict::Key::Pub(cursor.read_str().to_owned()),
 							DictItem::Local => {
 								let mut id = cursor.read_varint();
 								id += self.module.unique_id();
@@ -679,7 +680,7 @@ impl EvalContext {
 					let depth = cursor.read_varint();
 					let mut id = cursor.read_varint();
 					let key = if id == 0 {
-						::dict::Key::Pub(strkey.clone())
+						::dict::Key::Pub(strkey.to_owned())
 					} else {
 						id += self.module.unique_id();
 						::dict::Key::Local(id)
@@ -692,7 +693,7 @@ impl EvalContext {
 				Op::RefRel => {
 					let key = cursor.read_str();
 					let depth = cursor.read_varint();
-					let key = ::dict::Key::Pub(key);
+					let key = ::dict::Key::Pub(key.to_owned());
 					stack.push(self.parent.structural_lookup(depth, &key));
 				}
 				Op::Str => {
@@ -967,7 +968,7 @@ impl Func {
 				let len = cursor.read_usize();
 				for _ in 0..len {
 					let key = cursor.read_str();
-					let passed = sourcedict.index(&::dict::Key::Pub(key.clone()))
+					let passed = sourcedict.index(&::dict::Key::Pub(key.to_owned()))
 						.map(|v| v.annotate("Looking up argument value"));
 					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
 						ArgReq::Required => match passed {
@@ -994,7 +995,7 @@ impl Func {
 							}
 						}
 					};
-					dict._set_val(::dict::Key::Pub(key), val)
+					dict._set_val(::dict::Key::Pub(key.to_owned()), val)
 				}
 
 				if unused_args != 0 {
