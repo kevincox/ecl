@@ -647,7 +647,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					},
 				};
 				let v = self.dict_val()?;
-				Ok(::Almost::ADict(k, Rc::new(v)))
+				Ok(::Almost::ADict(k, Box::new(v)))
 			},
 			(Token::Assign, _) => self.expr(),
 		}
@@ -656,7 +656,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 	fn list_items(&mut self) -> ParseResult {
 		let mut items = Vec::new();
 		while !self.consume(Token::ListClose).is_some() {
-			items.push(Rc::new(self.expr()?));
+			items.push(self.expr()?);
 		}
 		Ok(::Almost::List(items))
 	}

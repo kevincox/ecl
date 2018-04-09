@@ -232,7 +232,7 @@ impl CompileContext {
 			}
 			::Almost::ADict(key, element) => {
 				let jump = self.start_jump(Op::JumpLazy);
-				let childoff = self.compile(Rc::try_unwrap(element).unwrap())?;
+				let childoff = self.compile(*element)?;
 				self.set_jump(jump);
 				let off = self.write_op(Op::ADict);
 				self.write_usize(childoff);
@@ -368,7 +368,7 @@ impl CompileContext {
 				let jump = self.start_jump(Op::JumpLazy);
 
 				let offsets = elements.into_iter().map(|element|
-					self.compile(Rc::try_unwrap(element).unwrap()))
+					self.compile(element))
 					.collect::<Vec<_>>();
 
 				self.set_jump(jump);

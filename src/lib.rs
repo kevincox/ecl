@@ -434,7 +434,7 @@ impl serde::Serialize for Val {
 
 #[derive(PartialEq)]
 pub enum Almost {
-	ADict(String,Rc<Almost>),
+	ADict(String,Box<Almost>),
 	Dict(Vec<dict::AlmostDictElement>),
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
@@ -446,7 +446,7 @@ pub enum Almost {
 	LessEq(Box<Almost>, Box<Almost>),
 	Func(Rc<func::FuncData>),
 	Index(grammar::Loc, Box<Almost>, Box<Almost>),
-	List(Vec<Rc<Almost>>),
+	List(Vec<Almost>),
 	Neg(grammar::Loc, Box<Almost>),
 	Nil,
 	Num(f64),
