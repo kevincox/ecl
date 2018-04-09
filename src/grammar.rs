@@ -537,11 +537,11 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		std::mem::replace(&mut self.current, None).or_else(|| self.input.next())
 	}
 
-	fn peek(&mut self) -> Option<&(Token,Loc)> {
+	fn peek(&mut self) -> Option<&Token> {
 		if self.current.is_none() {
 			self.current = self.input.next();
 		}
-		self.current.as_ref()
+		self.current.as_ref().map(|p| &p.0)
 	}
 
 	fn unget(&mut self, t: (Token,Loc)) {
@@ -563,10 +563,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 	fn document(&mut self) -> ParseResult {
 		let is_expr = match self.peek() {
-			Some(&(Token::DictOpen, _)) |
-			Some(&(Token::Func, _)) |
-			Some(&(Token::ListOpen, _)) |
-			Some(&(Token::ParenOpen, _)) => true,
+			Some(&Token::DictOpen) |
+			Some(&Token::Func) |
+			Some(&Token::ListOpen) |
+			Some(&Token::ParenOpen) => true,
 			_ => false,
 		};
 
