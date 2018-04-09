@@ -1,118 +1,112 @@
-     +16 JumpLazy @00000922
-      +9 Num 5
-      +9 Ret
-      +1 JumpFunc @00000062
-     +27 Func @ 00000044
-      +2 Num 5
-      +9 Call
-      +1 Ret
-      +1 JumpFunc @00000111
-     +36 Func @ 00000084
-      +2 JumpLazy @00000142
-      +9 Num 1
-      +9 Ret
-      +1 Num 2
-      +9 Ret
-      +1 Dict 2 items
-     ... PUB   "a" @ -20
-     ... PUB   "b" @ -10
-     +24 Call
-      +1 Ret
-      +1 JumpFunc @00000221
-     +53 Func @ 00000187
-      +3 JumpLazy @00000233
-      +9 Dict 0 items
-      +2 Call
-      +1 Ret
-      +1 JumpFunc @00000300
-     +63 Func @ 00000256
-      +3 JumpLazy @00000332
-      +9 Num 1
-      +9 Ret
-      +1 Num 2
-      +9 Ret
-      +1 Dict 2 items
-     ... PUB   "a" @ -20
-     ... PUB   "b" @ -10
-     +24 Call
-      +1 Ret
-      +1 JumpFunc @00000405
-     +47 Func @ 00000370
-      +3 JumpLazy @00000437
-      +9 Num 1
-      +9 Ret
-      +1 Num 2
-      +9 Ret
-      +1 Dict 2 items
-     ... PUB   "a" @ -20
-     ... PUB   "b" @ -10
-     +24 Call
-      +1 Ret
-      +1 JumpFunc @00000526
-     +63 Func @ 00000482
-      +3 JumpLazy @00000568
-      +9 Num 1
-      +9 Ret
-      +1 Num 2
-      +9 Ret
-      +1 Num 6
-      +9 Ret
-      +1 Dict 3 items
-     ... PUB   "a" @ -30
-     ... PUB   "b" @ -20
-     ... PUB   "c" @ -10
-     +35 Call
-      +1 Ret
-      +1 JumpFunc @00000632
-     +27 Func @ 00000614
-      +3 JumpLazy @00000664
-      +9 Num 1
-      +9 Ret
-      +1 Num 2
-      +9 Ret
-      +1 List 2 items
-     ...  0 @ 644
-     ...  1 @ 654
-     +18 Call
-      +1 Ret
-      +1 JumpFunc @00000729
-     +45 Func @ 00000703
-      +3 JumpLazy @00000751
-      +9 Num 1
-      +9 Ret
-      +1 List 1 items
-     ...  0 @ 741
-     +10 Call
-      +1 Ret
-      +1 JumpFunc @00000808
-     +45 Func @ 00000782
-      +3 JumpLazy @00000840
-      +9 Num 1
-      +9 Ret
-      +1 Num 3
-      +9 Ret
-      +1 List 2 items
-     ...  0 @ 820
-     ...  1 @ 830
-     +18 Call
-      +1 Ret
-      +1 JumpFunc @00000898
-     +38 Func @ 00000869
+     +16 Dict 11 items
+     ... LOCAL 0001 @ +1163
+     ... PUB   "add-two" @ +1149
+     ... PUB   "destructure-dict" @ +1073
+     ... PUB   "destructure-dict-closure" @ +1030
+     ... PUB   "destructure-dict-default" @ +928
+     ... PUB   "destructure-dict-default-nil" @ +816
+     ... PUB   "destructure-dict-override" @ +699
+     ... PUB   "destructure-list" @ +584
+     ... PUB   "destructure-list-default" @ +523
+     ... PUB   "destructure-list-default-override" @ +426
+     ... PUB   "multi-arg" @ +357
+    +318 Ret
+      +1 JumpFunc @00000373
+     +38 Func @ 00000344
       +3 Num 1
       +9 Call
       +1 Num 2
       +9 Call
       +1 Ret
-      +1 Dict 11 items
-     ... LOCAL 0001 @ -897
-     ... PUB   "add-two" @ -860
-     ... PUB   "destructure-dict" @ -811
-     ... PUB   "destructure-dict-closure" @ -701
-     ... PUB   "destructure-dict-default" @ -622
-     ... PUB   "destructure-dict-default-nil" @ -517
-     ... PUB   "destructure-dict-override" @ -396
-     ... PUB   "destructure-list" @ -290
-     ... PUB   "destructure-list-default" @ -193
-     ... PUB   "destructure-list-default-override" @ -114
-     ... PUB   "multi-arg" @ -24
-    +318 Ret
+      +1 JumpFunc @00000442
+     +45 Func @ 00000416
+      +3 JumpLazy @00000474
+      +9 Num 1
+      +9 Ret
+      +1 Num 3
+      +9 Ret
+      +1 List 2 items
+     ...  0 @ 454
+     ...  1 @ 464
+     +18 Call
+      +1 Ret
+      +1 JumpFunc @00000539
+     +45 Func @ 00000513
+      +3 JumpLazy @00000561
+      +9 Num 1
+      +9 Ret
+      +1 List 1 items
+     ...  0 @ 551
+     +10 Call
+      +1 Ret
+      +1 JumpFunc @00000600
+     +27 Func @ 00000582
+      +3 JumpLazy @00000632
+      +9 Num 1
+      +9 Ret
+      +1 Num 2
+      +9 Ret
+      +1 List 2 items
+     ...  0 @ 612
+     ...  1 @ 622
+     +18 Call
+      +1 Ret
+      +1 JumpFunc @00000715
+     +63 Func @ 00000671
+      +3 Dict 3 items
+     ... PUB   "a" @ +57
+     ... PUB   "b" @ +47
+     ... PUB   "c" @ +37
+     +35 Call
+      +1 Ret
+      +1 Num 6
+      +9 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Num 1
+      +9 Ret
+      +1 JumpFunc @00000832
+     +47 Func @ 00000797
+      +3 Dict 2 items
+     ... PUB   "a" @ +36
+     ... PUB   "b" @ +26
+     +24 Call
+      +1 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Num 1
+      +9 Ret
+      +1 JumpFunc @00000944
+     +63 Func @ 00000900
+      +3 Dict 2 items
+     ... PUB   "a" @ +36
+     ... PUB   "b" @ +26
+     +24 Call
+      +1 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Num 1
+      +9 Ret
+      +1 JumpFunc @00001046
+     +53 Func @ 00001012
+      +3 Dict 0 items
+      +2 Call
+      +1 Ret
+      +1 JumpFunc @00001089
+     +36 Func @ 00001062
+      +3 Dict 2 items
+     ... PUB   "a" @ +36
+     ... PUB   "b" @ +26
+     +24 Call
+      +1 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Num 1
+      +9 Ret
+      +1 JumpFunc @00001165
+     +27 Func @ 00001147
+      +3 Num 5
+      +9 Call
+      +1 Ret
+      +1 Num 5
+      +9 Ret

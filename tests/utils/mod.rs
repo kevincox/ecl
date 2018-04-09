@@ -40,6 +40,7 @@ pub fn test_dir<
 	let mut errors = 0;
 
 	for path in scan_dir(dir, ext) {
+		println!("Testing {:?}", path);
 		tests += 1;
 		if let Err(_) = std::panic::catch_unwind(|| f(&path)) {
 			errors += 1;

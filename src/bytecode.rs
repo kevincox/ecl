@@ -79,19 +79,48 @@ codes!{ArgReq
 
 type EclByteOrder = byteorder::LittleEndian;
 
+struct Scope {
+	vars: Vec<(String, usize)>,
+	parent: Option<Rc<Scope>>,
+}
+
+impl Scope {
+	fn find(&self, name: &str) -> Option<(usize,usize)> {
+		self.vars.iter()
+			.find(|i| i.0 == name)
+			.map(|i| (0, i.1))
+			.or_else(||
+				self.parent.as_ref()
+					.and_then(|p| p.find(name))
+					.map(|(d, id)| (d+1, id)))
+	}
+
+	fn find_at(&self, name: &str, ups: usize) -> Option<usize> {
+		if ups > 0 {
+			return self.parent.as_ref().and_then(|p| p.find_at(name, ups-1))
+		}
+
+		self.vars.iter()
+			.find(|i| i.0 == name)
+			.map(|i| i.1)
+	}
+}
+
+struct ToCompile {
+	ref_off: usize,
+	node: ::Almost,
+	scope: Rc<Scope>,
+}
+
 struct CompileContext {
 	bytes: Vec<u8>,
-	scope: Vec<(String,usize,usize)>,
-	depth: usize,
-	last_local: usize
+	last_local: usize,
+	compile_queue: Vec<ToCompile>,
+	scope: Rc<Scope>,
 }
 
 impl CompileContext {
-	fn scope_open(&mut self) {
-		self.depth += 1;
-	}
-
-	fn scope_add(&mut self, name: String, public: bool) -> usize {
+	fn new_var(&mut self, name: String, public: bool) -> (String, usize) {
 		let id = if public {
 			0
 		} else {
@@ -99,33 +128,7 @@ impl CompileContext {
 			self.last_local
 		};
 
-		self.scope.push((name, self.depth, id));
-
-		id
-	}
-
-	fn scope_find(&self, name: &str) -> Option<(usize,usize)> {
-		self.scope.iter().rev()
-			.find(|i| i.0 == name)
-			.map(|i| (self.depth - i.1, i.2))
-	}
-
-	fn scope_find_at(&self, name: &str, ups: usize) -> Option<usize> {
-		let depth = self.depth - ups;
-		self.scope.iter().rev()
-			.skip_while(|i| i.1 > depth)
-			.take_while(|i| i.1 == depth)
-			.find(|i| i.0 == name)
-			.map(|i| i.2)
-	}
-
-	fn scope_close(&mut self) {
-		self.depth -= 1;
-		let todrop = self.scope.iter().rev()
-			.take_while(|i| i.1 > self.depth)
-			.count();
-		let newend = self.scope.len() - todrop;
-		self.scope.truncate(newend);
+		(name, id)
 	}
 
 	fn write<T: IntoIterator<Item=u8>>(&mut self, bytes: T) -> usize {
@@ -201,6 +204,12 @@ impl CompileContext {
 		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
 	}
 
+	fn compile_outofline(&mut self, scope: Rc<Scope>, node: ::Almost) -> usize {
+		let ref_off = self.write_u64(0);
+		self.compile_queue.push(ToCompile{ref_off, node, scope});
+		return ref_off
+	}
+
 	fn compile(&mut self, ast: ::Almost) -> Result<usize,::Val> {
 		let off = self.compile_expr(ast)?;
 		self.write_op(Op::Ret);
@@ -231,36 +240,31 @@ impl CompileContext {
 				self.compile_binary_op(Op::Le, *left, *right)
 			}
 			::Almost::ADict(key, element) => {
-				let jump = self.start_jump(Op::JumpLazy);
-				let childoff = self.compile(*element)?;
-				self.set_jump(jump);
 				let off = self.write_op(Op::ADict);
-				self.write_usize(childoff);
+				let scope = self.scope.clone();
+				self.compile_outofline(scope, *element);
 				self.write_str(&key);
 				Ok(off)
 			}
 			::Almost::Dict(elements) => {
-				let jump = self.start_jump(Op::JumpLazy);
-
-				self.scope_open();
+				let mut vars = Vec::with_capacity(elements.len());
 
 				let elements = elements.into_iter()
 					.map(|e| {
-						let id = self.scope_add(e.key.clone(), e.is_public());
+						let (k, id) = self.new_var(e.key.clone(), e.is_public());
+						vars.push((k, id));
 						(e.key, id, e.val)
 					})
 					.collect::<Vec<_>>();
 
-				let elements = elements.into_iter()
-					.map(|(key, id, val)| (key, id, self.compile(val)))
-					.collect::<Vec<_>>();
+				let scope = Rc::new(Scope{
+					vars: vars,
+					parent: Some(self.scope.clone()),
+				});
 
-				self.scope_close();
-
-				self.set_jump(jump);
 				let off = self.write_op(Op::Dict);
 				self.write_varint(elements.len());
-				for (key, id, offset) in elements {
+				for (key, id, val) in elements {
 					match id {
 						0 => {
 							self.write_u8(DictItem::Pub.to());
@@ -271,29 +275,45 @@ impl CompileContext {
 							self.write_varint(id);
 						}
 					}
-					self.write_usize(offset?);
+					self.compile_outofline(scope.clone(), val);
 				}
+
 				Ok(off)
 			}
 			::Almost::Func(data) => {
 				let jump = self.start_jump(Op::JumpFunc);
 
-				self.scope_open();
+				let mut vars = Vec::new();
+
 				let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
 				let argoff = match arg {
 					::func::Arg::One(arg) => {
 						let argoff = self.write_u8(ArgType::One.to());
-						let id = self.scope_add(arg.clone(), false);
+
+						let (k, id) = self.new_var(arg.clone(), false);
+						vars.push((k, id));
 						self.write_varint(id);
+
+						self.scope = Rc::new(Scope{
+							vars,
+							parent: Some(self.scope.clone()),
+						});
+
 						argoff
 					}
 					::func::Arg::Dict(args) => {
 						let args = args.into_iter()
 							.map(|(key, required, val)| {
-								self.scope_add(key.clone(), true);
+								let (k, id) = self.new_var(key.clone(), true);
+								vars.push((k, id));
 								(key, required, val)
 							})
 							.collect::<Vec<_>>();
+
+						self.scope = Rc::new(Scope{
+							vars,
+							parent: Some(self.scope.clone()),
+						});
 
 						let args = args.into_iter().map(|(key, required, val)| {
 								if required {
@@ -323,9 +343,16 @@ impl CompileContext {
 					::func::Arg::List(args) => {
 						let args = args.into_iter()
 							.map(|(key, required, val)| {
-								(self.scope_add(key, false), required, val)
+								let (k, id) = self.new_var(key, false);
+								vars.push((k, id));
+								(id, required, val)
 							})
 							.collect::<Vec<_>>();
+
+						self.scope = Rc::new(Scope{
+							vars,
+							parent: Some(self.scope.clone()),
+						});
 
 						let args = args.into_iter().map(|(id, required, val)| {
 								if required {
@@ -353,8 +380,10 @@ impl CompileContext {
 						argoff
 					}
 				};
+
 				self.compile(body)?;
-				self.scope_close();
+
+				self.scope = self.scope.parent.clone().unwrap();
 
 				self.set_jump(jump);
 				let off = self.write_op(Op::Func);
@@ -391,7 +420,7 @@ impl CompileContext {
 				Ok(off)
 			}
 			::Almost::Ref(loc, name) => {
-				if let Some((depth, id)) = self.scope_find(&name) {
+				if let Some((depth, id)) = self.scope.find(&name) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&name); // TODO: remove this.
 					self.write_varint(depth);
@@ -406,7 +435,7 @@ impl CompileContext {
 				}
 			}
 			::Almost::StructRef(_, depth, key) => {
-				if let Some(id) = self.scope_find_at(&key, depth) {
+				if let Some(id) = self.scope.find_at(&key, depth) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&key); // TODO: remove this.
 					self.write_varint(depth);
@@ -465,16 +494,25 @@ impl CompileContext {
 
 pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 	let mut ctx = CompileContext{
-		bytes: MAGIC.into_iter()
-			.chain(&[0; 8]) // Offset buffer.
-			.cloned().collect(),
-		scope: Vec::with_capacity(20),
-		depth: 0,
+		bytes: MAGIC.to_owned(),
 		last_local: 0,
+		compile_queue: Vec::new(),
+		scope: Rc::new(Scope{
+			vars: Vec::new(),
+			parent: None,
+		}),
 	};
-	let start = ctx.compile(ast)?;
-	let start = std::convert::TryFrom::try_from(start).unwrap();
-	EclByteOrder::write_u64(&mut ctx.bytes[START_OFFSET..START_OFFSET+8], start);
+
+	let scope = ctx.scope.clone();
+	ctx.compile_outofline(scope, ast);
+
+	while let Some(compilable) = ctx.compile_queue.pop() {
+		ctx.scope = compilable.scope;
+		let off = ctx.compile(compilable.node)?;
+		let off = std::convert::TryFrom::try_from(off).unwrap();
+		EclByteOrder::write_u64(&mut ctx.bytes[compilable.ref_off..][..8], off);
+	}
+
 	Ok(ctx.bytes)
 }
 
@@ -685,7 +723,7 @@ impl EvalContext {
 						id += self.module.unique_id();
 						::dict::Key::Local(id)
 					};
-					// eprintln!("Ref: {:?} {:?}", key, strkey);
+					// eprintln!("Ref: {:?}@{} {:?}", key, depth, strkey);
 					let v = self.parent.structural_lookup(depth, &key)
 						.annotate_with(|| format!("Referenced by {:?}", strkey));
 					stack.push(v);

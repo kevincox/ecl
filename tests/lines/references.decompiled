@@ -1,21 +1,10 @@
-     +16 JumpLazy @00000174
-      +9 Num 5
-      +9 Ret
-      +1 Num 8
-      +9 Ret
-      +1 JumpLazy @00000072
-      +9 Ref depth:1 "a" id:1
-      +5 Ret
-      +1 Ref depth:0 "c" id:0
-      +5 Ret
-      +1 Ref depth:1 "b" id:0
-      +5 Ret
-      +1 Dict 3 items
-     ... PUB   "c" @ -18
-     ... PUB   "d" @ -12
-     ... PUB   "e" @ -6
-     +35 Ret
-      +1 JumpLazy @00000147
+     +16 Dict 4 items
+     ... LOCAL 0001 @ +176
+     ... PUB   "b" @ +166
+     ... PUB   "c" @ +112
+     ... PUB   "d" @ +85
+     +45 Ret
+      +1 JumpLazy @00000101
       +9 Ref depth:0 "c" id:0
       +5 Str "d"
       +3 Index
@@ -29,13 +18,22 @@
       +3 Index
       +1 Ret
       +1 List 3 items
-     ...  0 @ 117
-     ...  1 @ 127
-     ...  2 @ 137
+     ...  0 @ 71
+     ...  1 @ 81
+     ...  2 @ 91
      +26 Ret
-      +1 Dict 4 items
-     ... LOCAL 0001 @ -149
-     ... PUB   "b" @ -139
-     ... PUB   "c" @ -102
-     ... PUB   "d" @ -27
-     +45 Ret
+      +1 Dict 3 items
+     ... PUB   "c" @ +48
+     ... PUB   "d" @ +42
+     ... PUB   "e" @ +36
+     +35 Ret
+      +1 Ref depth:1 "b" id:0
+      +5 Ret
+      +1 Ref depth:0 "c" id:0
+      +5 Ret
+      +1 Ref depth:1 "a" id:1
+      +5 Ret
+      +1 Num 8
+      +9 Ret
+      +1 Num 5
+      +9 Ret

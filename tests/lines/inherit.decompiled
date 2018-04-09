@@ -1,128 +1,110 @@
-     +16 JumpLazy @00000749
-      +9 JumpLazy @00000092
-      +9 JumpLazy @00000052
-      +9 Ref depth:1 "name" id:0
-      +8 Ret
+     +16 Dict 11 items
+     ... PUB   "base" @ +726
+     ... PUB   "greeter" @ +625
+     ... PUB   "hello" @ +519
+     ... PUB   "mid-override0" @ +495
+     ... PUB   "mid-override1" @ +453
+     ... PUB   "mid-override2" @ +432
+     ... PUB   "multi-level0" @ +405
+     ... PUB   "multi-level1" @ +385
+     ... PUB   "multi-level2" @ +365
+     ... PUB   "nested-type-base" @ +320
+     ... PUB   "nested-type-sub" @ +235
+    +234 Ret
+      +1 Ref depth:0 "nested-type-base" id:0
+     +20 Dict 2 items
+     ... PUB   "a" @ +35
+     ... PUB   "b" @ +26
+     +24 Call
+      +1 Ret
+      +1 Ref depth:0 "a" id:0
+      +5 Dict 0 items
+      +2 Call
+      +1 Ret
       +1 Dict 1 items
-     ... PUB   "service-name" @ -9
-     +24 Ret
-      +1 Str "default-name"
-     +14 Ret
+     ... PUB   "sub-val" @ +20
+     +19 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Dict 1 items
+     ... PUB   "a" @ +14
+     +13 Ret
+      +1 Dict 1 items
+     ... PUB   "base-val" @ +21
+     +20 Ret
+      +1 Num 1
+      +9 Ret
+      +1 Ref depth:0 "multi-level1" id:0
+     +16 Dict 0 items
+      +2 Call
+      +1 Ret
+      +1 Ref depth:0 "multi-level0" id:0
+     +16 Dict 0 items
+      +2 Call
+      +1 Ret
+      +1 Dict 1 items
+     ... PUB   "item" @ +17
+     +16 Ret
+      +1 Str "an item"
+      +9 Ret
+      +1 Ref depth:0 "mid-override1" id:0
+     +17 Dict 0 items
+      +2 Call
+      +1 Ret
+      +1 Ref depth:0 "mid-override0" id:0
+     +17 Dict 1 items
+     ... PUB   "a" @ +15
+     +13 Call
+      +1 Ret
+      +1 Num 1
+      +9 Ret
+      +1 Dict 1 items
+     ... PUB   "a" @ +14
+     +13 Ret
+      +1 Num 0
+      +9 Ret
       +1 Dict 2 items
-     ... PUB   "args" @ -40
-     ... PUB   "name" @ -15
+     ... PUB   "args" @ +39
+     ... PUB   "name" @ +31
      +30 Ret
-      +1 Ref depth:0 "base" id:0
-      +8 JumpLazy @00000210
-      +9 JumpLazy @00000165
-      +9 Str "Hello"
+      +1 Str "hello"
       +7 Ret
+      +1 Ref depth:1 "base" id:0
+      +8 Str "args"
+      +6 Index
+      +1 Dict 2 items
+     ... PUB   "greeting" @ +44
+     ... PUB   "name" @ +36
+     +34 Call
+      +1 Ret
       +1 Str "World"
       +7 Ret
-      +1 Dict 2 items
-     ... PUB   "greeting" @ -16
-     ... PUB   "name" @ -8
-     +34 Ret
+      +1 Str "Hello"
+      +7 Ret
+      +1 Ref depth:0 "base" id:0
+      +8 Dict 2 items
+     ... PUB   "args" @ +42
+     ... PUB   "name" @ +32
+     +30 Call
+      +1 Ret
       +1 Str "greeter"
       +9 Ret
       +1 Dict 2 items
-     ... PUB   "args" @ -45
-     ... PUB   "name" @ -10
-     +30 Call
-      +1 Ret
-      +1 JumpLazy @00000335
-      +9 Ref depth:1 "base" id:0
-      +8 Str "args"
-      +6 Index
-      +1 JumpLazy @00000291
-      +9 Str "Hello"
-      +7 Ret
+     ... PUB   "greeting" @ +43
+     ... PUB   "name" @ +35
+     +34 Ret
       +1 Str "World"
       +7 Ret
-      +1 Dict 2 items
-     ... PUB   "greeting" @ -16
-     ... PUB   "name" @ -8
-     +34 Call
-      +1 Ret
-      +1 Str "hello"
+      +1 Str "Hello"
       +7 Ret
       +1 Dict 2 items
-     ... PUB   "args" @ -84
-     ... PUB   "name" @ -8
+     ... PUB   "args" @ +46
+     ... PUB   "name" @ +31
      +30 Ret
-      +1 JumpLazy @00000385
-      +9 Num 0
-      +9 Ret
+      +1 Str "default-name"
+     +14 Ret
       +1 Dict 1 items
-     ... PUB   "a" @ -10
-     +13 Ret
-      +1 Ref depth:0 "mid-override0" id:0
-     +17 JumpLazy @00000435
-      +9 Num 1
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "a" @ -10
-     +13 Call
-      +1 Ret
-      +1 Ref depth:0 "mid-override1" id:0
-     +17 JumpLazy @00000476
-      +9 Dict 0 items
-      +2 Call
-      +1 Ret
-      +1 JumpLazy @00000499
-      +9 Str "an item"
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "item" @ -10
-     +16 Ret
-      +1 Ref depth:0 "multi-level0" id:0
-     +16 JumpLazy @00000541
-      +9 Dict 0 items
-      +2 Call
-      +1 Ret
-      +1 Ref depth:0 "multi-level1" id:0
-     +16 JumpLazy @00000570
-      +9 Dict 0 items
-      +2 Call
-      +1 Ret
-      +1 JumpLazy @00000623
-      +9 JumpLazy @00000602
-      +9 Num 1
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "base-val" @ -10
-     +20 Ret
-      +1 Dict 1 items
-     ... PUB   "a" @ -21
-     +13 Ret
-      +1 Ref depth:0 "nested-type-base" id:0
-     +20 JumpLazy @00000723
-      +9 JumpLazy @00000685
-      +9 Num 2
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "sub-val" @ -10
-     +19 Ret
-      +1 Ref depth:0 "a" id:0
-      +5 JumpLazy @00000719
-      +9 Dict 0 items
-      +2 Call
-      +1 Ret
-      +1 Dict 2 items
-     ... PUB   "a" @ -38
-     ... PUB   "b" @ -18
-     +24 Call
-      +1 Ret
-      +1 Dict 11 items
-     ... PUB   "base" @ -657
-     ... PUB   "greeter" @ -626
-     ... PUB   "hello" @ -414
-     ... PUB   "mid-override0" @ -364
-     ... PUB   "mid-override1" @ -350
-     ... PUB   "mid-override2" @ -299
-     ... PUB   "multi-level0" @ -250
-     ... PUB   "multi-level1" @ -233
-     ... PUB   "multi-level2" @ -204
-     ... PUB   "nested-type-base" @ -126
-     ... PUB   "nested-type-sub" @ -112
-    +234 Ret
+     ... PUB   "service-name" @ +25
+     +24 Ret
+      +1 Ref depth:1 "name" id:0
+      +8 Ret

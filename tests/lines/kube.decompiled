@@ -1,61 +1,53 @@
-     +16 JumpLazy @00000432
-      +9 JumpLazy @00000125
-      +9 JumpLazy @00000052
-      +9 Ref depth:1 "name" id:0
-      +8 Ret
-      +1 Dict 1 items
-     ... PUB   "ns" @ -9
-     +14 Ret
-      +1 JumpLazy @00000076
-      +9 Dict 0 items
+     +16 Dict 2 items
+     ... PUB   "App" @ +237
+     ... PUB   "MyApp" @ +44
+     +30 Str "MyApp"
+      +7 Index
+      +1 Str "ns"
+      +4 Index
+      +1 Ret
+      +1 Ref depth:0 "App" id:0
+      +7 Dict 4 items
+     ... PUB   "default-deployment" @ +183
+     ... PUB   "deployments" @ +121
+     ... PUB   "derive-marker-for-debugging" @ +118
+     ... PUB   "name" @ +104
+    +102 Call
+      +1 Ret
+      +1 Str "my app name"
+     +13 Ret
+      +1 Global 11 true
       +2 Ret
-      +1 Str "default app name"
-     +18 Ret
+      +1 Dict 1 items
+     ... PUB   "foo" @ +16
+     +15 Ret
+      +1 Ref depth:1 "default-deployment" id:0
+     +22 Dict 1 items
+     ... PUB   "name" @ +18
+     +16 Call
+      +1 Ret
+      +1 Str "foo"
+      +5 Ret
+      +1 Dict 0 items
+      +2 Ret
+      +1 Dict 4 items
+     ... PUB   "default-deployment" @ +127
+     ... PUB   "deployments" @ +124
+     ... PUB   "name" @ +105
+     ... PUB   "ns" @ +78
+     +77 Ret
       +1 Ref depth:0 "deployments" id:0
      +15 Str "foo"
       +5 Index
       +1 Str "ns"
       +4 Index
       +1 Ret
-      +1 Dict 4 items
-     ... PUB   "default-deployment" @ -73
-     ... PUB   "deployments" @ -49
-     ... PUB   "name" @ -46
-     ... PUB   "ns" @ -27
-     +77 Ret
-      +1 Ref depth:0 "App" id:0
-      +7 JumpLazy @00000328
-      +9 JumpLazy @00000228
-      +9 Dict 0 items
+      +1 Str "default app name"
+     +18 Ret
+      +1 Dict 0 items
       +2 Ret
-      +1 JumpLazy @00000295
-      +9 Ref depth:1 "default-deployment" id:0
-     +22 JumpLazy @00000277
-      +9 Str "foo"
-      +5 Ret
       +1 Dict 1 items
-     ... PUB   "name" @ -6
-     +16 Call
-      +1 Ret
-      +1 Dict 1 items
-     ... PUB   "foo" @ -55
-     +15 Ret
-      +1 Global 11 true
-      +2 Ret
-      +1 Str "my app name"
-     +13 Ret
-      +1 Dict 4 items
-     ... PUB   "default-deployment" @ -100
-     ... PUB   "deployments" @ -33
-     ... PUB   "derive-marker-for-debugging" @ -17
-     ... PUB   "name" @ -14
-    +102 Call
-      +1 Ret
-      +1 Dict 2 items
-     ... PUB   "App" @ -307
-     ... PUB   "MyApp" @ -229
-     +30 Str "MyApp"
-      +7 Index
-      +1 Str "ns"
-      +4 Index
-      +1 Ret
+     ... PUB   "ns" @ +15
+     +14 Ret
+      +1 Ref depth:1 "name" id:0
+      +8 Ret

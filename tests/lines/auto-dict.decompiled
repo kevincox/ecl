@@ -1,33 +1,26 @@
-     +16 JumpLazy @00000191
-      +9 Num 1
-      +9 Ret
-      +1 JumpLazy @00000054
-      +9 Num 2
-      +9 Ret
-      +1 ADict "b"@-10
-     +11 Ret
-      +1 JumpLazy @00000106
-      +9 JumpLazy @00000094
-      +9 Num 3
-      +9 Ret
-      +1 ADict "c"@-10
-     +11 Ret
-      +1 ADict "c"@-12
-     +11 Ret
-      +1 JumpLazy @00000179
-      +9 JumpLazy @00000167
-      +9 JumpLazy @00000155
-      +9 Num 4
-      +9 Ret
-      +1 ADict "g"@-10
-     +11 Ret
-      +1 ADict "f"@-12
-     +11 Ret
-      +1 ADict "e"@-12
-     +11 Ret
-      +1 Dict 4 items
-     ... PUB   "a" @ -166
-     ... PUB   "b" @ -137
-     ... PUB   "c" @ -85
-     ... PUB   "d" @ -12
+     +16 Dict 4 items
+     ... PUB   "a" @ +149
+     ... PUB   "b" @ +127
+     ... PUB   "c" @ +93
+     ... PUB   "d" @ +47
      +46 Ret
+      +1 ADict "e"@+12
+     +11 Ret
+      +1 ADict "f"@+12
+     +11 Ret
+      +1 ADict "g"@+12
+     +11 Ret
+      +1 Num 4
+      +9 Ret
+      +1 ADict "c"@+12
+     +11 Ret
+      +1 ADict "c"@+12
+     +11 Ret
+      +1 Num 3
+      +9 Ret
+      +1 ADict "b"@+12
+     +11 Ret
+      +1 Num 2
+      +9 Ret
+      +1 Num 1
+      +9 Ret

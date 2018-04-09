@@ -17,7 +17,7 @@ a-sub.sub-thing	DICT	}
 a-sub	DICT	}
 dict-dotted-val	NUM	1
 func-dict-val	DICT	{
-func-dict-val.x	NUM	1
+func-dict-val.x	NUM	2
 func-dict-val.x2	NUM	1
 func-dict-val.y	NUM	2
 func-dict-val	DICT	}

@@ -1,49 +1,42 @@
-     +16 JumpLazy @00000341
-      +9 JumpLazy @00000154
-      +9 Ref depth:0 "default-deployment" id:0
-     +22 Ref depth:0 "deployment" id:0
-     +14 Call
-      +1 Ret
-      +1 JumpLazy @00000081
-      +9 Dict 0 items
-      +2 JumpLazy @00000101
-      +9 Ref depth:1 "name" id:0
-      +8 Ret
-      +1 Dict 1 items
-     ... PUB   "namespace" @ -9
-     +21 Call
-      +1 Ret
-      +1 JumpLazy @00000133
-      +9 Dict 0 items
-      +2 Ret
-      +1 Str "DefaultApp Name"
-     +17 Ret
-      +1 Dict 4 items
-     ... PUB   "api" @ -120
-     ... PUB   "default-deployment" @ -73
-     ... PUB   "deployment" @ -21
-     ... PUB   "name" @ -18
-     +77 Ret
-      +1 Ref depth:0 "App" id:0
-      +7 JumpLazy @00000303
-      +9 JumpLazy @00000273
-      +9 Str "My Deployment"
-     +15 Ret
-      +1 Dict 1 items
-     ... PUB   "name" @ -16
-     +16 Ret
-      +1 Str "MyApp Name"
-     +12 Ret
-      +1 Dict 2 items
-     ... PUB   "deployment" @ -30
-     ... PUB   "name" @ -13
-     +36 Call
-      +1 Ret
-      +1 Dict 2 items
-     ... PUB   "App" @ -187
-     ... PUB   "MyApp" @ -109
+     +16 Dict 2 items
+     ... PUB   "App" @ +136
+     ... PUB   "MyApp" @ +45
      +30 Str "MyApp"
       +7 Index
       +1 Str "api"
       +5 Index
+      +1 Ret
+      +1 Ref depth:0 "App" id:0
+      +7 Dict 2 items
+     ... PUB   "deployment" @ +51
+     ... PUB   "name" @ +38
+     +36 Call
+      +1 Ret
+      +1 Str "MyApp Name"
+     +12 Ret
+      +1 Dict 1 items
+     ... PUB   "name" @ +17
+     +16 Ret
+      +1 Str "My Deployment"
+     +15 Ret
+      +1 Dict 4 items
+     ... PUB   "api" @ +133
+     ... PUB   "default-deployment" @ +99
+     ... PUB   "deployment" @ +96
+     ... PUB   "name" @ +78
+     +77 Ret
+      +1 Str "DefaultApp Name"
+     +17 Ret
+      +1 Dict 0 items
+      +2 Ret
+      +1 Dict 0 items
+      +2 Dict 1 items
+     ... PUB   "namespace" @ +23
+     +21 Call
+      +1 Ret
+      +1 Ref depth:1 "name" id:0
+      +8 Ret
+      +1 Ref depth:0 "default-deployment" id:0
+     +22 Ref depth:0 "deployment" id:0
+     +14 Call
       +1 Ret

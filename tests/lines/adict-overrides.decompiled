@@ -1,64 +1,55 @@
-     +16 JumpLazy @00000458
-      +9 JumpLazy @00000195
-      +9 JumpLazy @00000053
-      +9 Num 2
-      +9 Ret
-      +1 ADict "val"@-10
-     +13 Ret
-      +1 JumpLazy @00000086
-      +9 Num 5
-      +9 Ret
-      +1 ADict "val"@-10
-     +13 Ret
-      +1 JumpLazy @00000137
-      +9 Ref depth:0 "val" id:0
-      +7 Num 2
-      +9 Add
+     +16 Dict 2 items
+     ... PUB   "base" @ +175
+     ... PUB   "sub" @ +30
+     +29 Ret
+      +1 Ref depth:0 "base" id:0
+      +8 Dict 3 items
+     ... PUB   "adict-add" @ +111
+     ... PUB   "adict-override" @ +85
+     ... PUB   "dict" @ +61
+     +59 Call
       +1 Ret
+      +1 ADict "val"@+14
+     +13 Ret
+      +1 Num 6
+      +9 Ret
+      +1 Dict 1 items
+     ... PUB   "val" @ +16
+     +15 Ret
       +1 Num 4
       +9 Ret
-      +1 Dict 2 items
-     ... PUB   "use-val" @ -28
-     ... PUB   "val" @ -10
-     +32 Ret
+      +1 Dict 1 items
+     ... PUB   "new" @ +16
+     +15 Ret
+      +1 Num 3
+      +9 Ret
+      +1 Dict 4 items
+     ... PUB   "adict-add" @ +192
+     ... PUB   "adict-override" @ +168
+     ... PUB   "dict" @ +107
+     ... PUB   "dict-use-val" @ +82
+     +81 Ret
       +1 Ref depth:0 "dict" id:0
       +8 Str "val"
       +5 Index
       +1 Num 3
       +9 Add
       +1 Ret
-      +1 Dict 4 items
-     ... PUB   "adict-add" @ -142
-     ... PUB   "adict-override" @ -109
-     ... PUB   "dict" @ -58
-     ... PUB   "dict-use-val" @ -25
-     +81 Ret
-      +1 Ref depth:0 "base" id:0
-      +8 JumpLazy @00000397
-      +9 JumpLazy @00000313
-      +9 Num 3
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "new" @ -10
-     +15 Ret
-      +1 JumpLazy @00000348
-      +9 Num 4
-      +9 Ret
-      +1 Dict 1 items
-     ... PUB   "val" @ -10
-     +15 Ret
-      +1 JumpLazy @00000383
-      +9 Num 6
-      +9 Ret
-      +1 ADict "val"@-10
-     +13 Ret
-      +1 Dict 3 items
-     ... PUB   "adict-add" @ -84
-     ... PUB   "adict-override" @ -49
-     ... PUB   "dict" @ -14
-     +59 Call
-      +1 Ret
       +1 Dict 2 items
-     ... PUB   "base" @ -263
-     ... PUB   "sub" @ -181
-     +29 Ret
+     ... PUB   "use-val" @ +43
+     ... PUB   "val" @ +33
+     +32 Ret
+      +1 Num 4
+      +9 Ret
+      +1 Ref depth:0 "val" id:0
+      +7 Num 2
+      +9 Add
+      +1 Ret
+      +1 ADict "val"@+14
+     +13 Ret
+      +1 Num 5
+      +9 Ret
+      +1 ADict "val"@+14
+     +13 Ret
+      +1 Num 2
+      +9 Ret

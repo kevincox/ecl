@@ -1,22 +1,21 @@
-     +16 JumpLazy @00000096
-      +9 Num 1
-      +9 Num 2
-      +9 Add
-      +1 Ret
-      +1 Num 2
-      +9 Neg
+     +16 Dict 4 items
+     ... PUB   "add" @ +110
+     ... PUB   "neg" @ +99
+     ... PUB   "sub" @ +79
+     ... PUB   "sub-net" @ +59
+     +58 Ret
+      +1 Num 4
+      +9 Num 9.5
+      +9 Sub
       +1 Ret
       +1 Num 5
       +9 Num 1
       +9 Sub
       +1 Ret
-      +1 Num 4
-      +9 Num 9.5
-      +9 Sub
+      +1 Num 2
+      +9 Neg
       +1 Ret
-      +1 Dict 4 items
-     ... PUB   "add" @ -71
-     ... PUB   "neg" @ -51
-     ... PUB   "sub" @ -40
-     ... PUB   "sub-net" @ -20
-     +58 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Add
+      +1 Ret

@@ -1,82 +1,20 @@
-     +16 JumpLazy @00000456
-      +9 JumpLazy @00000104
-      +9 JumpLazy @00000079
-      +9 JumpFunc @00000066
-     +23 Func @ 00000052
-      +2 Ret
-      +1 Num 5
-      +9 Ret
-      +1 Dict 2 items
-     ... PUB   "f" @ -13
-     ... PUB   "i" @ -10
-     +24 Ret
-      +1 Dict 1 items
-     ... PUB   "b" @ -25
-     +13 Ret
-      +1 Str "1"
-      +3 Num 1
-      +9 Eq
-      +1 Ret
-      +1 Num 1
-      +9 Num 1
-      +9 Eq
-      +1 Ret
-      +1 Num 3
-      +9 Num 2
-      +9 Ge
-      +1 Ret
-      +1 Num 1
-      +9 Num 2
-      +9 Ge
-      +1 Ret
-      +1 Num 1
-      +9 Num 2
-      +9 Neg
-      +1 Ge
-      +1 Ret
-      +1 Num 1
-      +9 Num 2
-      +9 Gt
-      +1 Ret
-      +1 Num 2
-      +9 Num 1
-      +9 Gt
-      +1 Ret
-      +1 Num 1.2
-      +9 Neg
-      +1 Num 1.2
-      +9 Le
-      +1 Ret
-      +1 Num 1.2
-      +9 Num 1.2
-      +9 Neg
-      +1 Le
-      +1 Ret
-      +1 Num 1.2
-      +9 Neg
-      +1 Num 2
-      +9 Le
-      +1 Ret
-      +1 Num 5.2
-      +9 Num 2.3
-      +9 Lt
-      +1 Ret
-      +1 Num 1
-      +9 Num 2.3
-      +9 Lt
-      +1 Ret
-      +1 Ref depth:0 "a" id:1
-      +5 Str "b"
-      +3 Index
-      +1 Str "f"
-      +3 Index
-      +1 Ref depth:0 "a" id:1
-      +5 Str "b"
-      +3 Index
-      +1 Str "i"
-      +3 Index
-      +1 Call
-      +1 Ret
+     +16 Dict 15 items
+     ... LOCAL 0001 @ +633
+     ... PUB   "cmp-eq-false" @ +619
+     ... PUB   "cmp-eq-true" @ +599
+     ... PUB   "cmp-ge-eq" @ +579
+     ... PUB   "cmp-ge-false" @ +559
+     ... PUB   "cmp-ge-true" @ +538
+     ... PUB   "cmp-gt-false" @ +518
+     ... PUB   "cmp-gt-true" @ +498
+     ... PUB   "cmp-le-eq" @ +477
+     ... PUB   "cmp-le-false" @ +456
+     ... PUB   "cmp-le-true" @ +435
+     ... PUB   "cmp-lt-false" @ +415
+     ... PUB   "cmp-lt-true" @ +395
+     ... PUB   "index" @ +367
+     ... PUB   "math" @ +295
+    +294 Ret
       +1 Ref depth:0 "a" id:1
       +5 Str "b"
       +3 Index
@@ -101,20 +39,79 @@
       +9 Call
       +1 Add
       +1 Ret
-      +1 Dict 15 items
-     ... LOCAL 0001 @ -352
-     ... PUB   "cmp-eq-false" @ -338
-     ... PUB   "cmp-eq-true" @ -324
-     ... PUB   "cmp-ge-eq" @ -304
-     ... PUB   "cmp-ge-false" @ -284
-     ... PUB   "cmp-ge-true" @ -264
-     ... PUB   "cmp-gt-false" @ -243
-     ... PUB   "cmp-gt-true" @ -223
-     ... PUB   "cmp-le-eq" @ -203
-     ... PUB   "cmp-le-false" @ -182
-     ... PUB   "cmp-le-true" @ -161
-     ... PUB   "cmp-lt-false" @ -140
-     ... PUB   "cmp-lt-true" @ -120
-     ... PUB   "index" @ -100
-     ... PUB   "math" @ -72
-    +294 Ret
+      +1 Ref depth:0 "a" id:1
+      +5 Str "b"
+      +3 Index
+      +1 Str "f"
+      +3 Index
+      +1 Ref depth:0 "a" id:1
+      +5 Str "b"
+      +3 Index
+      +1 Str "i"
+      +3 Index
+      +1 Call
+      +1 Ret
+      +1 Num 1
+      +9 Num 2.3
+      +9 Lt
+      +1 Ret
+      +1 Num 5.2
+      +9 Num 2.3
+      +9 Lt
+      +1 Ret
+      +1 Num 1.2
+      +9 Neg
+      +1 Num 2
+      +9 Le
+      +1 Ret
+      +1 Num 1.2
+      +9 Num 1.2
+      +9 Neg
+      +1 Le
+      +1 Ret
+      +1 Num 1.2
+      +9 Neg
+      +1 Num 1.2
+      +9 Le
+      +1 Ret
+      +1 Num 2
+      +9 Num 1
+      +9 Gt
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Gt
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Neg
+      +1 Ge
+      +1 Ret
+      +1 Num 1
+      +9 Num 2
+      +9 Ge
+      +1 Ret
+      +1 Num 3
+      +9 Num 2
+      +9 Ge
+      +1 Ret
+      +1 Num 1
+      +9 Num 1
+      +9 Eq
+      +1 Ret
+      +1 Str "1"
+      +3 Num 1
+      +9 Eq
+      +1 Ret
+      +1 Dict 1 items
+     ... PUB   "b" @ +14
+     +13 Ret
+      +1 Dict 2 items
+     ... PUB   "f" @ +58
+     ... PUB   "i" @ +25
+     +24 Ret
+      +1 Num 5
+      +9 Ret
+      +1 JumpFunc @00000721
+     +23 Func @ 00000707
+      +3 Ret

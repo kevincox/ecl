@@ -1,22 +1,29 @@
-     +16 JumpLazy @00000201
-      +9 JumpLazy @00000054
+     +16 Dict 2 items
+     ... PUB   "list" @ +79
+     ... PUB   "num" @ +30
+     +29 Ret
+      +1 Num 3.2
+      +9 Num 6
+      +9 Add
+      +1 Ret
+      +1 JumpLazy @00000095
       +9 Num 1
       +9 Ret
       +1 Num 2
       +9 Ret
       +1 List 2 items
-     ...  0 @ 34
-     ...  1 @ 44
-     +18 JumpLazy @00000091
+     ...  0 @ 75
+     ...  1 @ 85
+     +18 JumpLazy @00000132
       +9 Num 3
       +9 Ret
       +1 List 1 items
-     ...  0 @ 81
+     ...  0 @ 122
      +10 Add
-      +1 JumpLazy @00000111
+      +1 JumpLazy @00000152
       +9 List 0 items
       +2 Add
-      +1 JumpLazy @00000153
+      +1 JumpLazy @00000194
       +9 Num 4
       +9 Ret
       +1 Num 5
@@ -24,16 +31,8 @@
       +1 Num 6
       +9 Ret
       +1 List 3 items
-     ...  0 @ 123
-     ...  1 @ 133
-     ...  2 @ 143
+     ...  0 @ 164
+     ...  1 @ 174
+     ...  2 @ 184
      +26 Add
       +1 Ret
-      +1 Num 3.2
-      +9 Num 6
-      +9 Add
-      +1 Ret
-      +1 Dict 2 items
-     ... PUB   "list" @ -147
-     ... PUB   "num" @ -20
-     +29 Ret
