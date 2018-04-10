@@ -1,5 +1,4 @@
 use std;
-use std::rc::Rc;
 
 use dict;
 use func;
@@ -663,7 +662,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
-		Ok(::Almost::Func(Rc::new(func::FuncData{arg: args, body: self.expr()?})))
+		Ok(::Almost::Func(Box::new(func::FuncData{arg: args, body: self.expr()?})))
 	}
 
 	fn args(&mut self) -> Result<func::Arg,ParseError> {

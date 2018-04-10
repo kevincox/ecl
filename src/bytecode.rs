@@ -285,7 +285,8 @@ impl CompileContext {
 
 				let mut vars = Vec::new();
 
-				let ::func::FuncData{arg, body} = Rc::try_unwrap(data).unwrap();
+				let data = *data;
+				let ::func::FuncData{arg, body} = data;
 				let argoff = match arg {
 					::func::Arg::One(arg) => {
 						let argoff = self.write_u8(ArgType::One.to());

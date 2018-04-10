@@ -444,7 +444,7 @@ pub enum Almost {
 	GreatEq(Box<Almost>, Box<Almost>),
 	Less(Box<Almost>, Box<Almost>),
 	LessEq(Box<Almost>, Box<Almost>),
-	Func(Rc<func::FuncData>),
+	Func(Box<func::FuncData>),
 	Index(grammar::Loc, Box<Almost>, Box<Almost>),
 	List(Vec<Almost>),
 	Neg(grammar::Loc, Box<Almost>),
@@ -550,7 +550,7 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 	grammar::parse(source, doc.chars())
 		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 		.map(|ast| {
-			::Almost::Func(Rc::new(func::FuncData{
+			::Almost::Func(Box::new(func::FuncData{
 				arg: func::Arg::One(name),
 				body: ast,
 			}))
