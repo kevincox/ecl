@@ -1,6 +1,6 @@
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std;
-use std::io::{BufRead, Seek};
+use std::io::{BufRead};
 use std::rc::Rc;
 
 const MAGIC: &[u8] = b"ECL\0v001";
@@ -47,8 +47,6 @@ codes!{Op
 	Func,
 	Index,
 	Interpolate,
-	JumpLazy,
-	JumpFunc,
 	List,
 	Neg,
 	Num,
@@ -299,16 +297,6 @@ impl CompileContext {
 		off
 	}
 
-	fn start_jump(&mut self, op: Op) -> usize {
-		self.write_op(op);
-		return self.write_u64(0)
-	}
-
-	fn set_jump(&mut self, jump: usize) {
-		let target = std::convert::TryFrom::try_from(self.bytes.len()).unwrap();
-		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
-	}
-
 	fn reserve_reference(&mut self) -> usize {
 		return self.write_u64(0)
 	}
@@ -407,17 +395,11 @@ impl CompileContext {
 				self.compile_binary_op(Op::Index, *left, *right)
 			}
 			::Almost::List(elements) => {
-				let jump = self.start_jump(Op::JumpLazy);
-
-				let offsets = elements.into_iter().map(|element|
-					self.compile(element))
-					.collect::<Vec<_>>();
-
-				self.set_jump(jump);
 				let off = self.write_op(Op::List);
-				self.write_varint(offsets.len());
-				for offset in offsets {
-					self.write_usize(offset?);
+				self.write_varint(elements.len());
+				for element in elements {
+					let scope = self.scope.clone();
+					self.compile_outofline(scope, element);
 				}
 				Ok(off)
 			},
@@ -708,10 +690,6 @@ impl EvalContext {
 
 					let r = a.to_owned() + b;
 					stack.push(::Val::new_atomic(r))
-				}
-				Op::JumpFunc | Op::JumpLazy => {
-					let target = cursor.read_u64::<EclByteOrder>().unwrap();
-					cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
 				}
 				Op::List => {
 					let len = cursor.read_varint();
