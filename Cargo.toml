@@ -22,10 +22,6 @@ serde_derive = "0.8"
 debug = true
 
 [[test]]
-name = "compile"
-harness = false
-
-[[test]]
 name = "exec"
 harness = false
 

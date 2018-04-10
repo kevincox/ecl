@@ -1,13 +1,10 @@
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std;
-use std::fmt::Write;
 use std::io::{BufRead, Seek};
 use std::rc::Rc;
 
 const MAGIC: &[u8] = b"ECL\0v001";
 const START_OFFSET: usize = 8;
-const START_LEN: usize = 8;
-const START_END: usize = START_OFFSET + START_LEN;
 
 macro_rules! codes {
 	( $type:ident $( $item:ident, )* ) => {
@@ -106,10 +103,128 @@ impl Scope {
 	}
 }
 
+enum Compilable {
+	Almost(::Almost),
+	Func(Box<::func::FuncData>),
+}
+
 struct ToCompile {
 	ref_off: usize,
-	node: ::Almost,
+	item: Compilable,
 	scope: Rc<Scope>,
+}
+
+impl ToCompile {
+	fn compile(self, ctx: &mut CompileContext) -> Result<usize, ::Val> {
+		ctx.scope = self.scope;
+		match self.item {
+			Compilable::Almost(ast) => ctx.compile(ast),
+			Compilable::Func(data) => {
+				let data = *data;
+				let ::func::FuncData{arg, body} = data;
+				let off = match arg {
+					::func::Arg::One(arg) => {
+						let argoff = ctx.write_u8(ArgType::One.to());
+
+						let (k, id) = ctx.new_var(arg.clone(), false);
+						ctx.write_varint(id);
+
+						ctx.scope = Rc::new(Scope{
+							vars: vec![(k, id)],
+							parent: Some(ctx.scope.clone()),
+						});
+
+						argoff
+					}
+					::func::Arg::Dict(args) => {
+						let mut vars = Vec::with_capacity(args.len());
+
+						let args = args.into_iter()
+							.map(|(key, required, val)| {
+								let (k, id) = ctx.new_var(key.clone(), true);
+								vars.push((k, id));
+								(key, required, val)
+							})
+							.collect::<Vec<_>>();
+
+						ctx.scope = Rc::new(Scope{
+							vars,
+							parent: Some(ctx.scope.clone()),
+						});
+
+						let args = args.into_iter().map(|(key, required, val)| {
+								if required {
+									(key, Ok(0))
+								} else {
+									(key, ctx.compile(val))
+								}
+							})
+							.collect::<Vec<_>>();
+
+						let argoff = ctx.write_u8(ArgType::Dict.to());
+						ctx.write_usize(args.len());
+						for (key, off) in args {
+							let off = off?;
+
+							ctx.write_str(&key);
+							if off == 0 {
+								ctx.write_u8(ArgReq::Required.to());
+							} else {
+								ctx.write_u8(ArgReq::Optional.to());
+								ctx.write_usize(off);
+							}
+						}
+
+						argoff
+					}
+					::func::Arg::List(args) => {
+						let mut vars = Vec::with_capacity(args.len());
+
+						let args = args.into_iter()
+							.map(|(key, required, val)| {
+								let (k, id) = ctx.new_var(key, false);
+								vars.push((k, id));
+								(id, required, val)
+							})
+							.collect::<Vec<_>>();
+
+						ctx.scope = Rc::new(Scope{
+							vars,
+							parent: Some(ctx.scope.clone()),
+						});
+
+						let args = args.into_iter().map(|(id, required, val)| {
+								if required {
+									(id, Ok(0))
+								} else {
+									(id, ctx.compile(val))
+								}
+							})
+							.collect::<Vec<_>>();
+
+						let argoff = ctx.write_u8(ArgType::List.to());
+						ctx.write_varint(args.len());
+						for (id, off) in args {
+							let off = off?;
+
+							ctx.write_varint(id);
+							if off == 0 {
+								ctx.write_u8(ArgReq::Required.to());
+							} else {
+								ctx.write_u8(ArgReq::Optional.to());
+								ctx.write_usize(off);
+							}
+						}
+
+						argoff
+					}
+				};
+
+				ctx.compile(body)?;
+				Ok(off)
+			}
+		}
+	}
 }
 
 struct CompileContext {
@@ -204,9 +319,17 @@ impl CompileContext {
 		EclByteOrder::write_u64(&mut self.bytes[jump..(jump+8)], target);
 	}
 
+	fn reserve_reference(&mut self) -> usize {
+		return self.write_u64(0)
+	}
+
 	fn compile_outofline(&mut self, scope: Rc<Scope>, node: ::Almost) -> usize {
-		let ref_off = self.write_u64(0);
-		self.compile_queue.push(ToCompile{ref_off, node, scope});
+		let ref_off = self.reserve_reference();
+		self.compile_queue.push(ToCompile{
+			ref_off,
+			item: Compilable::Almost(node),
+			scope,
+		});
 		return ref_off
 	}
 
@@ -281,114 +404,13 @@ impl CompileContext {
 				Ok(off)
 			}
 			::Almost::Func(data) => {
-				let jump = self.start_jump(Op::JumpFunc);
-
-				let mut vars = Vec::new();
-
-				let data = *data;
-				let ::func::FuncData{arg, body} = data;
-				let argoff = match arg {
-					::func::Arg::One(arg) => {
-						let argoff = self.write_u8(ArgType::One.to());
-
-						let (k, id) = self.new_var(arg.clone(), false);
-						vars.push((k, id));
-						self.write_varint(id);
-
-						self.scope = Rc::new(Scope{
-							vars,
-							parent: Some(self.scope.clone()),
-						});
-
-						argoff
-					}
-					::func::Arg::Dict(args) => {
-						let args = args.into_iter()
-							.map(|(key, required, val)| {
-								let (k, id) = self.new_var(key.clone(), true);
-								vars.push((k, id));
-								(key, required, val)
-							})
-							.collect::<Vec<_>>();
-
-						self.scope = Rc::new(Scope{
-							vars,
-							parent: Some(self.scope.clone()),
-						});
-
-						let args = args.into_iter().map(|(key, required, val)| {
-								if required {
-									(key, Ok(0))
-								} else {
-									(key, self.compile(val))
-								}
-							})
-							.collect::<Vec<_>>();
-
-						let argoff = self.write_u8(ArgType::Dict.to());
-						self.write_usize(args.len());
-						for (key, off) in args {
-							let off = off?;
-
-							self.write_str(&key);
-							if off == 0 {
-								self.write_u8(ArgReq::Required.to());
-							} else {
-								self.write_u8(ArgReq::Optional.to());
-								self.write_usize(off);
-							}
-						}
-
-						argoff
-					}
-					::func::Arg::List(args) => {
-						let args = args.into_iter()
-							.map(|(key, required, val)| {
-								let (k, id) = self.new_var(key, false);
-								vars.push((k, id));
-								(id, required, val)
-							})
-							.collect::<Vec<_>>();
-
-						self.scope = Rc::new(Scope{
-							vars,
-							parent: Some(self.scope.clone()),
-						});
-
-						let args = args.into_iter().map(|(id, required, val)| {
-								if required {
-									(id, Ok(0))
-								} else {
-									(id, self.compile(val))
-								}
-							})
-							.collect::<Vec<_>>();
-
-						let argoff = self.write_u8(ArgType::List.to());
-						self.write_varint(args.len());
-						for (id, off) in args {
-							let off = off?;
-
-							self.write_varint(id);
-							if off == 0 {
-								self.write_u8(ArgReq::Required.to());
-							} else {
-								self.write_u8(ArgReq::Optional.to());
-								self.write_usize(off);
-							}
-						}
-
-						argoff
-					}
-				};
-
-				self.compile(body)?;
-
-				self.scope = self.scope.parent.clone().unwrap();
-
-				self.set_jump(jump);
 				let off = self.write_op(Op::Func);
-				self.write_varint(argoff);
+				let refoff = self.reserve_reference();
+				self.compile_queue.push(ToCompile{
+					ref_off: refoff,
+					item: Compilable::Func(data),
+					scope: self.scope.clone(),
+				});
 				Ok(off)
 			}
 			::Almost::Index(_, left, right) => {
@@ -508,10 +530,10 @@ pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
 	ctx.compile_outofline(scope, ast);
 
 	while let Some(compilable) = ctx.compile_queue.pop() {
-		ctx.scope = compilable.scope;
-		let off = ctx.compile(compilable.node)?;
-		let off = std::convert::TryFrom::try_from(off).unwrap();
-		EclByteOrder::write_u64(&mut ctx.bytes[compilable.ref_off..][..8], off);
+		let ref_off = compilable.ref_off;
+		let code_off = compilable.compile(&mut ctx)?;
+		let code_off = std::convert::TryFrom::try_from(code_off).unwrap();
+		EclByteOrder::write_u64(&mut ctx.bytes[ref_off..][..8], code_off);
 	}
 
 	Ok(ctx.bytes)
@@ -540,6 +562,7 @@ impl Module {
 trait CursorExt<'a> {
 	fn read_usize(&mut self) -> usize;
 	fn read_varint(&mut self) -> usize;
+	fn read_ref(&mut self) -> usize;
 	fn read_str(&mut self) -> &'a str;
 }
 
@@ -574,6 +597,10 @@ impl<'a> CursorExt<'a> for std::io::Cursor<&'a [u8]> {
 		self.consume(len);
 		let bytes = &self.get_ref()[off..][..len];
 		std::str::from_utf8(bytes).unwrap()
+	}
+
+	fn read_ref(&mut self) -> usize {
+		std::convert::TryInto::try_into(self.read_u64::<EclByteOrder>().unwrap()).unwrap()
 	}
 }
 
@@ -671,7 +698,7 @@ impl EvalContext {
 					stack.push(::dict::Dict::new(self.parent.clone(), items));
 				}
 				Op::Func => {
-					let bodyoff = cursor.read_varint();
+					let bodyoff = cursor.read_ref();
 					stack.push(::func::Func::new(
 						self.parent.clone(),
 						Func::new(self.module.clone(), bodyoff)));
@@ -768,175 +795,6 @@ pub fn eval(code: Vec<u8>) -> ::Val {
 		grandparent: None,
 	});
 	EvalContext{module, pc, parent}.eval()
-}
-
-#[derive(Clone,Copy)]
-pub struct DisassembleOptions {
-	pub relative_offset_ops: bool,
-	pub relative_offset_references: bool,
-}
-
-impl DisassembleOptions {
-	pub fn new() -> Self {
-		DisassembleOptions{
-			relative_offset_ops: false,
-			relative_offset_references: false,
-		}
-	}
-
-	pub fn diffable() -> Self {
-		DisassembleOptions{
-			relative_offset_ops: true,
-			relative_offset_references: true,
-		}
-	}
-
-	pub fn disassemble(&self, code: &[u8]) -> Result<String,::Val> {
-		DisassembeContext::new(*self, code).disassemble()
-	}
-}
-
-struct DisassembeContext<'a> {
-	options: DisassembleOptions,
-	cursor: std::io::Cursor<&'a [u8]>,
-	previous_pc: u64,
-	out: String,
-}
-
-impl<'a> DisassembeContext<'a> {
-	fn new(options: DisassembleOptions, code: &'a[u8]) -> Self {
-		let mut cursor = std::io::Cursor::new(code);
-		cursor.seek(std::io::SeekFrom::Start(START_END as u64)).unwrap();
-
-		DisassembeContext{
-			options,
-			cursor,
-			previous_pc: 0,
-			out: String::with_capacity(code.len() * 8),
-		}
-	}
-
-	fn write_prefix(&mut self, op: Op) -> Result<(), ::Val> {
-		let pc = self.cursor.position()-1;
-		if self.options.relative_offset_ops {
-			write!(self.out, "{:+8} {:?}", pc - self.previous_pc, op)?;
-		} else {
-			write!(self.out, "{:08} {:?}", pc, op)?;
-		}
-		self.previous_pc = pc;
-		Ok(())
-	}
-
-	fn write_continuation(&mut self) -> std::fmt::Result {
-		write!(self.out, "     ...")
-	}
-
-	fn write_ref(&mut self, off: u64) -> std::fmt::Result {
-		if self.options.relative_offset_references {
-			write!(self.out, "{:+}", off as i128 - self.previous_pc as i128)
-		} else {
-			write!(self.out, "{:08}", off)
-		}
-	}
-
-	fn disassemble(mut self) -> Result<String,::Val> {
-		while let Ok(op) = self.cursor.read_u8() {
-			let op = Op::from(op)?;
-
-			self.write_prefix(op)?;
-
-			match op {
-				Op::Ret => writeln!(self.out)?,
-				Op::Global => {
-					let id = self.cursor.read_varint();
-					writeln!(self.out, " {} {:?}", id, ::builtins::get_id(id))?;
-				}
-				Op::Add => writeln!(self.out)?,
-				Op::Call => writeln!(self.out)?,
-				Op::Ge => writeln!(self.out)?,
-				Op::Gt => writeln!(self.out)?,
-				Op::Eq => writeln!(self.out)?,
-				Op::Lt => writeln!(self.out)?,
-				Op::Le => writeln!(self.out)?,
-				Op::ADict => {
-					let childoff = self.cursor.read_u64::<EclByteOrder>()?;
-					let key = self.cursor.read_str();
-					write!(self.out, " {:?}@", key)?;
-					self.write_ref(childoff)?;
-					writeln!(self.out)?;
-				}
-				Op::Dict => {
-					let len = self.cursor.read_varint();
-					writeln!(self.out, " {} items", len)?;
-					for _ in 0..len {
-						self.write_continuation()?;
-						match DictItem::from(self.cursor.read_u8().unwrap())? {
-							DictItem::Pub => {
-								let key = self.cursor.read_str();
-								write!(self.out, " PUB   {:?}", key).unwrap()
-							}
-							DictItem::Local => {
-								let mut id = self.cursor.read_varint();
-								write!(self.out, " LOCAL {:04x}", id).unwrap();
-							},
-						}
-						let off = self.cursor.read_u64::<EclByteOrder>()?;
-						write!(self.out, " @ ")?;
-						self.write_ref(off)?;
-						writeln!(self.out)?;
-					}
-				}
-				Op::Func => {
-					let off = self.cursor.read_varint();
-					writeln!(self.out, " @ {:08}", off)?;
-				}
-				Op::Index => writeln!(self.out)?,
-				Op::Interpolate => writeln!(self.out)?,
-				Op::JumpFunc => {
-					let target = self.cursor.read_u64::<EclByteOrder>().unwrap();
-					writeln!(self.out, " @{:08}", target)?;
-					// TODO: Disassemble rather than seek over.
-					self.cursor.seek(std::io::SeekFrom::Start(target)).unwrap();
-				}
-				Op::JumpLazy => {
-					let target = self.cursor.read_u64::<EclByteOrder>().unwrap();
-					writeln!(self.out, " @{:08}", target)?;
-				}
-				Op::List => {
-					let len = self.cursor.read_varint();
-					writeln!(self.out, " {} items", len)?;
-					for i in 0..len {
-						let off = self.cursor.read_usize();
-						self.write_continuation()?;
-						writeln!(self.out, " {:2} @ {}", i, off)?;
-					}
-				}
-				Op::Neg => writeln!(self.out)?,
-				Op::Num => {
-					let num = self.cursor.read_f64::<EclByteOrder>().unwrap();
-					writeln!(self.out, " {}", num)?;
-				}
-				Op::Ref => {
-					let key = self.cursor.read_str();
-					let depth = self.cursor.read_varint();
-					let mut id = self.cursor.read_varint();
-					writeln!(self.out, " depth:{} {:?} id:{}", depth, key, id)?;
-				}
-				Op::RefRel => {
-					let key = self.cursor.read_str();
-					let depth = self.cursor.read_varint();
-					writeln!(self.out, " depth:{} {:?}", depth, key)?;
-				}
-				Op::Str => {
-					let s = self.cursor.read_str();
-					writeln!(self.out, " {:?}", s)?;
-				}
-				Op::Sub => writeln!(self.out)?,
-			}
-		}
-
-		return Ok(self.out)
-	}
 }
 
 #[derive(Clone,Debug)]
