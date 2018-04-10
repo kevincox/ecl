@@ -1,8 +1,5 @@
 use std;
 
-use dict;
-use func;
-
 type ParseResult = Result<::Almost,ParseError>;
 
 #[derive(Clone,Copy,PartialEq)]
@@ -599,14 +596,14 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		Ok(::Almost::Dict(items))
 	}
 
-	fn dict_item(&mut self) -> Result<dict::AlmostDictElement,ParseError> {
+	fn dict_item(&mut self) -> Result<::dict::AlmostDictElement,ParseError> {
 		let ade = expect_next!{self: "parsing dict element",
 			(Token::Ident(s), _) => {
 				match s.as_str() {
 					"local" => match self.next() {
 						Some((Token::Ident(s),_)) => {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
-							return Ok(dict::AlmostDictElement::local(s, self.expr()?))
+							return Ok(::dict::AlmostDictElement::local(s, self.expr()?))
 						},
 						Some(t) => self.unget(t),
 						None => {},
@@ -615,7 +612,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				}
 
 				let val = self.dict_val()?;
-				dict::AlmostDictElement::public(s, val)
+				::dict::AlmostDictElement::public(s, val)
 			},
 			(Token::StrOpen(StrType::String), _) => {
 				let s = expect_next!{self: "parsing quoted dict key",
@@ -627,7 +624,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				};
 
 				let val = self.dict_val()?;
-				dict::AlmostDictElement::public(s, val)
+				::dict::AlmostDictElement::public(s, val)
 			},
 		};
 
@@ -662,12 +659,12 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
-		Ok(::Almost::Func(Box::new(func::FuncData{arg: args, body: self.expr()?})))
+		Ok(::Almost::Func(Box::new(::func::FuncData{arg: args, body: self.expr()?})))
 	}
 
-	fn args(&mut self) -> Result<func::Arg,ParseError> {
+	fn args(&mut self) -> Result<::func::Arg,ParseError> {
 		expect_next!{self: "parsing function argument",
-			(Token::Ident(name), _) => Ok(func::Arg::One(name)),
+			(Token::Ident(name), _) => Ok(::func::Arg::One(name)),
 			(Token::DictOpen, _) => {
 				let mut args = Vec::new();
 
@@ -683,7 +680,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					}
 				}
 
-				Ok(func::Arg::Dict(args))
+				Ok(::func::Arg::Dict(args))
 			},
 			(Token::ListOpen, _) => {
 				let mut args = Vec::new();
@@ -700,7 +697,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					}
 				}
 
-				Ok(func::Arg::List(args))
+				Ok(::func::Arg::List(args))
 			},
 		}
 	}
