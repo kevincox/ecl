@@ -193,26 +193,16 @@ impl ToCompile {
 							parent: Some(ctx.scope.clone()),
 						});
 
-						let args = args.into_iter().map(|(id, required, val)| {
-								if required {
-									(id, Ok(0))
-								} else {
-									(id, ctx.compile(val))
-								}
-							})
-							.collect::<Vec<_>>();
-
 						let argoff = ctx.write_u8(ArgType::List.to());
 						ctx.write_varint(args.len());
-						for (id, off) in args {
-							let off = off?;
-
+						for (id, required, val) in args {
 							ctx.write_varint(id);
-							if off == 0 {
+							if required {
 								ctx.write_u8(ArgReq::Required.to());
 							} else {
 								ctx.write_u8(ArgReq::Optional.to());
-								ctx.write_usize(off);
+								let scope = ctx.scope.clone();
+								ctx.compile_outofline(scope, val);
 							}
 						}
 

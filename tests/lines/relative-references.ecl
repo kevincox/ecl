@@ -18,6 +18,7 @@ local dict-dotted = {
 }
 
 local x = 1
+
 local func-dict = ->{x=..x + 1 y} {x=..x x2=...x y=..y}
 func-dict-val = func-dict:{y=2}
 
