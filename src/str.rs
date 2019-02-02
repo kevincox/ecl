@@ -6,44 +6,44 @@ use std::rc::Rc;
 // easily. Unfortunately I can't make them into a trait that does so because it
 // would "conflict" with ::SameOps.
 
-fn str_add(this: &str, that: &::Value) -> ::Val {
+fn str_add(this: &str, that: &crate::Value) -> crate::Val {
 	if let Some(s) = that.get_str() {
-		::Val::new_atomic(format!("{}{}", this, s))
+		crate::Val::new_atomic(format!("{}{}", this, s))
 	} else {
-		::err::Err::new(format!("Can't add {:?} and {:?}", this, that))
+		crate::err::Err::new(format!("Can't add {:?} and {:?}", this, that))
 	}
 }
 
-fn str_cmp(this: &str, that: &::Value) -> Result<std::cmp::Ordering,::Val> {
+fn str_cmp(this: &str, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> {
 	if let Some(s) = that.get_str() {
 		Ok(this.cmp(s))
 	} else {
-		Err(::err::Err::new(format!("Can't compare {:?} and {:?}", this, that)))
+		Err(crate::err::Err::new(format!("Can't compare {:?} and {:?}", this, that)))
 	}
 }
 
-impl ::Value for String {
+impl crate::Value for String {
 	fn type_str(&self) -> &'static str { "string" }
 
 	fn get_str(&self) -> Option<&str> {
 		Some(self)
 	}
 
-	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self)
 	}
 }
 
-impl ::SameOpsTrait for String {
+impl crate::SameOpsTrait for String {
 	fn as_any(&self) -> &std::any::Any { self }
 
-	fn add(&self, that: &::Value) -> ::Val { str_add(self, that) }
-	fn cmp(&self, that: &::Value) -> Result<std::cmp::Ordering,::Val> { str_cmp(self, that) }
+	fn add(&self, that: &crate::Value) -> crate::Val { str_add(self, that) }
+	fn cmp(&self, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self, that) }
 }
 
 pub struct CodeString {
-	pub module: Rc<::bytecode::Module>,
+	pub module: Rc<crate::bytecode::Module>,
 	pub offset: usize,
 	pub len: usize,
 }
@@ -55,24 +55,24 @@ impl CodeString {
 	}
 }
 
-impl ::Value for CodeString {
+impl crate::Value for CodeString {
 	fn type_str(&self) -> &'static str { "string" }
 
 	fn get_str(&self) -> Option<&str> {
 		Some(self.get())
 	}
 
-	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self.get())
 	}
 }
 
-impl ::SameOpsTrait for CodeString {
+impl crate::SameOpsTrait for CodeString {
 	fn as_any(&self) -> &std::any::Any { self }
 
-	fn add(&self, that: &::Value) -> ::Val { str_add(self.get(), that) }
-	fn cmp(&self, that: &::Value) -> Result<std::cmp::Ordering,::Val> { str_cmp(self.get(), that) }
+	fn add(&self, that: &crate::Value) -> crate::Val { str_add(self.get(), that) }
+	fn cmp(&self, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self.get(), that) }
 }
 
 impl std::fmt::Debug for CodeString {

@@ -1,12 +1,12 @@
 use std;
 
-static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
-	("nil", &|| ::nil::get()),
+static BUILTINS: &[(&str, &(Fn() -> crate::Val + Sync))] = &[
+	("nil", &|| crate::nil::get()),
 	("cond", &|| new("if", |v| cond(v))),
 	("error", &|| new("error", |msg|
-		::err::Err::new(format!("Error: {:?}", msg)))),
+		crate::err::Err::new(format!("Error: {:?}", msg)))),
 	("index", &|| new("index", |l| Builtin::new("index curried", &[l], |l, i| l[0].index(i)))),
-	("false", &|| ::bool::get(false)),
+	("false", &|| crate::bool::get(false)),
 	("foldl", &|| new("foldl",
 		|f| Builtin::new("foldl:func", &[f],
 			|d, accum| Builtin::new("foldl:func:accum", &[d[0].clone(), accum.clone()],
@@ -18,9 +18,9 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("load", &|| new("load", |path| {
 		if path.is_err() { return path }
 		match path.get_str() {
-			Ok(s) => ::eval_file(s),
-			Err(e) => ::err::Err::new_from_at(e,
-				::grammar::Loc{line:0, col: 0},
+			Ok(s) => crate::eval_file(s),
+			Err(e) => crate::err::Err::new_from_at(e,
+				crate::grammar::Loc{line:0, col: 0},
 				format!("load expects string argument, got {:?}", path)),
 		}
 	})),
@@ -28,8 +28,8 @@ static BUILTINS: &[(&str, &(Fn() -> ::Val + Sync))] = &[
 	("reverse", &|| new("reverse", |v| v.reverse())),
 	("panic", &|| new("panic", |msg|
 		panic!("Script called panic: {:?}", msg))),
-	("true", &|| ::bool::get(true)),
-	("type", &|| new("type", |v| ::Val::new_atomic(v.type_str().to_owned()))),
+	("true", &|| crate::bool::get(true)),
+	("type", &|| new("type", |v| crate::Val::new_atomic(v.type_str().to_owned()))),
 	("_testing_assert_cache_eval", &|| {
 		let unevaluated = std::cell::Cell::new(true);
 		let func = move |r| {
@@ -45,27 +45,27 @@ pub fn builtin_id(key: &str) -> Option<usize> {
 	BUILTINS.iter().position(|p| p.0 == key)
 }
 
-pub fn get_id(id: usize) -> ::Val {
+pub fn get_id(id: usize) -> crate::Val {
 	BUILTINS[id].1()
 }
 
 pub struct Builtin<F>{
 	name: &'static str,
 	func: F,
-	pool: ::mem::WeakPoolHandle,
-	data: Vec<::Inline>,
+	pool: crate::mem::WeakPoolHandle,
+	data: Vec<crate::Inline>,
 }
 
-fn new<F: Fn(::Val) -> ::Val + 'static>(name: &'static str, func: F) -> ::Val {
+fn new<F: Fn(crate::Val) -> crate::Val + 'static>(name: &'static str, func: F) -> crate::Val {
 	Builtin::new(name, &[], move |_, a| func(a))
 }
 
-impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> Builtin<F> {
-	fn new(name: &'static str, d: &[::Val], func: F) -> ::Val {
+impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> Builtin<F> {
+	fn new(name: &'static str, d: &[crate::Val], func: F) -> crate::Val {
 		let pool = {
 			let mut iter = d.into_iter();
 			match iter.next() {
-				None => ::mem::PoolHandle::new(),
+				None => crate::mem::PoolHandle::new(),
 				Some(v) => {
 					let pool = v.pool.clone();
 					for v in iter {
@@ -76,20 +76,20 @@ impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> Builtin<F> {
 			}
 		};
 		let data = d.into_iter().map(|v| v.value.clone()).collect();
-		::Val::new(pool.clone(), Builtin{name, func, pool: pool.downgrade(), data})
+		crate::Val::new(pool.clone(), Builtin{name, func, pool: pool.downgrade(), data})
 	}
 }
 
-impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> ::SameOps for Builtin<F> {
-	fn eq(&self, that: &Self) -> ::Val {
-		::bool::get(self as *const Builtin<F> == that as *const Builtin<F>)
+impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> crate::SameOps for Builtin<F> {
+	fn eq(&self, that: &Self) -> crate::Val {
+		crate::bool::get(self as *const Builtin<F> == that as *const Builtin<F>)
 	}
 }
 
-impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> ::Value for Builtin<F> {
-	fn call(&self, arg: ::Val) -> ::Val {
+impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> crate::Value for Builtin<F> {
+	fn call(&self, arg: crate::Val) -> crate::Val {
 		let data = self.data.iter()
-			.map(|v| ::Val{pool: self.pool.upgrade(), value: v.clone()})
+			.map(|v| crate::Val{pool: self.pool.upgrade(), value: v.clone()})
 			.collect();
 		(self.func)(data, arg)
 	}
@@ -97,17 +97,17 @@ impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> ::Value for Builtin<F> {
 	fn type_str(&self) -> &'static str { "builtin" }
 }
 
-impl<F: Fn(Vec<::Val>, ::Val) -> ::Val + 'static> std::fmt::Debug for Builtin<F> {
+impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> std::fmt::Debug for Builtin<F> {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "<builtin {:?}>", self.name)
 	}
 }
 
-fn cond(args: ::Val) -> ::Val {
+fn cond(args: crate::Val) -> crate::Val {
 	let mut current = 0;
 	let len = args.len();
 	loop {
-		if current == len { return ::nil::get() }
+		if current == len { return crate::nil::get() }
 		if current + 1 == len { return args.index_int(current) }
 		if args.index_int(current).to_bool() {
 			return args.index_int(current + 1)
@@ -120,17 +120,17 @@ fn cond(args: ::Val) -> ::Val {
 mod tests {
 	use super::*;
 
-	fn get(key: &str) -> ::Val {
+	fn get(key: &str) -> crate::Val {
 		BUILTINS.iter()
 			.find(|p| p.0 == key)
 			.map(|p| p.1())
-			.unwrap_or_else(|| ::err::Err::new(format!("No global {:?}", key)))
+			.unwrap_or_else(|| crate::err::Err::new(format!("No global {:?}", key)))
 	}
 
 	#[test]
 	#[should_panic(expected="Baby\\'s first error")]
 	fn panic() {
-		let v = ::eval("<str>", r###"
+		let v = crate::eval("<str>", r###"
 			{
 				msg = "Baby's first" + " error"
 				boom = panic:msg
@@ -142,14 +142,14 @@ mod tests {
 	#[test]
 	fn assert_once_once() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
 	}
 
 	#[test]
 	#[should_panic(expected="Called twice")]
 	fn assert_once_twice() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
-		assert_eq!(v.call(::Val::new_atomic(5.1)), ::Val::new_atomic(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
 	}
 }

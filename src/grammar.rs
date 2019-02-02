@@ -1,6 +1,6 @@
 use std;
 
-type ParseResult = Result<::Almost,ParseError>;
+type ParseResult = Result<crate::Almost,ParseError>;
 
 #[derive(Clone,Copy,PartialEq)]
 pub struct Loc {
@@ -582,8 +582,8 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while self.peek().is_some() {
 			items.push(self.dict_item()?);
 		}
-		items.sort_unstable_by(::dict::AlmostDictElement::sort_cmp);
-		Ok(::Almost::Dict(items))
+		items.sort_unstable_by(crate::dict::AlmostDictElement::sort_cmp);
+		Ok(crate::Almost::Dict(items))
 	}
 
 	fn dict_items(&mut self) -> ParseResult {
@@ -591,19 +591,19 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while !self.consume(Token::DictClose).is_some() {
 			items.push(self.dict_item()?);
 		}
-		items.sort_unstable_by(::dict::AlmostDictElement::sort_cmp);
+		items.sort_unstable_by(crate::dict::AlmostDictElement::sort_cmp);
 
-		Ok(::Almost::Dict(items))
+		Ok(crate::Almost::Dict(items))
 	}
 
-	fn dict_item(&mut self) -> Result<::dict::AlmostDictElement,ParseError> {
+	fn dict_item(&mut self) -> Result<crate::dict::AlmostDictElement,ParseError> {
 		let ade = expect_next!{self: "parsing dict element",
 			(Token::Ident(s), _) => {
 				match s.as_str() {
 					"local" => match self.next() {
 						Some((Token::Ident(s),_)) => {
 							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
-							return Ok(::dict::AlmostDictElement::local(s, self.expr()?))
+							return Ok(crate::dict::AlmostDictElement::local(s, self.expr()?))
 						},
 						Some(t) => self.unget(t),
 						None => {},
@@ -612,7 +612,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				}
 
 				let val = self.dict_val()?;
-				::dict::AlmostDictElement::public(s, val)
+				crate::dict::AlmostDictElement::public(s, val)
 			},
 			(Token::StrOpen(StrType::String), _) => {
 				let s = expect_next!{self: "parsing quoted dict key",
@@ -624,7 +624,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 				};
 
 				let val = self.dict_val()?;
-				::dict::AlmostDictElement::public(s, val)
+				crate::dict::AlmostDictElement::public(s, val)
 			},
 		};
 
@@ -643,7 +643,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					},
 				};
 				let v = self.dict_val()?;
-				Ok(::Almost::ADict(k, Box::new(v)))
+				Ok(crate::Almost::ADict(k, Box::new(v)))
 			},
 			(Token::Assign, _) => self.expr(),
 		}
@@ -654,17 +654,17 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while !self.consume(Token::ListClose).is_some() {
 			items.push(self.expr()?);
 		}
-		Ok(::Almost::List(items))
+		Ok(crate::Almost::List(items))
 	}
 
 	fn func(&mut self) -> ParseResult {
 		let args = self.args()?;
-		Ok(::Almost::Func(Box::new(::func::FuncData{arg: args, body: self.expr()?})))
+		Ok(crate::Almost::Func(Box::new(crate::func::FuncData{arg: args, body: self.expr()?})))
 	}
 
-	fn args(&mut self) -> Result<::func::Arg,ParseError> {
+	fn args(&mut self) -> Result<crate::func::Arg,ParseError> {
 		expect_next!{self: "parsing function argument",
-			(Token::Ident(name), _) => Ok(::func::Arg::One(name)),
+			(Token::Ident(name), _) => Ok(crate::func::Arg::One(name)),
 			(Token::DictOpen, _) => {
 				let mut args = Vec::new();
 
@@ -676,11 +676,11 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					if let Some(_) = self.consume(Token::Assign) {
 						args.push((k.clone(), false, self.expr()?));
 					} else {
-						args.push((k.clone(), true, ::Almost::Nil));
+						args.push((k.clone(), true, crate::Almost::Nil));
 					}
 				}
 
-				Ok(::func::Arg::Dict(args))
+				Ok(crate::func::Arg::Dict(args))
 			},
 			(Token::ListOpen, _) => {
 				let mut args = Vec::new();
@@ -693,11 +693,11 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 					if let Some(_) = self.consume(Token::Assign) {
 						args.push((k.clone(), false, self.expr()?));
 					} else {
-						args.push((k.clone(), true, ::Almost::Nil));
+						args.push((k.clone(), true, crate::Almost::Nil));
 					}
 				}
 
-				Ok(::func::Arg::List(args))
+				Ok(crate::func::Arg::List(args))
 			},
 		}
 	}
@@ -711,11 +711,11 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 		loop {
 			match self.next() {
-				Some((Token::Eq, _)) => r = ::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::Great, _)) => r = ::Almost::Great(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::GreatEq, _)) => r = ::Almost::GreatEq(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::Less, _)) => r = ::Almost::Less(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::LessEq, _)) => r = ::Almost::LessEq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Eq, _)) => r = crate::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Great, _)) => r = crate::Almost::Great(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::GreatEq, _)) => r = crate::Almost::GreatEq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Less, _)) => r = crate::Almost::Less(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::LessEq, _)) => r = crate::Almost::LessEq(Box::new(r), Box::new(self.expr_ops()?)),
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
@@ -730,10 +730,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		loop {
 			match self.next() {
 				Some((Token::Add, l)) => {
-					r = ::Almost::Add(l, Box::new(r), Box::new(self.expr_unary()?))
+					r = crate::Almost::Add(l, Box::new(r), Box::new(self.expr_unary()?))
 				},
 				Some((Token::Neg, l)) => {
-					r = ::Almost::Sub(l, Box::new(r), Box::new(self.expr_unary()?))
+					r = crate::Almost::Sub(l, Box::new(r), Box::new(self.expr_unary()?))
 				},
 				Some(other) => { self.unget(other); break },
 				None => break,
@@ -745,7 +745,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 	fn expr_unary(&mut self) -> ParseResult {
 		match self.consume(Token::Neg) {
-			Some(loc) => Ok(::Almost::Neg(loc, Box::new(self.expr_call()?))),
+			Some(loc) => Ok(crate::Almost::Neg(loc, Box::new(self.expr_call()?))),
 			None => self.expr_call(),
 		}
 	}
@@ -754,7 +754,7 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		let mut r = self.expr_index()?;
 
 		while let Some(loc) = self.consume(Token::Call) {
-			r = ::Almost::Call(loc, Box::new(r), Box::new(self.expr_index()?));
+			r = crate::Almost::Call(loc, Box::new(r), Box::new(self.expr_index()?));
 		}
 
 		Ok(r)
@@ -767,9 +767,9 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		while let Some(loc) = self.consume(Token::Dot) {
 			expect_next!{self: "parsing index",
 				(Token::Ident(s), _) =>
-					r = ::Almost::Index(loc, Box::new(r), Box::new(::Almost::StrStatic(s))),
+					r = crate::Almost::Index(loc, Box::new(r), Box::new(crate::Almost::StrStatic(s))),
 				(Token::StrOpen(t), _) =>
-					r = ::Almost::Index(loc, Box::new(r), Box::new(self.string(t)?)),
+					r = crate::Almost::Index(loc, Box::new(r), Box::new(self.string(t)?)),
 			}
 		}
 
@@ -780,10 +780,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		expect_next!{self: "parsing atom",
 			(Token::DictOpen, _) => self.dict_items(),
 			(Token::Func, _) => self.func(),
-			(Token::Ident(s), loc) => Ok(::Almost::Ref(loc, s)),
-			(Token::StructIdent(d, s), loc) => Ok(::Almost::StructRef(loc, d, s)),
+			(Token::Ident(s), loc) => Ok(crate::Almost::Ref(loc, s)),
+			(Token::StructIdent(d, s), loc) => Ok(crate::Almost::StructRef(loc, d, s)),
 			(Token::ListOpen, _) => self.list_items(),
-			(Token::Num(n), _) => Ok(::Almost::Num(n)),
+			(Token::Num(n), _) => Ok(crate::Almost::Num(n)),
 			(Token::ParenOpen, _) => {
 				let e = self.expr()?;
 				expect_next!{self: "closing bracket", (Token::ParenClose, _) => {}};
@@ -798,10 +798,10 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 		match typ {
 			StrType::Relative => {
-				pieces.push(::StringPart::Lit(self.directory.to_owned()));
+				pieces.push(crate::StringPart::Lit(self.directory.to_owned()));
 			}
 			StrType::Parent => {
-				pieces.push(::StringPart::Lit(self.directory.to_owned() + "../"));
+				pieces.push(crate::StringPart::Lit(self.directory.to_owned() + "../"));
 			}
 			StrType::String => {},
 		}
@@ -810,11 +810,11 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 
 		loop {
 			match self.next() {
-				Some((Token::StrChunk(s), _)) => pieces.push(::StringPart::Lit(s)),
+				Some((Token::StrChunk(s), _)) => pieces.push(crate::StringPart::Lit(s)),
 				Some((Token::StrClose, _)) => break,
 				Some(t) => {
 					self.unget(t);
-					pieces.push(::StringPart::Exp(self.expr()?))
+					pieces.push(crate::StringPart::Exp(self.expr()?))
 				},
 				None => {
 					return Err(ParseError{
@@ -825,14 +825,14 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 			}
 		}
 
-		if let &[::StringPart::Lit(_)] = pieces.as_slice() {
-			if let ::StringPart::Lit(s) = pieces.pop().unwrap() {
-				Ok(::Almost::StrStatic(s))
+		if let &[crate::StringPart::Lit(_)] = pieces.as_slice() {
+			if let crate::StringPart::Lit(s) = pieces.pop().unwrap() {
+				Ok(crate::Almost::StrStatic(s))
 			} else {
 				unreachable!();
 			}
 		} else {
-			Ok(::Almost::Str(pieces))
+			Ok(crate::Almost::Str(pieces))
 		}
 	}
 }
@@ -855,36 +855,36 @@ mod tests {
 
 	#[test]
 	fn num_decimal() {
-		assert_eq!(::eval("<str>", "(10)"), ::Val::new_atomic(10.0));
-		assert_eq!(::eval("<str>", "(0d10)"), ::Val::new_atomic(10.0));
-		assert_eq!(::eval("<str>", "(10.4)"), ::Val::new_atomic(10.4));
-		assert_eq!(::eval("<str>", "(10.4e6)"), ::Val::new_atomic(10400000.0));
-		assert_eq!(::eval("<str>", "(10.4e+6)"), ::Val::new_atomic(10400000.0));
-		assert_eq!(::eval("<str>", "(10.4e-6)"), ::Val::new_atomic(0.0000104));
-		assert_eq!(::eval("<str>", "(104_000__000_e-6_)"), ::Val::new_atomic(104.0));
-		assert_eq!(::eval("<str>", "(1M)"), ::Val::new_atomic(1_000_000.0));
-		assert_eq!(::eval("<str>", "(1ki)"), ::Val::new_atomic(1024.0));
-		assert_eq!(::eval("<str>", "(4u)"), ::Val::new_atomic(0.000_004));
-		assert_eq!(::eval("<str>", "(2 - 1)"), ::Val::new_atomic(1.0));
+		assert_eq!(crate::eval("<str>", "(10)"), crate::Val::new_atomic(10.0));
+		assert_eq!(crate::eval("<str>", "(0d10)"), crate::Val::new_atomic(10.0));
+		assert_eq!(crate::eval("<str>", "(10.4)"), crate::Val::new_atomic(10.4));
+		assert_eq!(crate::eval("<str>", "(10.4e6)"), crate::Val::new_atomic(10400000.0));
+		assert_eq!(crate::eval("<str>", "(10.4e+6)"), crate::Val::new_atomic(10400000.0));
+		assert_eq!(crate::eval("<str>", "(10.4e-6)"), crate::Val::new_atomic(0.0000104));
+		assert_eq!(crate::eval("<str>", "(104_000__000_e-6_)"), crate::Val::new_atomic(104.0));
+		assert_eq!(crate::eval("<str>", "(1M)"), crate::Val::new_atomic(1_000_000.0));
+		assert_eq!(crate::eval("<str>", "(1ki)"), crate::Val::new_atomic(1024.0));
+		assert_eq!(crate::eval("<str>", "(4u)"), crate::Val::new_atomic(0.000_004));
+		assert_eq!(crate::eval("<str>", "(2 - 1)"), crate::Val::new_atomic(1.0));
 	}
 
 	#[test]
 	fn num_binary() {
-		assert_eq!(::eval("<str>", "(0b10)"), ::Val::new_atomic(2.0));
-		assert_eq!(::eval("<str>", "(0b10.1)"), ::Val::new_atomic(2.5));
+		assert_eq!(crate::eval("<str>", "(0b10)"), crate::Val::new_atomic(2.0));
+		assert_eq!(crate::eval("<str>", "(0b10.1)"), crate::Val::new_atomic(2.5));
 		assert_eq!(parse("<str>", "(0b10.1e6)".chars()), Err(ParseError{
 			typ: ErrorType::Unexpected(
 				Loc{line: 1, col: 8}, Token::Unexpected('e'), &[]),
 			msg: "parsing atom",
 		}));
-		assert_eq!(::eval("<str>", "(0b1M)"), ::Val::new_atomic(1_000_000.0));
-		assert_eq!(::eval("<str>", "(0b1u)"), ::Val::new_atomic(0.000_001));
+		assert_eq!(crate::eval("<str>", "(0b1M)"), crate::Val::new_atomic(1_000_000.0));
+		assert_eq!(crate::eval("<str>", "(0b1u)"), crate::Val::new_atomic(0.000_001));
 	}
 
 	#[test]
 	fn num_hex() {
-		assert_eq!(::eval("<str>", "(0x10)"), ::Val::new_atomic(16.0));
-		assert_eq!(::eval("<str>", "(0x8.8)"), ::Val::new_atomic(8.5));
-		assert_eq!(::eval("<str>", "(0x00.1)"), ::Val::new_atomic(0.0625));
+		assert_eq!(crate::eval("<str>", "(0x10)"), crate::Val::new_atomic(16.0));
+		assert_eq!(crate::eval("<str>", "(0x8.8)"), crate::Val::new_atomic(8.5));
+		assert_eq!(crate::eval("<str>", "(0x00.1)"), crate::Val::new_atomic(0.0625));
 	}
 }

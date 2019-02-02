@@ -48,7 +48,7 @@ pub trait Value:
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
 	fn structural_lookup(&self, _depth: usize, key: &dict::Key) -> Val {
-		::err::Err::new(format!("Can't lookup {} in {:?}", key, self))
+		crate::err::Err::new(format!("Can't lookup {} in {:?}", key, self))
 	}
 	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
@@ -203,7 +203,7 @@ impl Val {
 	}
 
 	fn annotate(&self, msg: &str) -> Val {
-		self.annotate_at(::grammar::Loc{line: 0, col: 0}, msg)
+		self.annotate_at(crate::grammar::Loc{line: 0, col: 0}, msg)
 	}
 
 	fn annotate_at(&self, loc: grammar::Loc, msg: &str) -> Val {
@@ -215,7 +215,7 @@ impl Val {
 	}
 
 	fn annotate_with<F: FnOnce() -> String>(&self, f: F) -> Val {
-		self.annotate_at_with(::grammar::Loc{line: 0, col: 0}, f)
+		self.annotate_at_with(crate::grammar::Loc{line: 0, col: 0}, f)
 	}
 
 	fn annotate_at_with<F: FnOnce() -> String>(&self, loc: grammar::Loc, f: F) -> Val {
@@ -283,7 +283,7 @@ impl Val {
 		self.value()?.neg()
 	}
 
-	fn cmp(&self, that: ::Val) -> Result<std::cmp::Ordering,Val> {
+	fn cmp(&self, that: crate::Val) -> Result<std::cmp::Ordering,Val> {
 		self.value()?.cmp(&*that.value()?)
 	}
 
@@ -463,9 +463,9 @@ impl std::fmt::Debug for Almost {
 				write!(f, "Adict{{{:?} = {:?}}}", key, item)
 			}
 			Almost::Dict(ref items) => {
-				try!(writeln!(f, "{{"));
+				r#try!(writeln!(f, "{{"));
 				for i in &**items {
-					try!(writeln!(f, "\t{:?}", i));
+					r#try!(writeln!(f, "\t{:?}", i));
 				}
 				write!(f, "}}")
 			}
@@ -490,11 +490,11 @@ impl std::fmt::Debug for Almost {
 			Almost::Ref(_, ref id) => write!(f, "Ref({})", format_key(id)),
 			Almost::StructRef(_, d, ref key) => write!(f, "StructRef({})", format_ref(d, &key)),
 			Almost::Str(ref parts) => {
-				try!(write!(f, "Str(\""));
+				r#try!(write!(f, "Str(\""));
 				for part in parts {
 					match *part {
-						StringPart::Exp(ref s) => try!(write!(f, "${{{:?}}}", s)),
-						StringPart::Lit(ref s) => try!(write!(f, "{}", escape_string_contents(&s))),
+						StringPart::Exp(ref s) => r#try!(write!(f, "${{{:?}}}", s)),
+						StringPart::Lit(ref s) => r#try!(write!(f, "{}", escape_string_contents(&s))),
 					}
 				}
 				write!(f, "\"))")
@@ -507,7 +507,7 @@ impl std::fmt::Debug for Almost {
 }
 
 pub trait Parent: std::fmt::Debug {
-	fn structural_lookup(&self, depth: usize, key: &::dict::Key) -> ::Val;
+	fn structural_lookup(&self, depth: usize, key: &crate::dict::Key) -> crate::Val;
 }
 
 pub fn eval(source: &str, doc: &str) -> Val {
@@ -519,7 +519,7 @@ pub fn eval(source: &str, doc: &str) -> Val {
 		.unwrap_or_else(|e| e)
 }
 
-pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
+pub fn parse_file(path: &str) -> Result<crate::Almost,crate::grammar::ParseError> {
 	let mut file = match std::fs::File::open(path) {
 		Ok(file) => file,
 		Err(e) => panic!("Failed to open {:?}: {:?}", path, e),
@@ -546,7 +546,7 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 	grammar::parse(source, doc.chars())
 		.map_err(|e| err::Err::new(format!("Failed to parse {:?}: {:?}", source, e)))
 		.map(|ast| {
-			::Almost::Func(Box::new(func::FuncData{
+			crate::Almost::Func(Box::new(func::FuncData{
 				arg: func::Arg::One(name),
 				body: ast,
 			}))
@@ -557,7 +557,7 @@ pub fn hacky_parse_func(source: &str, name: String, doc: &str) -> Val
 }
 
 pub fn dump_ast(doc: &str) -> Result<(), grammar::ParseError> {
-	let almost = try!(grammar::parse("", doc.chars()));
+	let almost = r#try!(grammar::parse("", doc.chars()));
 	println!("{:?}", almost);
 	Ok(())
 }

@@ -4,8 +4,8 @@ use std::rc::Rc;
 #[derive(PartialEq)]
 pub enum Arg {
 	One(String),
-	Dict(Vec<(String,bool,::Almost)>),
-	List(Vec<(String,bool,::Almost)>),
+	Dict(Vec<(String,bool,crate::Almost)>),
+	List(Vec<(String,bool,crate::Almost)>),
 }
 
 impl std::fmt::Debug for Arg {
@@ -37,31 +37,31 @@ impl std::fmt::Debug for Arg {
 }
 
 pub struct Func {
-	parent: Rc<::Parent>,
-	body: ::bytecode::Func,
+	parent: Rc<crate::Parent>,
+	body: crate::bytecode::Func,
 }
 
 #[derive(Debug,PartialEq)]
 pub struct FuncData {
 	pub arg: Arg,
-	pub body: ::Almost,
+	pub body: crate::Almost,
 }
 
 impl Func {
-	pub fn new(parent: Rc<::Parent>, body: ::bytecode::Func) -> ::Val {
-		::Val::new_atomic(Func{parent, body})
+	pub fn new(parent: Rc<crate::Parent>, body: crate::bytecode::Func) -> crate::Val {
+		crate::Val::new_atomic(Func{parent, body})
 	}
 }
 
-impl ::Value for Func {
+impl crate::Value for Func {
 	fn type_str(&self) -> &'static str { "func" }
 
-	fn call(&self, arg: ::Val) -> ::Val {
+	fn call(&self, arg: crate::Val) -> crate::Val {
 		self.body.call(self.parent.clone(), arg)
 	}
 }
 
-impl ::SameOps for Func { }
+impl crate::SameOps for Func { }
 
 impl std::fmt::Debug for Func {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -1,17 +1,17 @@
 use erased_serde;
 
-pub fn get(b: bool) -> ::Val { ::Val::new_inline(::Inline::Bool(b)) }
+pub fn get(b: bool) -> crate::Val { crate::Val::new_inline(crate::Inline::Bool(b)) }
 
-impl ::Value for bool {
+impl crate::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }
 
-	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_bool(*self)
 	}
 
-	fn to_string(&self) -> ::Val {
-		::Val::new_atomic(ToString::to_string(self))
+	fn to_string(&self) -> crate::Val {
+		crate::Val::new_atomic(ToString::to_string(self))
 	}
 
 	fn to_bool(&self) -> bool {
@@ -19,8 +19,8 @@ impl ::Value for bool {
 	}
 }
 
-impl ::SameOps for bool {
-	fn eq(&self, that: &Self) -> ::Val {
+impl crate::SameOps for bool {
+	fn eq(&self, that: &Self) -> crate::Val {
 		get(*self == *that)
 	}
 }

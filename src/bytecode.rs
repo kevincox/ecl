@@ -16,7 +16,7 @@ macro_rules! codes {
 
 		impl $type {
 			#[inline(always)]
-			fn from(i: $repr) -> Result<Self,::Val> {
+			fn from(i: $repr) -> Result<Self,crate::Val> {
 				$( if i == $type::$item as $repr {
 					Ok($type::$item)
 				} else )* {
@@ -102,8 +102,8 @@ impl Scope {
 }
 
 enum Compilable {
-	Almost(::Almost),
-	Func(Box<::func::FuncData>),
+	Almost(crate::Almost),
+	Func(Box<crate::func::FuncData>),
 }
 
 struct ToCompile {
@@ -113,15 +113,15 @@ struct ToCompile {
 }
 
 impl ToCompile {
-	fn compile(self, ctx: &mut CompileContext) -> Result<usize, ::Val> {
+	fn compile(self, ctx: &mut CompileContext) -> Result<usize, crate::Val> {
 		ctx.scope = self.scope;
 		match self.item {
 			Compilable::Almost(ast) => ctx.compile(ast),
 			Compilable::Func(data) => {
 				let data = *data;
-				let ::func::FuncData{arg, body} = data;
+				let crate::func::FuncData{arg, body} = data;
 				let off = match arg {
-					::func::Arg::One(arg) => {
+					crate::func::Arg::One(arg) => {
 						let argoff = ctx.write_u8(ArgType::One.to());
 
 						let (k, id) = ctx.new_var(arg.clone(), false);
@@ -134,7 +134,7 @@ impl ToCompile {
 
 						argoff
 					}
-					::func::Arg::Dict(args) => {
+					crate::func::Arg::Dict(args) => {
 						let mut vars = Vec::with_capacity(args.len());
 
 						let args = args.into_iter()
@@ -175,7 +175,7 @@ impl ToCompile {
 
 						argoff
 					}
-					::func::Arg::List(args) => {
+					crate::func::Arg::List(args) => {
 						let mut vars = Vec::with_capacity(args.len());
 
 						let args = args.into_iter()
@@ -311,7 +311,7 @@ impl CompileContext {
 		return self.write_u64(0)
 	}
 
-	fn compile_outofline(&mut self, scope: Rc<Scope>, node: ::Almost) -> usize {
+	fn compile_outofline(&mut self, scope: Rc<Scope>, node: crate::Almost) -> usize {
 		let ref_off = self.reserve_reference();
 		self.compile_queue.push(ToCompile{
 			ref_off,
@@ -321,43 +321,43 @@ impl CompileContext {
 		return ref_off
 	}
 
-	fn compile(&mut self, ast: ::Almost) -> Result<usize,::Val> {
+	fn compile(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
 		let off = self.compile_expr(ast)?;
 		self.write_op(Op::Ret);
 		Ok(off)
 	}
 
-	fn compile_expr(&mut self, ast: ::Almost) -> Result<usize,::Val> {
+	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
 		match ast {
-			::Almost::Add(_, left, right) => {
+			crate::Almost::Add(_, left, right) => {
 				self.compile_binary_op(Op::Add, *left, *right)
 			}
-			::Almost::Call(_, left, right) => {
+			crate::Almost::Call(_, left, right) => {
 				self.compile_binary_op(Op::Call, *left, *right)
 			}
-			::Almost::GreatEq(left, right) => {
+			crate::Almost::GreatEq(left, right) => {
 				self.compile_binary_op(Op::Ge, *left, *right)
 			}
-			::Almost::Great(left, right) => {
+			crate::Almost::Great(left, right) => {
 				self.compile_binary_op(Op::Gt, *left, *right)
 			}
-			::Almost::Eq(left, right) => {
+			crate::Almost::Eq(left, right) => {
 				self.compile_binary_op(Op::Eq, *left, *right)
 			}
-			::Almost::Less(left, right) => {
+			crate::Almost::Less(left, right) => {
 				self.compile_binary_op(Op::Lt, *left, *right)
 			}
-			::Almost::LessEq(left, right) => {
+			crate::Almost::LessEq(left, right) => {
 				self.compile_binary_op(Op::Le, *left, *right)
 			}
-			::Almost::ADict(key, element) => {
+			crate::Almost::ADict(key, element) => {
 				let off = self.write_op(Op::ADict);
 				let scope = self.scope.clone();
 				self.compile_outofline(scope, *element);
 				self.write_str(&key);
 				Ok(off)
 			}
-			::Almost::Dict(elements) => {
+			crate::Almost::Dict(elements) => {
 				let mut vars = Vec::with_capacity(elements.len());
 
 				let elements = elements.into_iter()
@@ -391,7 +391,7 @@ impl CompileContext {
 
 				Ok(off)
 			}
-			::Almost::Func(data) => {
+			crate::Almost::Func(data) => {
 				let off = self.write_op(Op::Func);
 				let refoff = self.reserve_reference();
 				self.compile_queue.push(ToCompile{
@@ -401,10 +401,10 @@ impl CompileContext {
 				});
 				Ok(off)
 			}
-			::Almost::Index(_, left, right) => {
+			crate::Almost::Index(_, left, right) => {
 				self.compile_binary_op(Op::Index, *left, *right)
 			}
-			::Almost::List(elements) => {
+			crate::Almost::List(elements) => {
 				let off = self.write_op(Op::List);
 				self.write_varint(elements.len());
 				for element in elements {
@@ -413,33 +413,33 @@ impl CompileContext {
 				}
 				Ok(off)
 			},
-			::Almost::Neg(_, v) => {
+			crate::Almost::Neg(_, v) => {
 				let off = self.compile_expr(*v)?;
 				self.write_op(Op::Neg);
 				Ok(off)
 			}
-			::Almost::Nil => self.compile_global(0),
-			::Almost::Num(n) => {
+			crate::Almost::Nil => self.compile_global(0),
+			crate::Almost::Num(n) => {
 				let off = self.write_op(Op::Num);
 				self.write_f64(n);
 				Ok(off)
 			}
-			::Almost::Ref(loc, name) => {
+			crate::Almost::Ref(loc, name) => {
 				if let Some((depth, id)) = self.scope.find(&name) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&name); // TODO: remove this.
 					self.write_varint(depth);
 					self.write_varint(id);
 					Ok(off)
-				} else if let Some(id) = ::builtins::builtin_id(&name) {
+				} else if let Some(id) = crate::builtins::builtin_id(&name) {
 					let off = self.write_op(Op::Global);
 					self.write_varint(id);
 					Ok(off)
 				} else {
-					Err(::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
+					Err(crate::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
 				}
 			}
-			::Almost::StructRef(_, depth, key) => {
+			crate::Almost::StructRef(_, depth, key) => {
 				if let Some(id) = self.scope.find_at(&key, depth) {
 					let off = self.write_op(Op::Ref);
 					self.write_str(&key); // TODO: remove this.
@@ -453,15 +453,15 @@ impl CompileContext {
 					Ok(off)
 				}
 			}
-			::Almost::Str(parts) => {
+			crate::Almost::Str(parts) => {
 				let off = self.write_op(Op::Str);
 				self.write_str("");
 				for part in parts {
 					match part {
-						::StringPart::Exp(s) => {
+						crate::StringPart::Exp(s) => {
 							self.compile_expr(s)?;
 						},
-						::StringPart::Lit(s) => {
+						crate::StringPart::Lit(s) => {
 							self.write_op(Op::Str);
 							self.write_str(&s);
 						},
@@ -470,19 +470,19 @@ impl CompileContext {
 				}
 				Ok(off)
 			}
-			::Almost::StrStatic(s) => {
+			crate::Almost::StrStatic(s) => {
 				let off = self.write_op(Op::Str);
 				self.write_str(&s);
 				Ok(off)
 			}
-			::Almost::Sub(_, left, right) => {
+			crate::Almost::Sub(_, left, right) => {
 				self.compile_binary_op(Op::Sub, *left, *right)
 			}
 		}
 	}
 
-	fn compile_binary_op(&mut self, op: Op, left: ::Almost, right: ::Almost)
-		-> Result<usize,::Val>
+	fn compile_binary_op(&mut self, op: Op, left: crate::Almost, right: crate::Almost)
+		-> Result<usize,crate::Val>
 	{
 		let off = self.compile_expr(left)?;
 		self.compile_expr(right)?;
@@ -490,14 +490,14 @@ impl CompileContext {
 		Ok(off)
 	}
 
-	fn compile_global(&mut self, global: usize) -> Result<usize,::Val> {
+	fn compile_global(&mut self, global: usize) -> Result<usize,crate::Val> {
 		let off = self.write_op(Op::Global);
 		self.write_varint(global);
 		Ok(off)
 	}
 }
 
-pub fn compile_to_vec(ast: ::Almost) -> Result<Vec<u8>,::Val> {
+pub fn compile_to_vec(ast: crate::Almost) -> Result<Vec<u8>,crate::Val> {
 	let mut ctx = CompileContext{
 		bytes: MAGIC.to_owned(),
 		last_local: 0,
@@ -595,11 +595,11 @@ impl std::fmt::Debug for Module {
 struct EvalContext {
 	module: Rc<Module>,
 	pc: u64,
-	parent: Rc<::Parent>,
+	parent: Rc<crate::Parent>,
 }
 
 impl EvalContext {
-	pub fn eval(&mut self) -> ::Val {
+	pub fn eval(&mut self) -> crate::Val {
 		// eprintln!("Executing @ {}", self.pc);
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
 		cursor.set_position(self.pc as u64);
@@ -615,7 +615,7 @@ impl EvalContext {
 				},
 				Op::Global => {
 					let id = cursor.read_varint();
-					stack.push(::builtins::get_id(id));
+					stack.push(crate::builtins::get_id(id));
 				}
 				Op::Add => {
 					let right = stack.pop().expect("One item in stack for add")
@@ -632,32 +632,32 @@ impl EvalContext {
 				Op::Ge => {
 					let r = stack.pop().expect("One item in stack for >=");
 					let l = stack.pop().expect("No items in stack for >=");
-					stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
+					stack.push(crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
 				}
 				Op::Gt => {
 					let r = stack.pop().expect("One item in stack for >");
 					let l = stack.pop().expect("No items in stack for >");
-					stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
+					stack.push(crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
 				}
 				Op::Eq => {
 					let right = stack.pop().expect("One item in stack for ==");
 					let left = stack.pop().expect("No items in stack for ==");
-					stack.push(::bool::get(left == right));
+					stack.push(crate::bool::get(left == right));
 				}
 				Op::Lt => {
 					let r = stack.pop().expect("One item in stack for <");
 					let l = stack.pop().expect("No items in stack for <");
-					stack.push(::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
+					stack.push(crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
 				}
 				Op::Le => {
 					let r = stack.pop().expect("One item in stack for <=");
 					let l = stack.pop().expect("No items in stack for <=");
-					stack.push(::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
+					stack.push(crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
 				}
 				Op::ADict => {
 					let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
 					let key = cursor.read_str();
-					stack.push(::dict::Dict::new_adict(
+					stack.push(crate::dict::Dict::new_adict(
 						self.parent.clone(),
 						key.to_owned(),
 						Value::new(self.module.clone(), childoff)));
@@ -667,21 +667,21 @@ impl EvalContext {
 					let mut items = Vec::with_capacity(len);
 					for _ in 0..len {
 						let key = match DictItem::from(cursor.read_u8().unwrap())? {
-							DictItem::Pub => ::dict::Key::Pub(cursor.read_str().to_owned()),
+							DictItem::Pub => crate::dict::Key::Pub(cursor.read_str().to_owned()),
 							DictItem::Local => {
 								let mut id = cursor.read_varint();
 								id += self.module.unique_id();
-								::dict::Key::Local(id)
+								crate::dict::Key::Local(id)
 							},
 						};
 						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 						items.push((key, Value::new(self.module.clone(), offset)));
 					}
-					stack.push(::dict::Dict::new(self.parent.clone(), items));
+					stack.push(crate::dict::Dict::new(self.parent.clone(), items));
 				}
 				Op::Func => {
 					let bodyoff = cursor.read_ref();
-					stack.push(::func::Func::new(
+					stack.push(crate::func::Func::new(
 						self.parent.clone(),
 						Func::new(self.module.clone(), bodyoff)));
 				}
@@ -699,7 +699,7 @@ impl EvalContext {
 					let a = a.get_str().expect("Interpolating to something not a string.");
 
 					let r = a.to_owned() + b;
-					stack.push(::Val::new_atomic(r))
+					stack.push(crate::Val::new_atomic(r))
 				}
 				Op::List => {
 					let len = cursor.read_varint();
@@ -708,7 +708,7 @@ impl EvalContext {
 						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 						items.push(Value::new(self.module.clone(), offset));
 					}
-					stack.push(::list::List::new(self.parent.clone(), items));
+					stack.push(crate::list::List::new(self.parent.clone(), items));
 				}
 				Op::Neg => {
 					let v = stack.pop().expect("No items in stack for neg");
@@ -717,17 +717,17 @@ impl EvalContext {
 				Op::Num => {
 					let num = cursor.read_f64::<EclByteOrder>().unwrap();
 					// eprintln!("Num: {}", num);
-					stack.push(::Val::new_num(num));
+					stack.push(crate::Val::new_num(num));
 				}
 				Op::Ref => {
 					let strkey = cursor.read_str();
 					let depth = cursor.read_varint();
 					let mut id = cursor.read_varint();
 					let key = if id == 0 {
-						::dict::Key::Pub(strkey.to_owned())
+						crate::dict::Key::Pub(strkey.to_owned())
 					} else {
 						id += self.module.unique_id();
-						::dict::Key::Local(id)
+						crate::dict::Key::Local(id)
 					};
 					// eprintln!("Ref: {:?}@{} {:?}", key, depth, strkey);
 					let v = self.parent.structural_lookup(depth, &key)
@@ -737,17 +737,17 @@ impl EvalContext {
 				Op::RefRel => {
 					let key = cursor.read_str();
 					let depth = cursor.read_varint();
-					let key = ::dict::Key::Pub(key.to_owned());
+					let key = crate::dict::Key::Pub(key.to_owned());
 					stack.push(self.parent.structural_lookup(depth, &key));
 				}
 				Op::Str => {
-					let s = ::str::CodeString {
+					let s = crate::str::CodeString {
 						module: self.module.clone(),
 						len: cursor.read_varint(),
 						offset: std::convert::TryInto::try_into(cursor.position()).unwrap(),
 					};
 					cursor.consume(s.len);
-					stack.push(::Val::new_atomic(s));
+					stack.push(crate::Val::new_atomic(s));
 				}
 				Op::Sub => {
 					let right = stack.pop().expect("One item in stack for add");
@@ -761,15 +761,15 @@ impl EvalContext {
 	}
 }
 
-pub fn eval(code: Vec<u8>) -> ::Val {
+pub fn eval(code: Vec<u8>) -> crate::Val {
 	let module = Rc::new(Module{
 		file: "myfile".into(),
 		code: code,
 	});
 
 	let pc = module.start_pc();
-	let parent = Rc::new(::dict::ParentSplitter{
-		parent: ::nil::get().value,
+	let parent = Rc::new(crate::dict::ParentSplitter{
+		parent: crate::nil::get().value,
 		grandparent: None,
 	});
 	EvalContext{module, pc, parent}.eval()
@@ -786,7 +786,7 @@ impl Value {
 		Value{module, offset}
 	}
 
-	pub fn eval(&self, parent: Rc<::Parent>) -> ::Val {
+	pub fn eval(&self, parent: Rc<crate::Parent>) -> crate::Val {
 		EvalContext{
 			module: self.module.clone(),
 			pc: self.offset,
@@ -806,18 +806,18 @@ impl Func {
 		Func{module, offset}
 	}
 
-	pub fn call(&self, parent: Rc<::Parent>, arg: ::Val) -> ::Val {
+	pub fn call(&self, parent: Rc<crate::Parent>, arg: crate::Val) -> crate::Val {
 		// eprintln!("Executing {:?}", self);
 
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
 		cursor.set_position(self.offset as u64);
 
-		let args = ::dict::Dict::new(parent.clone(), Vec::new());
+		let args = crate::dict::Dict::new(parent.clone(), Vec::new());
 		let dict = args.clone();
 		let pool = dict.pool.clone();
-		let dict = dict.downcast_ref::<::dict::Dict>().unwrap();
+		let dict = dict.downcast_ref::<crate::dict::Dict>().unwrap();
 
-		let parent = Rc::new(::dict::ParentSplitter{
+		let parent = Rc::new(crate::dict::ParentSplitter{
 			parent: args.value.clone(),
 			grandparent: Some(parent),
 		});
@@ -827,14 +827,14 @@ impl Func {
 				let mut id = cursor.read_varint();
 				id += self.module.unique_id();
 				pool.merge(arg.pool.clone());
-				dict._set_val(::dict::Key::Local(id), ::thunk::shim(arg));
+				dict._set_val(crate::dict::Key::Local(id), crate::thunk::shim(arg));
 			}
 			ArgType::Dict => {
-				use Value;
+				use crate::Value;
 
-				let sourcedict = match arg.downcast_ref::<::dict::Dict>() {
+				let sourcedict = match arg.downcast_ref::<crate::dict::Dict>() {
 					Some(d) => d,
-					None => return ::err::Err::new(format!(
+					None => return crate::err::Err::new(format!(
 						"Function must be called with dict, called with {:?}",
 						arg)),
 				};
@@ -843,16 +843,16 @@ impl Func {
 				let len = cursor.read_usize();
 				for _ in 0..len {
 					let key = cursor.read_str();
-					let passed = sourcedict.index(&::dict::Key::Pub(key.to_owned()))
+					let passed = sourcedict.index(&crate::dict::Key::Pub(key.to_owned()))
 						.map(|v| v.annotate("Looking up argument value"));
 					let val = match ArgReq::from(cursor.read_u8().unwrap())? {
 						ArgReq::Required => match passed {
 							Some(val) => {
 								unused_args -= 1;
 								pool.merge(val.pool.clone());
-								::thunk::shim(val)
+								crate::thunk::shim(val)
 							}
-							None => return ::err::Err::new(format!(
+							None => return crate::err::Err::new(format!(
 								"Required argument {:?} not set in {:?}",
 								key, sourcedict)),
 						}
@@ -861,36 +861,36 @@ impl Func {
 							match passed {
 								Some(v) => {
 									unused_args -= 1;
-									::thunk::shim(v)
+									crate::thunk::shim(v)
 								}
 								None => {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(parent.clone(), value)
+									crate::thunk::bytecode(parent.clone(), value)
 								}
 							}
 						}
 					};
-					dict._set_val(::dict::Key::Pub(key.to_owned()), val)
+					dict._set_val(crate::dict::Key::Pub(key.to_owned()), val)
 				}
 
 				if unused_args != 0 {
-					return ::err::Err::new(format!(
+					return crate::err::Err::new(format!(
 						"Function called with {} unused arguments.", unused_args));
 				}
 			}
 			ArgType::List => {
-				use Value;
+				use crate::Value;
 
-				let list = match arg.downcast_ref::<::list::List>() {
+				let list = match arg.downcast_ref::<crate::list::List>() {
 					Some(l) => l,
-					None => return ::err::Err::new(format!(
+					None => return crate::err::Err::new(format!(
 						"Function must be called with list, called with {:?}",
 						arg)),
 				};
 
 				let len = cursor.read_varint();
 				if list.len() > len {
-					return ::err::Err::new(format!(
+					return crate::err::Err::new(format!(
 						"Function called with too many arguments, expected {} got {}",
 						len, list.len()))
 				}
@@ -904,22 +904,22 @@ impl Func {
 						ArgReq::Required => match passed {
 							Some(val) => {
 								pool.merge(val.pool.clone());
-								::thunk::shim(val)
+								crate::thunk::shim(val)
 							}
-							None => return ::err::Err::new(format!(
+							None => return crate::err::Err::new(format!(
 								"Required argument {} not provided.", i)),
 						}
 						ArgReq::Optional => {
 							let off = cursor.read_u64::<EclByteOrder>().unwrap();
 							passed
-								.map(::thunk::shim)
+								.map(crate::thunk::shim)
 								.unwrap_or_else(|| {
 									let value = self::Value::new(self.module.clone(), off);
-									::thunk::bytecode(parent.clone(), value)
+									crate::thunk::bytecode(parent.clone(), value)
 								})
 						}
 					};
-					dict._set_val(::dict::Key::Local(id), val)
+					dict._set_val(crate::dict::Key::Local(id), val)
 				}
 			}
 		};
@@ -941,7 +941,7 @@ mod tests {
 	#[test]
 	fn compile_global() {
 		assert_eq!(
-			compile_to_vec(::Almost::Nil),
+			compile_to_vec(crate::Almost::Nil),
 			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\x01\0".as_ref().into()));
 	}
 }

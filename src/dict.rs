@@ -6,9 +6,9 @@ use std::rc::Rc;
 
 #[derive(Clone,Debug)]
 struct Source {
-	parent: Rc<::Parent>,
+	parent: Rc<crate::Parent>,
 	key: Key,
-	almost: ::bytecode::Value,
+	almost: crate::bytecode::Value,
 }
 
 #[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd)]
@@ -36,7 +36,7 @@ impl std::fmt::Display for Key {
 }
 
 pub struct Dict {
-	pool: ::mem::WeakPoolHandle,
+	pool: crate::mem::WeakPoolHandle,
 	prv: std::cell::RefCell<DictData>,
 }
 
@@ -48,20 +48,20 @@ struct DictData {
 #[derive(Debug)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: Rc<::thunk::Thunky>,
+	pub val: Rc<crate::thunk::Thunky>,
 }
 
 impl DictPair {
-	fn val(&self, pool: ::mem::PoolHandle) -> ::Val {
+	fn val(&self, pool: crate::mem::PoolHandle) -> crate::Val {
 		self.val.eval(pool)
 	}
 }
 
 impl Dict {
-	pub fn new(parent: Rc<::Parent>, items: Vec<(Key,::bytecode::Value)>) -> ::Val {
-		let pool = ::mem::PoolHandle::new();
+	pub fn new(parent: Rc<crate::Parent>, items: Vec<(Key,crate::bytecode::Value)>) -> crate::Val {
+		let pool = crate::mem::PoolHandle::new();
 
-		let this = ::Val::new(pool.clone(), Dict{
+		let this = crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
 				data: Vec::with_capacity(items.len()),
@@ -84,7 +84,7 @@ impl Dict {
 					key: key.clone(),
 					almost: item.clone()
 				});
-				let val = ::thunk::bytecode(this_parent.clone(), item);
+				let val = crate::thunk::bytecode(this_parent.clone(), item);
 				prv.data.push(DictPair{key, val});
 			}
 		}
@@ -92,12 +92,12 @@ impl Dict {
 		this
 	}
 
-	pub fn new_adict(parent: Rc<::Parent>, k: String, item: ::bytecode::Value) -> ::Val {
-		let pool = ::mem::PoolHandle::new();
+	pub fn new_adict(parent: Rc<crate::Parent>, k: String, item: crate::bytecode::Value) -> crate::Val {
+		let pool = crate::mem::PoolHandle::new();
 
 		let key = Key::Pub(k.clone());
 
-		let val = ::thunk::bytecode(parent.clone(), item.clone());
+		let val = crate::thunk::bytecode(parent.clone(), item.clone());
 		let data = vec![
 			DictPair{key, val: val}];
 
@@ -107,7 +107,7 @@ impl Dict {
 			almost: item,
 		};
 
-		::Val::new(pool.clone(), Dict{
+		crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
 				data: data,
@@ -117,10 +117,10 @@ impl Dict {
 	}
 
 	fn source(&self) -> &[Source] {
-		::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
+		crate::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
 	}
 	
-	pub fn _set_val(&self, key: Key, val: Rc<::thunk::Thunky>) {
+	pub fn _set_val(&self, key: Key, val: Rc<crate::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -128,7 +128,7 @@ impl Dict {
 		}
 	}
 
-	pub fn index(&self, key: &Key) -> Option<::Val> {
+	pub fn index(&self, key: &Key) -> Option<crate::Val> {
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
 			.map(|pair| pair.val(self.pool.upgrade()))
@@ -136,9 +136,9 @@ impl Dict {
 		// 	.map(|i| prv.data[i].val.clone()).ok()
 	}
 
-	fn call(&self, that: &Dict) -> ::Val {
-		let pool = ::mem::PoolHandle::new();
-		let this = ::Val::new(pool.clone(), Dict{
+	fn call(&self, that: &Dict) -> crate::Val {
+		let pool = crate::mem::PoolHandle::new();
+		let this = crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData {
 				data: Vec::new(),
@@ -178,7 +178,7 @@ impl Dict {
 					grandparent: Some(s.parent.clone()),
 				});
 
-				let mut val = ::thunk::bytecode(
+				let mut val = crate::thunk::bytecode(
 					parent,
 					s.almost.clone());
 				if Some(&s.key) == data.last().map(|p| &p.key) {
@@ -195,11 +195,11 @@ impl Dict {
 }
 
 pub fn override_(
-	sup: Rc<::thunk::Thunky>,
-	sub: Rc<::thunk::Thunky>,
-) -> Rc<::thunk::Thunky> {
-	const F: &Fn((Rc<::thunk::Thunky>, Rc<::thunk::Thunky>)) -> ::Val = &|(sup, sub)| {
-		let sub = sub.eval(::mem::PoolHandle::new());
+	sup: Rc<crate::thunk::Thunky>,
+	sub: Rc<crate::thunk::Thunky>,
+) -> Rc<crate::thunk::Thunky> {
+	const F: &Fn((Rc<crate::thunk::Thunky>, Rc<crate::thunk::Thunky>)) -> crate::Val = &|(sup, sub)| {
+		let sub = sub.eval(crate::mem::PoolHandle::new());
 
 		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
 			let sup = sup.eval(sub.pool.clone()).annotate("overriding error value")?;
@@ -211,7 +211,7 @@ pub fn override_(
 		return sub
 	};
 
-	::thunk::Thunk::new((sup, sub), F)
+	crate::thunk::Thunk::new((sup, sub), F)
 }
 
 impl std::fmt::Debug for Dict {
@@ -240,10 +240,10 @@ impl std::fmt::Debug for Dict {
 	}
 }
 
-impl ::Value for Dict {
+impl crate::Value for Dict {
 	fn type_str(&self) -> &'static str { "dict" }
 
-	fn eval(&self) -> Result<(),::Val> {
+	fn eval(&self) -> Result<(),crate::Val> {
 		for pair in &self.prv.borrow().data {
 			if pair.key.is_public() {
 				pair.val(self.pool.upgrade()).eval()?;
@@ -263,29 +263,29 @@ impl ::Value for Dict {
 		prv.data.iter().all(|pair| !pair.key.is_public())
 	}
 
-	fn index_str(&self, key: &str) -> ::Val {
+	fn index_str(&self, key: &str) -> crate::Val {
 		self.index(&Key::Pub(key.to_owned()))
-			.unwrap_or_else(::nil::get)
+			.unwrap_or_else(crate::nil::get)
 	}
 
-	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
+	fn structural_lookup(&self, depth: usize, key: &Key) -> crate::Val {
 		assert_eq!(depth, 0, "Dict.structural_lookup({:?}, {:?})", depth, key);
 		match self.index(key) {
 			Some(v) => v,
-			None => ::err::Err::new(format!("No {:?} in {:?}", key, self)),
+			None => crate::err::Err::new(format!("No {:?} in {:?}", key, self)),
 		}
 	}
 
-	fn call(&self, arg: ::Val) -> ::Val {
+	fn call(&self, arg: crate::Val) -> crate::Val {
 		match arg.downcast_ref::<Dict>() {
 			Some(dict) => self.call(dict),
-			None => ::err::Err::new(format!("Can't call dict with {:?}", arg)),
+			None => crate::err::Err::new(format!("Can't call dict with {:?}", arg)),
 		}
 	}
 
-	fn iter<'a>(&'a self) -> Option<(::mem::PoolHandle, Box<Iterator<Item=::Val> + 'a>)> {
+	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>)> {
 		// This is fine because the dict has been fully evaluated.
-		let data = ::i_promise_this_will_stay_alive(&self.prv.borrow().data);
+		let data = crate::i_promise_this_will_stay_alive(&self.prv.borrow().data);
 
 		let pool = self.pool.upgrade();
 		Some((
@@ -296,20 +296,20 @@ impl ::Value for Dict {
 				.filter_map(move |pair| match pair.key {
 					Key::Pub(ref s) => {
 						let data = vec![
-							::thunk::shim(::Val::new(self.pool.upgrade(), s.clone())),
-							::thunk::shim(pair.val(pool.clone())),
+							crate::thunk::shim(crate::Val::new(self.pool.upgrade(), s.clone())),
+							crate::thunk::shim(pair.val(pool.clone())),
 						];
-						Some(::list::List::of_vals(self.pool.upgrade(), data))
+						Some(crate::list::List::of_vals(self.pool.upgrade(), data))
 					}
 					_ => None
 				}))))
 	}
 
-	fn serialize(&self, visited: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let prv = self.prv.borrow();
 
-		let mut state = try!(s.erased_serialize_map(Some(prv.data.len())));
+		let mut state = r#try!(s.erased_serialize_map(Some(prv.data.len())));
 		for pair in &prv.data {
 			if let Key::Pub(ref k) = pair.key {
 				s.erased_serialize_map_key(&mut state, k)?;
@@ -321,7 +321,7 @@ impl ::Value for Dict {
 	}
 }
 
-impl ::SameOps for Dict { }
+impl crate::SameOps for Dict { }
 
 #[derive(Clone,Copy,Eq,Ord,PartialEq,PartialOrd)]
 pub enum Visibility {
@@ -332,15 +332,15 @@ pub enum Visibility {
 pub struct AlmostDictElement {
 	pub visibility: Visibility,
 	pub key: String,
-	pub val: ::Almost,
+	pub val: crate::Almost,
 }
 
 impl AlmostDictElement {
-	pub fn local(key: String, val: ::Almost) -> Self {
+	pub fn local(key: String, val: crate::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Local, key, val}
 	}
 
-	pub fn public(key: String, val: ::Almost) -> Self {
+	pub fn public(key: String, val: crate::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Pub, key, val}
 	}
 
@@ -365,12 +365,12 @@ impl std::fmt::Debug for AlmostDictElement {
 
 #[derive(Clone,Debug)]
 pub struct ParentSplitter {
-	pub parent: ::Inline,
-	pub grandparent: Option<Rc<::Parent>>,
+	pub parent: crate::Inline,
+	pub grandparent: Option<Rc<crate::Parent>>,
 }
 
-impl ::Parent for ParentSplitter {
-	fn structural_lookup(&self, depth: usize, key: &Key) -> ::Val {
+impl crate::Parent for ParentSplitter {
+	fn structural_lookup(&self, depth: usize, key: &Key) -> crate::Val {
 		match depth {
 			0 => self.parent.structural_lookup(0, key),
 			n => self.grandparent.as_ref().expect("grandparent access").structural_lookup(n-1, key),
@@ -387,11 +387,11 @@ mod tests {
 		assert!(eval("<str>", "{}").is_empty());
 
 		let v = eval("<str>", "{a=4 b = 0}");
-		assert_eq!(v.index_str("a"), ::Val::new_atomic(4.0));
-		assert_eq!(v.index_str("b"), ::Val::new_atomic(0.0));
+		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("b"), crate::Val::new_atomic(0.0));
 
 		let v = eval("<str>", "{a=4 b=a}");
-		assert_eq!(v.index_str("a"), ::Val::new_atomic(4.0));
-		assert_eq!(v.index_str("b"), ::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("b"), crate::Val::new_atomic(4.0));
 	}
 }

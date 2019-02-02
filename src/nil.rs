@@ -3,20 +3,20 @@ use erased_serde;
 #[derive(Debug)]
 pub struct Nil;
 
-pub fn get() -> ::Val {
-	::Val::new_inline(::Inline::Nil)
+pub fn get() -> crate::Val {
+	crate::Val::new_inline(crate::Inline::Nil)
 }
 
-impl ::Value for Nil {
+impl crate::Value for Nil {
 	fn type_str(&self) -> &'static str { "nil" }
 
-	fn serialize(&self,  _: &mut Vec<*const ::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_none()
 	}
 
-	fn to_string(&self) -> ::Val {
-		::Val::new_atomic("nil".to_owned())
+	fn to_string(&self) -> crate::Val {
+		crate::Val::new_atomic("nil".to_owned())
 	}
 
 	fn to_bool(&self) -> bool {
@@ -24,8 +24,8 @@ impl ::Value for Nil {
 	}
 }
 
-impl ::SameOps for Nil {
-	fn eq(&self, _: &Self) -> ::Val {
-		::bool::get(true)
+impl crate::SameOps for Nil {
+	fn eq(&self, _: &Self) -> crate::Val {
+		crate::bool::get(true)
 	}
 }

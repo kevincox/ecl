@@ -3,25 +3,25 @@ use std;
 #[derive(Clone)]
 pub struct Err {
 	msg: String,
-	loc: ::grammar::Loc,
-	chained: ::Inline,
+	loc: crate::grammar::Loc,
+	chained: crate::Inline,
 }
 
 impl Err {
-	pub fn new(msg: String) -> ::Val {
-		Self::new_at(::grammar::Loc{line: 0, col: 0}, msg)
+	pub fn new(msg: String) -> crate::Val {
+		Self::new_at(crate::grammar::Loc{line: 0, col: 0}, msg)
 	}
 
-	pub fn new_at(loc: ::grammar::Loc, msg: String) -> ::Val {
-		::Val::new_atomic(Err{msg, loc, chained: ::Inline::Nil})
+	pub fn new_at(loc: crate::grammar::Loc, msg: String) -> crate::Val {
+		crate::Val::new_atomic(Err{msg, loc, chained: crate::Inline::Nil})
 	}
 
-	pub fn new_from_at(chained: ::Val, loc: ::grammar::Loc, msg: String) -> ::Val {
+	pub fn new_from_at(chained: crate::Val, loc: crate::grammar::Loc, msg: String) -> crate::Val {
 		debug_assert!(chained.is_err(), "Expected to chain to error got {:#?}", chained);
-		::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
+		crate::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
 	}
 
-	fn from(e: &std::error::Error) -> ::Val {
+	fn from(e: &std::error::Error) -> crate::Val {
 		if let Some(sub) = e.source() {
 			Self::from(sub).annotate(e.description())
 		} else {
@@ -30,16 +30,16 @@ impl Err {
 	}
 }
 
-impl ::Value for Err {
+impl crate::Value for Err {
 	fn type_str(&self) -> &'static str { "err" }
 	fn is_err(&self) -> bool { true }
 
-	fn eval(&self) -> Result<(),::Val> {
-		Err(::Val::new_atomic((*self).clone()))
+	fn eval(&self) -> Result<(),crate::Val> {
+		Err(crate::Val::new_atomic((*self).clone()))
 	}
 }
 
-impl ::SameOps for Err {
+impl crate::SameOps for Err {
 }
 
 impl std::fmt::Debug for Err {
@@ -55,7 +55,7 @@ impl std::fmt::Debug for Err {
 	}
 }
 
-impl<E: std::error::Error> std::convert::From<E> for ::Val {
+impl<E: std::error::Error> std::convert::From<E> for crate::Val {
 	fn from(e: E) -> Self {
 		Err::from(&e)
 	}

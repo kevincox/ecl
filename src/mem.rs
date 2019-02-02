@@ -35,7 +35,7 @@ impl Drop for State {
 
 #[derive(Debug)]
 pub struct Data {
-	allocated: Vec<Rc<::Value>>,
+	allocated: Vec<Rc<crate::Value>>,
 }
 
 #[derive(Clone,Debug)]
@@ -53,8 +53,8 @@ impl Handle {
 	fn get(&self) -> &Pool {
 		let this = unsafe { &*self.0.get() };
 		match *this.state.borrow_mut() {
-			State::Merged(ref handle) => ::i_promise_this_will_stay_alive(handle.get()),
-			State::Owning(_) => ::i_promise_this_will_stay_alive(this),
+			State::Merged(ref handle) => crate::i_promise_this_will_stay_alive(handle.get()),
+			State::Owning(_) => crate::i_promise_this_will_stay_alive(this),
 			State::Dead => panic!("Dereferencing dead weak handle."),
 		}
 	}
@@ -203,7 +203,7 @@ impl PoolHandle {
 		WeakPoolHandle(self.0.clone())
 	}
 
-	pub fn push(&self, v: Rc<::Value>) {
+	pub fn push(&self, v: Rc<crate::Value>) {
 		debug_assert!(!self.is_empty());
 
 		let pool = self.0.get();

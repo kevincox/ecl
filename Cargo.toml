@@ -1,5 +1,6 @@
 [package]
 authors = ["Kevin Cox <kevincox@kevincox.ca>"]
+edition = "2018"
 name = "ecl"
 version = "0.1.0"
 license = "Apache-2.0"

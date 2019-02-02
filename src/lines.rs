@@ -182,7 +182,7 @@ impl<W: std::io::Write> serde::Serializer for Serializer<W> {
 	}
 
 	fn serialize_seq(&mut self, _len: Option<usize>) -> Result<Self::SeqState> {
-		try!(self.write("LIST", "["));
+		r#try!(self.write("LIST", "["));
 		Ok(0)
 	}
 
@@ -199,7 +199,7 @@ impl<W: std::io::Write> serde::Serializer for Serializer<W> {
 	{
 		*state += 1;
 		self.push(&state.to_string());
-		try!(value.serialize(self));
+		r#try!(value.serialize(self));
 		self.pop();
 		Ok(())
 	}
@@ -283,7 +283,7 @@ impl<W: std::io::Write> serde::Serializer for Serializer<W> {
 		_: &mut Self::MapState,
 		value: T,
 	) -> Result<()> {
-		try!(value.serialize(self));
+		r#try!(value.serialize(self));
 		self.pop();
 		Ok(())
 	}
