@@ -1,6 +1,4 @@
-#![feature(io)]
 #![feature(plugin)]
-#![feature(proc_macro)]
 #![feature(slice_patterns)]
 #![feature(try_from)]
 #![feature(try_trait)]
@@ -522,17 +520,15 @@ pub fn eval(source: &str, doc: &str) -> Val {
 }
 
 pub fn parse_file(path: &str) -> Result<::Almost,::grammar::ParseError> {
-	let file = match std::fs::File::open(path) {
+	let mut file = match std::fs::File::open(path) {
 		Ok(file) => file,
 		Err(e) => panic!("Failed to open {:?}: {:?}", path, e),
 	};
 
-	let mut err = None;
-	let chars = file.chars()
-		.filter_map(|r| r.map_err(|e| err = Some(e)).ok())
-		.fuse();
+	let mut buf = String::with_capacity(4096);
+	file.read_to_string(&mut buf).unwrap();
 
-	grammar::parse(path, chars)
+	grammar::parse(path, buf.chars())
 }
 
 pub fn eval_file(path: &str) -> Val {

@@ -22,7 +22,7 @@ impl Err {
 	}
 
 	fn from(e: &std::error::Error) -> ::Val {
-		if let Some(sub) = e.cause() {
+		if let Some(sub) = e.source() {
 			Self::from(sub).annotate(e.description())
 		} else {
 			Err::new(e.description().to_string())
