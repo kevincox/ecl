@@ -33,7 +33,6 @@ macro_rules! codes {
 }
 
 codes!{Op
-	Ret,
 	Global,
 	Add,
 	Call,
@@ -322,9 +321,7 @@ impl CompileContext {
 	}
 
 	fn compile(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
-		let off = self.compile_expr(ast)?;
-		self.write_op(Op::Ret);
-		Ok(off)
+		self.compile_expr(ast)
 	}
 
 	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
@@ -414,8 +411,8 @@ impl CompileContext {
 				Ok(off)
 			},
 			crate::Almost::Neg(_, v) => {
-				let off = self.compile_expr(*v)?;
-				self.write_op(Op::Neg);
+				let off = self.write_op(Op::Neg);
+				self.compile_expr(*v)?;
 				Ok(off)
 			}
 			crate::Almost::Nil => self.compile_global(0),
@@ -454,8 +451,8 @@ impl CompileContext {
 				}
 			}
 			crate::Almost::Str(parts) => {
-				let off = self.write_op(Op::Str);
-				self.write_str("");
+				let off = self.write_op(Op::Interpolate);
+				self.write_varint(parts.len());
 				for part in parts {
 					match part {
 						crate::StringPart::Exp(s) => {
@@ -466,7 +463,6 @@ impl CompileContext {
 							self.write_str(&s);
 						},
 					}
-					self.write_op(Op::Interpolate);
 				}
 				Ok(off)
 			}
@@ -484,9 +480,9 @@ impl CompileContext {
 	fn compile_binary_op(&mut self, op: Op, left: crate::Almost, right: crate::Almost)
 		-> Result<usize,crate::Val>
 	{
-		let off = self.compile_expr(left)?;
+		let off = self.write_op(op);
+		self.compile_expr(left)?;
 		self.compile_expr(right)?;
-		self.write_op(op);
 		Ok(off)
 	}
 
@@ -599,165 +595,153 @@ struct EvalContext {
 }
 
 impl EvalContext {
-	pub fn eval(&mut self) -> crate::Val {
+	pub fn eval(&self) -> crate::Val {
 		// eprintln!("Executing @ {}", self.pc);
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
 		cursor.set_position(self.pc as u64);
+		self.eval_at(&mut cursor)
+	}
 
-		let mut stack = Vec::new();
-		let r = loop {
-			let op = Op::from(cursor.read_u8().unwrap())?;
-			// eprintln!("Executing OP {:?} @ {}", op, cursor.position() as usize - 1);
-			match op {
-				Op::Ret => {
-					assert_eq!(stack.len(), 1);
-					break stack.pop().unwrap()
-				},
-				Op::Global => {
-					let id = cursor.read_varint();
-					stack.push(crate::builtins::get_id(id));
+	fn eval_at(&self, cursor: &mut std::io::Cursor<&[u8]>) -> crate::Val {
+		let op = Op::from(cursor.read_u8().unwrap())?;
+		// eprintln!("Executing OP {:?} @ {}", op, cursor.position() as usize - 1);
+		match op {
+			Op::Global => {
+				let id = cursor.read_varint();
+				crate::builtins::get_id(id)
+			}
+			Op::Add => {
+				let l = self.eval_at(cursor).annotate("On left side of add");
+				let r = self.eval_at(cursor).annotate("On right side of add");
+				l.add(r)
+			}
+			Op::Call => {
+				self.eval_at(cursor).call(self.eval_at(cursor))
+			}
+			Op::Ge => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Less)
+			}
+			Op::Gt => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater)
+			}
+			Op::Eq => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l == r)
+			}
+			Op::Lt => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Less)
+			}
+			Op::Le => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater)
+			}
+			Op::ADict => {
+				let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
+				let key = cursor.read_str();
+				crate::dict::Dict::new_adict(
+					self.parent.clone(),
+					key.to_owned(),
+					Value::new(self.module.clone(), childoff))
+			}
+			Op::Dict => {
+				let len = cursor.read_varint();
+				let mut items = Vec::with_capacity(len);
+				for _ in 0..len {
+					let key = match DictItem::from(cursor.read_u8().unwrap())? {
+						DictItem::Pub => crate::dict::Key::Pub(cursor.read_str().to_owned()),
+						DictItem::Local => {
+							let mut id = cursor.read_varint();
+							id += self.module.unique_id();
+							crate::dict::Key::Local(id)
+						},
+					};
+					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+					items.push((key, Value::new(self.module.clone(), offset)));
 				}
-				Op::Add => {
-					let right = stack.pop().expect("One item in stack for add")
-						.annotate("On right side of add");
-					let left = stack.pop().expect("No items in stack for add")
-						.annotate("On left side of add");
-					stack.push(left.add(right));
-				}
-				Op::Call => {
-					let right = stack.pop().expect("One item in stack for call");
-					let left = stack.pop().expect("No items in stack for call");
-					stack.push(left.call(right));
-				}
-				Op::Ge => {
-					let r = stack.pop().expect("One item in stack for >=");
-					let l = stack.pop().expect("No items in stack for >=");
-					stack.push(crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Less))
-				}
-				Op::Gt => {
-					let r = stack.pop().expect("One item in stack for >");
-					let l = stack.pop().expect("No items in stack for >");
-					stack.push(crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater))
-				}
-				Op::Eq => {
-					let right = stack.pop().expect("One item in stack for ==");
-					let left = stack.pop().expect("No items in stack for ==");
-					stack.push(crate::bool::get(left == right));
-				}
-				Op::Lt => {
-					let r = stack.pop().expect("One item in stack for <");
-					let l = stack.pop().expect("No items in stack for <");
-					stack.push(crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Less))
-				}
-				Op::Le => {
-					let r = stack.pop().expect("One item in stack for <=");
-					let l = stack.pop().expect("No items in stack for <=");
-					stack.push(crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater))
-				}
-				Op::ADict => {
-					let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
-					let key = cursor.read_str();
-					stack.push(crate::dict::Dict::new_adict(
-						self.parent.clone(),
-						key.to_owned(),
-						Value::new(self.module.clone(), childoff)));
-				}
-				Op::Dict => {
-					let len = cursor.read_varint();
-					let mut items = Vec::with_capacity(len);
-					for _ in 0..len {
-						let key = match DictItem::from(cursor.read_u8().unwrap())? {
-							DictItem::Pub => crate::dict::Key::Pub(cursor.read_str().to_owned()),
-							DictItem::Local => {
-								let mut id = cursor.read_varint();
-								id += self.module.unique_id();
-								crate::dict::Key::Local(id)
-							},
-						};
-						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
-						items.push((key, Value::new(self.module.clone(), offset)));
-					}
-					stack.push(crate::dict::Dict::new(self.parent.clone(), items));
-				}
-				Op::Func => {
-					let bodyoff = cursor.read_ref();
-					stack.push(crate::func::Func::new(
-						self.parent.clone(),
-						Func::new(self.module.clone(), bodyoff)));
-				}
-				Op::Index => {
-					let key = stack.pop().expect("No items in stack for index");
-					let val = stack.pop().expect("One item in stack for index");
-					stack.push(val.index(key));
-				}
-				Op::Interpolate => {
-					let b = stack.pop().expect("No items in stack for interpolate");
+				crate::dict::Dict::new(self.parent.clone(), items)
+			}
+			Op::Func => {
+				let bodyoff = cursor.read_ref();
+				crate::func::Func::new(
+					self.parent.clone(),
+					Func::new(self.module.clone(), bodyoff))
+			}
+			Op::Index => {
+				let val = self.eval_at(cursor);
+				let key = self.eval_at(cursor);
+				val.index(key)
+			}
+			Op::Interpolate => {
+				let mut buf = String::new();
+
+				let chunks = cursor.read_varint();
+				for _ in 0..chunks {
+					let b = self.eval_at(cursor);
 					let b = b.to_string();
 					let b = b.get_str().unwrap();
+					buf += b;
+				}
 
-					let a = stack.pop().expect("One item in stack for interpolate");
-					let a = a.get_str().expect("Interpolating to something not a string.");
-
-					let r = a.to_owned() + b;
-					stack.push(crate::Val::new_atomic(r))
-				}
-				Op::List => {
-					let len = cursor.read_varint();
-					let mut items = Vec::with_capacity(len);
-					for _ in 0..len {
-						let offset = cursor.read_u64::<EclByteOrder>().unwrap();
-						items.push(Value::new(self.module.clone(), offset));
-					}
-					stack.push(crate::list::List::new(self.parent.clone(), items));
-				}
-				Op::Neg => {
-					let v = stack.pop().expect("No items in stack for neg");
-					stack.push(v.neg());
-				}
-				Op::Num => {
-					let num = cursor.read_f64::<EclByteOrder>().unwrap();
-					// eprintln!("Num: {}", num);
-					stack.push(crate::Val::new_num(num));
-				}
-				Op::Ref => {
-					let strkey = cursor.read_str();
-					let depth = cursor.read_varint();
-					let mut id = cursor.read_varint();
-					let key = if id == 0 {
-						crate::dict::Key::Pub(strkey.to_owned())
-					} else {
-						id += self.module.unique_id();
-						crate::dict::Key::Local(id)
-					};
-					// eprintln!("Ref: {:?}@{} {:?}", key, depth, strkey);
-					let v = self.parent.structural_lookup(depth, &key)
-						.annotate_with(|| format!("Referenced by {:?}", strkey));
-					stack.push(v);
-				}
-				Op::RefRel => {
-					let key = cursor.read_str();
-					let depth = cursor.read_varint();
-					let key = crate::dict::Key::Pub(key.to_owned());
-					stack.push(self.parent.structural_lookup(depth, &key));
-				}
-				Op::Str => {
-					let s = crate::str::CodeString {
-						module: self.module.clone(),
-						len: cursor.read_varint(),
-						offset: std::convert::TryInto::try_into(cursor.position()).unwrap(),
-					};
-					cursor.consume(s.len);
-					stack.push(crate::Val::new_atomic(s));
-				}
-				Op::Sub => {
-					let right = stack.pop().expect("One item in stack for add");
-					let left = stack.pop().expect("No items in stack for add");
-					stack.push(left.subtract(right));
-				}
+				crate::Val::new_atomic(buf)
 			}
-		};
-
-		r
+			Op::List => {
+				let len = cursor.read_varint();
+				let mut items = Vec::with_capacity(len);
+				for _ in 0..len {
+					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+					items.push(Value::new(self.module.clone(), offset));
+				}
+				crate::list::List::new(self.parent.clone(), items)
+			}
+			Op::Neg => {
+				self.eval_at(cursor).neg()
+			}
+			Op::Num => {
+				let num = cursor.read_f64::<EclByteOrder>().unwrap();
+				// eprintln!("Num: {}", num);
+				crate::Val::new_num(num)
+			}
+			Op::Ref => {
+				let strkey = cursor.read_str();
+				let depth = cursor.read_varint();
+				let mut id = cursor.read_varint();
+				let key = if id == 0 {
+					crate::dict::Key::Pub(strkey.to_owned())
+				} else {
+					id += self.module.unique_id();
+					crate::dict::Key::Local(id)
+				};
+				// eprintln!("Ref: {:?}@{} {:?}", key, depth, strkey);
+				self.parent.structural_lookup(depth, &key)
+					.annotate_with(|| format!("Referenced by {:?}", strkey))
+			}
+			Op::RefRel => {
+				let key = cursor.read_str();
+				let depth = cursor.read_varint();
+				let key = crate::dict::Key::Pub(key.to_owned());
+				self.parent.structural_lookup(depth, &key)
+			}
+			Op::Str => {
+				let s = crate::str::CodeString {
+					module: self.module.clone(),
+					len: cursor.read_varint(),
+					offset: std::convert::TryInto::try_into(cursor.position()).unwrap(),
+				};
+				cursor.consume(s.len);
+				crate::Val::new_atomic(s)
+			}
+			Op::Sub => {
+				self.eval_at(cursor).subtract(self.eval_at(cursor))
+			}
+		}
 	}
 }
 
@@ -942,6 +926,6 @@ mod tests {
 	fn compile_global() {
 		assert_eq!(
 			compile_to_vec(crate::Almost::Nil),
-			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x01\x01\0".as_ref().into()));
+			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x00\x01".as_ref().into()));
 	}
 }
