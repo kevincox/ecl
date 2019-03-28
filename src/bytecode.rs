@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 const MAGIC: &[u8] = b"ECL\0v001";
 const START_OFFSET: usize = 8;
+const DEBUG_OFFSET: usize = 16;
 
 macro_rules! codes {
 	( $type:ident $( $item:ident, )* ) => {
@@ -121,10 +122,10 @@ impl ToCompile {
 				let crate::func::FuncData{arg, body} = data;
 				let off = match arg {
 					crate::func::Arg::One(arg) => {
-						let argoff = ctx.write_u8(ArgType::One.to());
+						let argoff = ctx.out.write_u8(ArgType::One.to());
 
 						let (k, id) = ctx.new_var(arg.clone(), false);
-						ctx.write_varint(id);
+						ctx.out.write_varint(id);
 
 						ctx.scope = Rc::new(Scope{
 							vars: vec![(k, id)],
@@ -158,17 +159,17 @@ impl ToCompile {
 							})
 							.collect::<Vec<_>>();
 
-						let argoff = ctx.write_u8(ArgType::Dict.to());
-						ctx.write_usize(args.len());
+						let argoff = ctx.out.write_u8(ArgType::Dict.to());
+						ctx.out.write_usize(args.len());
 						for (key, off) in args {
 							let off = off?;
 
-							ctx.write_str(&key);
+							ctx.out.write_str(&key);
 							if off == 0 {
-								ctx.write_u8(ArgReq::Required.to());
+								ctx.out.write_u8(ArgReq::Required.to());
 							} else {
-								ctx.write_u8(ArgReq::Optional.to());
-								ctx.write_usize(off);
+								ctx.out.write_u8(ArgReq::Optional.to());
+								ctx.out.write_usize(off);
 							}
 						}
 
@@ -199,17 +200,17 @@ impl ToCompile {
 							})
 							.collect::<Vec<_>>();
 
-						let argoff = ctx.write_u8(ArgType::List.to());
-						ctx.write_varint(args.len());
+						let argoff = ctx.out.write_u8(ArgType::List.to());
+						ctx.out.write_varint(args.len());
 						for (id, off) in args {
 							let off = off?;
 
-							ctx.write_varint(id);
+							ctx.out.write_varint(id);
 							if off == 0 {
-								ctx.write_u8(ArgReq::Required.to());
+								ctx.out.write_u8(ArgReq::Required.to());
 							} else {
-								ctx.write_u8(ArgReq::Optional.to());
-								ctx.write_usize(off);
+								ctx.out.write_u8(ArgReq::Optional.to());
+								ctx.out.write_usize(off);
 							}
 						}
 
@@ -224,28 +225,24 @@ impl ToCompile {
 	}
 }
 
-struct CompileContext {
-	bytes: Vec<u8>,
-	last_local: usize,
-	compile_queue: Vec<ToCompile>,
-	scope: Rc<Scope>,
+struct Buffer {
+	data: Vec<u8>,
 }
 
-impl CompileContext {
-	fn new_var(&mut self, name: String, public: bool) -> (String, usize) {
-		let id = if public {
-			0
-		} else {
-			self.last_local += 1;
-			self.last_local
-		};
+impl Buffer {
+	fn new() -> Self {
+		Buffer {
+			data: Vec::new(),
+		}
+	}
 
-		(name, id)
+	fn len(&self) -> usize {
+		self.data.len()
 	}
 
 	fn write<T: IntoIterator<Item=u8>>(&mut self, bytes: T) -> usize {
-		let start_offset = self.bytes.len();
-		self.bytes.extend(bytes);
+		let start_offset = self.data.len();
+		self.data.extend(bytes);
 		start_offset
 	}
 
@@ -296,13 +293,9 @@ impl CompileContext {
 		self.write(buf.into_iter().cloned())
 	}
 
-	fn write_op(&mut self, op: Op) -> usize {
-		self.write_u8(op.to())
-	}
-
 	fn write_str(&mut self, s: &str) -> usize {
 		let off = self.write_varint(s.len());
-		self.write(s.bytes());
+		self.write(s.as_bytes().iter().cloned());
 		off
 	}
 
@@ -310,8 +303,40 @@ impl CompileContext {
 		return self.write_u64(0)
 	}
 
+	fn write_reference(&mut self, ref_off: usize, code_off: usize) {
+		let code_off = std::convert::TryFrom::try_from(code_off).unwrap();
+		EclByteOrder::write_u64(&mut self.data[ref_off..][..8], code_off);
+	}
+
+	fn to_bytes(self) -> Vec<u8> {
+		self.data
+	}
+}
+
+struct CompileContext {
+	out: Buffer,
+	last_local: usize,
+	compile_queue: Vec<ToCompile>,
+	scope: Rc<Scope>,
+
+	debug: Buffer,
+	debug_last: usize,
+}
+
+impl CompileContext {
+	fn new_var(&mut self, name: String, public: bool) -> (String, usize) {
+		let id = if public {
+			0
+		} else {
+			self.last_local += 1;
+			self.last_local
+		};
+
+		(name, id)
+	}
+
 	fn compile_outofline(&mut self, scope: Rc<Scope>, node: crate::Almost) -> usize {
-		let ref_off = self.reserve_reference();
+		let ref_off = self.out.reserve_reference();
 		self.compile_queue.push(ToCompile{
 			ref_off,
 			item: Compilable::Almost(node),
@@ -326,7 +351,8 @@ impl CompileContext {
 
 	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
 		match ast {
-			crate::Almost::Add(_, left, right) => {
+			crate::Almost::Add(loc, left, right) => {
+				self.write_debug(loc);
 				self.compile_binary_op(Op::Add, *left, *right)
 			}
 			crate::Almost::Call(_, left, right) => {
@@ -351,7 +377,7 @@ impl CompileContext {
 				let off = self.write_op(Op::ADict);
 				let scope = self.scope.clone();
 				self.compile_outofline(scope, *element);
-				self.write_str(&key);
+				self.out.write_str(&key);
 				Ok(off)
 			}
 			crate::Almost::Dict(elements) => {
@@ -371,16 +397,16 @@ impl CompileContext {
 				});
 
 				let off = self.write_op(Op::Dict);
-				self.write_varint(elements.len());
+				self.out.write_varint(elements.len());
 				for (key, id, val) in elements {
 					match id {
 						0 => {
-							self.write_u8(DictItem::Pub.to());
-							self.write_str(&key);
+							self.out.write_u8(DictItem::Pub.to());
+							self.out.write_str(&key);
 						}
 						id => {
-							self.write_u8(DictItem::Local.to());
-							self.write_varint(id);
+							self.out.write_u8(DictItem::Local.to());
+							self.out.write_varint(id);
 						}
 					}
 					self.compile_outofline(scope.clone(), val);
@@ -390,7 +416,7 @@ impl CompileContext {
 			}
 			crate::Almost::Func(data) => {
 				let off = self.write_op(Op::Func);
-				let refoff = self.reserve_reference();
+				let refoff = self.out.reserve_reference();
 				self.compile_queue.push(ToCompile{
 					ref_off: refoff,
 					item: Compilable::Func(data),
@@ -403,7 +429,7 @@ impl CompileContext {
 			}
 			crate::Almost::List(elements) => {
 				let off = self.write_op(Op::List);
-				self.write_varint(elements.len());
+				self.out.write_varint(elements.len());
 				for element in elements {
 					let scope = self.scope.clone();
 					self.compile_outofline(scope, element);
@@ -418,19 +444,19 @@ impl CompileContext {
 			crate::Almost::Nil => self.compile_global(0),
 			crate::Almost::Num(n) => {
 				let off = self.write_op(Op::Num);
-				self.write_f64(n);
+				self.out.write_f64(n);
 				Ok(off)
 			}
 			crate::Almost::Ref(loc, name) => {
 				if let Some((depth, id)) = self.scope.find(&name) {
 					let off = self.write_op(Op::Ref);
-					self.write_str(&name); // TODO: remove this.
-					self.write_varint(depth);
-					self.write_varint(id);
+					self.out.write_str(&name); // TODO: remove this.
+					self.out.write_varint(depth);
+					self.out.write_varint(id);
 					Ok(off)
 				} else if let Some(id) = crate::builtins::builtin_id(&name) {
 					let off = self.write_op(Op::Global);
-					self.write_varint(id);
+					self.out.write_varint(id);
 					Ok(off)
 				} else {
 					Err(crate::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
@@ -439,20 +465,20 @@ impl CompileContext {
 			crate::Almost::StructRef(_, depth, key) => {
 				if let Some(id) = self.scope.find_at(&key, depth) {
 					let off = self.write_op(Op::Ref);
-					self.write_str(&key); // TODO: remove this.
-					self.write_varint(depth);
-					self.write_varint(id);
+					self.out.write_str(&key); // TODO: remove this.
+					self.out.write_varint(depth);
+					self.out.write_varint(id);
 					Ok(off)
 				} else {
 					let off = self.write_op(Op::RefRel);
-					self.write_str(&key); // TODO: remove this.
-					self.write_varint(depth);
+					self.out.write_str(&key); // TODO: remove this.
+					self.out.write_varint(depth);
 					Ok(off)
 				}
 			}
 			crate::Almost::Str(parts) => {
 				let off = self.write_op(Op::Interpolate);
-				self.write_varint(parts.len());
+				self.out.write_varint(parts.len());
 				for part in parts {
 					match part {
 						crate::StringPart::Exp(s) => {
@@ -460,7 +486,7 @@ impl CompileContext {
 						},
 						crate::StringPart::Lit(s) => {
 							self.write_op(Op::Str);
-							self.write_str(&s);
+							self.out.write_str(&s);
 						},
 					}
 				}
@@ -468,7 +494,7 @@ impl CompileContext {
 			}
 			crate::Almost::StrStatic(s) => {
 				let off = self.write_op(Op::Str);
-				self.write_str(&s);
+				self.out.write_str(&s);
 				Ok(off)
 			}
 			crate::Almost::Sub(_, left, right) => {
@@ -488,33 +514,59 @@ impl CompileContext {
 
 	fn compile_global(&mut self, global: usize) -> Result<usize,crate::Val> {
 		let off = self.write_op(Op::Global);
-		self.write_varint(global);
+		self.out.write_varint(global);
 		Ok(off)
+	}
+
+	fn write_op(&mut self, op: Op) -> usize {
+		self.out.write_u8(op.to())
+	}
+
+	fn write_debug(&mut self, start: crate::grammar::Loc) {
+		let new_bytes = self.out.len() - self.debug_last;
+		self.debug_last = self.out.len();
+
+		self.debug.write_varint(new_bytes);
+
+		self.debug.write_varint(start.line);
+		self.debug.write_varint(start.col);
+
+		// self.write_varint(end.line - start.line);
+		// self.write_varint(end.col);
 	}
 }
 
 pub fn compile_to_vec(ast: crate::Almost) -> Result<Vec<u8>,crate::Val> {
 	let mut ctx = CompileContext{
-		bytes: MAGIC.to_owned(),
+		out: Buffer::new(),
 		last_local: 0,
 		compile_queue: Vec::new(),
 		scope: Rc::new(Scope{
 			vars: Vec::new(),
 			parent: None,
 		}),
+
+		debug: Buffer::new(),
+		debug_last: 0,
 	};
 
-	let scope = ctx.scope.clone();
-	ctx.compile_outofline(scope, ast);
+	ctx.out.write(MAGIC.iter().cloned());
+
+	ctx.compile_outofline(ctx.scope.clone(), ast);
+
+	let debug_ref = ctx.out.reserve_reference();
 
 	while let Some(compilable) = ctx.compile_queue.pop() {
 		let ref_off = compilable.ref_off;
 		let code_off = compilable.compile(&mut ctx)?;
-		let code_off = std::convert::TryFrom::try_from(code_off).unwrap();
-		EclByteOrder::write_u64(&mut ctx.bytes[ref_off..][..8], code_off);
+		ctx.out.write_reference(ref_off, code_off);
 	}
 
-	Ok(ctx.bytes)
+	let debug_off = ctx.out.write(ctx.debug.to_bytes());
+	ctx.out.write_varint(ctx.out.len()); // Sentinel after last record.
+	ctx.out.write_reference(debug_ref, debug_off);
+
+	Ok(ctx.out.to_bytes())
 }
 
 #[derive(PartialEq)]
@@ -532,12 +584,17 @@ impl Module {
 		self.read_u64(START_OFFSET)
 	}
 
+	fn start_debug(&self) -> u64 {
+		self.read_u64(DEBUG_OFFSET)
+	}
+
 	fn read_u64(&self, i: usize) -> u64 {
 		EclByteOrder::read_u64(&self.code[i..(i+8)])
 	}
 }
 
 trait CursorExt<'a> {
+	fn pos(&self) -> usize;
 	fn read_usize(&mut self) -> usize;
 	fn read_varint(&mut self) -> usize;
 	fn read_ref(&mut self) -> usize;
@@ -545,6 +602,10 @@ trait CursorExt<'a> {
 }
 
 impl<'a> CursorExt<'a> for std::io::Cursor<&'a [u8]> {
+	fn pos(&self) -> usize {
+		self.position() as usize
+	}
+
 	#[inline]
 	fn read_usize(&mut self) -> usize {
 		let n = self.read_u64::<EclByteOrder>().unwrap();
@@ -603,6 +664,7 @@ impl EvalContext {
 	}
 
 	fn eval_at(&self, cursor: &mut std::io::Cursor<&[u8]>) -> crate::Val {
+		let off = cursor.pos();
 		let op = Op::from(cursor.read_u8().unwrap())?;
 		// eprintln!("Executing OP {:?} @ {}", op, cursor.position() as usize - 1);
 		match op {
@@ -611,8 +673,10 @@ impl EvalContext {
 				crate::builtins::get_id(id)
 			}
 			Op::Add => {
-				let l = self.eval_at(cursor).annotate("On left side of add");
-				let r = self.eval_at(cursor).annotate("On right side of add");
+				let l = self.eval_at(cursor)
+					.annotate_at_with(|| (self.loc(off), "On left side of add".into()));
+				let r = self.eval_at(cursor)
+					.annotate_at_with(|| (self.loc(off), "On right side of add".into()));
 				l.add(r)
 			}
 			Op::Call => {
@@ -741,6 +805,23 @@ impl EvalContext {
 			Op::Sub => {
 				self.eval_at(cursor).subtract(self.eval_at(cursor))
 			}
+		}
+	}
+
+	fn loc(&self, off: usize) -> crate::grammar::Loc {
+		let debug_off = self.module.start_debug() as usize;
+		let mut cursor = std::io::Cursor::new(&self.module.code[debug_off..]);
+
+		let mut loc = crate::grammar::Loc{line: 0, col: 0};
+
+		loop {
+			let rec_off = cursor.read_varint();
+			if rec_off > off {
+				return loc
+			}
+
+			loc.line = cursor.read_varint();
+			loc.col = cursor.read_varint();
 		}
 	}
 }
@@ -926,6 +1007,6 @@ mod tests {
 	fn compile_global() {
 		assert_eq!(
 			compile_to_vec(crate::Almost::Nil),
-			Ok(b"ECL\0v001\x10\0\0\0\0\0\0\0\x00\x01".as_ref().into()));
+			Ok(b"ECL\0v001\x18\0\0\0\0\0\0\0\x1A\0\0\0\0\0\0\0\x00\x01\x35".as_ref().into()));
 	}
 }

@@ -13,9 +13,15 @@ fn main() {
 
 		let statm_pre = procinfo::pid::statm_self().unwrap();
 		(0..100).for_each(&testcase);
-		let statm_post = procinfo::pid::statm_self().unwrap();
+		let statm_post1 = procinfo::pid::statm_self().unwrap();
+		(0..100).for_each(&testcase);
+		let statm_post2 = procinfo::pid::statm_self().unwrap();
 
 		// Surprisingly this appears to be predictable enough.
-		assert_eq!(statm_pre.size, statm_post.size);
+		assert!(
+			statm_pre.size >= statm_post1.size ||
+			statm_post1.size >= statm_post2.size,
+			"Leaking memory: {} {} {}",
+			statm_pre.size, statm_post1.size, statm_post2.size);
 	})
 }
