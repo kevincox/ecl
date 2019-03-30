@@ -449,14 +449,15 @@ pub enum Almost {
 	Add(grammar::Loc, Box<Almost>, Box<Almost>),
 	Sub(grammar::Loc, Box<Almost>, Box<Almost>),
 	Call(grammar::Loc, Box<Almost>, Box<Almost>),
-	Eq(Box<Almost>, Box<Almost>),
-	Great(Box<Almost>, Box<Almost>),
-	GreatEq(Box<Almost>, Box<Almost>),
-	Less(Box<Almost>, Box<Almost>),
-	LessEq(Box<Almost>, Box<Almost>),
+	Eq(grammar::Loc, Box<Almost>, Box<Almost>),
+	Great(grammar::Loc, Box<Almost>, Box<Almost>),
+	GreatEq(grammar::Loc, Box<Almost>, Box<Almost>),
+	Less(grammar::Loc, Box<Almost>, Box<Almost>),
+	LessEq(grammar::Loc, Box<Almost>, Box<Almost>),
 	Func(Box<func::FuncData>),
 	Index(grammar::Loc, Box<Almost>, Box<Almost>),
 	List(Vec<Almost>),
+	Ne(grammar::Loc, Box<Almost>, Box<Almost>),
 	Neg(grammar::Loc, Box<Almost>),
 	Nil,
 	Num(f64),
@@ -482,11 +483,11 @@ impl std::fmt::Debug for Almost {
 				write!(f, "}}")
 			}
 			Almost::Call(_, ref func, ref a) => write!(f, "({:?}:{:?})", func, a),
-			Almost::Eq(ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
-			Almost::Great(ref l, ref r) => write!(f, "({:?} > {:?})", l, r),
-			Almost::GreatEq(ref l, ref r) => write!(f, "({:?} >= {:?})", l, r),
-			Almost::Less(ref l, ref r) => write!(f, "({:?} < {:?})", l, r),
-			Almost::LessEq(ref l, ref r) => write!(f, "({:?} <= {:?})", l, r),
+			Almost::Eq(_, ref l, ref r) => write!(f, "({:?} == {:?})", l, r),
+			Almost::Great(_, ref l, ref r) => write!(f, "({:?} > {:?})", l, r),
+			Almost::GreatEq(_, ref l, ref r) => write!(f, "({:?} >= {:?})", l, r),
+			Almost::Less(_, ref l, ref r) => write!(f, "({:?} < {:?})", l, r),
+			Almost::LessEq(_, ref l, ref r) => write!(f, "({:?} <= {:?})", l, r),
 			Almost::Func(ref fd) => write!(f, "(->{:?} {:?})", fd.arg, fd.body),
 			Almost::Index(_, ref obj, ref key) => write!(f, "{:?}.{:?}", obj, key),
 			Almost::List(ref items) => {
@@ -496,6 +497,7 @@ impl std::fmt::Debug for Almost {
 				}
 				write!(f, "]")
 			}
+			Almost::Ne(_, ref l, ref r) => write!(f, "({:?}) != ({:?})", l, r),
 			Almost::Neg(_, ref v) => write!(f, "-({:?})", v),
 			Almost::Nil => write!(f, "nil"),
 			Almost::Num(n) => write!(f, "{}", n),

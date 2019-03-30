@@ -48,6 +48,7 @@ codes!{Op
 	Index,
 	Interpolate,
 	List,
+	Ne,
 	Neg,
 	Num,
 	Ref,
@@ -353,26 +354,25 @@ impl CompileContext {
 	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize, crate::Val> {
 		match ast {
 			crate::Almost::Add(loc, left, right) => {
-				self.write_debug(loc);
-				self.compile_binary_op(Op::Add, *left, *right)
+				self.compile_binary_op(loc, Op::Add, *left, *right)
 			}
-			crate::Almost::Call(_, left, right) => {
-				self.compile_binary_op(Op::Call, *left, *right)
+			crate::Almost::Call(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Call, *left, *right)
 			}
-			crate::Almost::GreatEq(left, right) => {
-				self.compile_binary_op(Op::Ge, *left, *right)
+			crate::Almost::GreatEq(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Ge, *left, *right)
 			}
-			crate::Almost::Great(left, right) => {
-				self.compile_binary_op(Op::Gt, *left, *right)
+			crate::Almost::Great(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Gt, *left, *right)
 			}
-			crate::Almost::Eq(left, right) => {
-				self.compile_binary_op(Op::Eq, *left, *right)
+			crate::Almost::Eq(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Eq, *left, *right)
 			}
-			crate::Almost::Less(left, right) => {
-				self.compile_binary_op(Op::Lt, *left, *right)
+			crate::Almost::Less(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Lt, *left, *right)
 			}
-			crate::Almost::LessEq(left, right) => {
-				self.compile_binary_op(Op::Le, *left, *right)
+			crate::Almost::LessEq(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Le, *left, *right)
 			}
 			crate::Almost::ADict(key, element) => {
 				let off = self.write_op(Op::ADict);
@@ -429,8 +429,8 @@ impl CompileContext {
 				});
 				Ok(off)
 			}
-			crate::Almost::Index(_, left, right) => {
-				self.compile_binary_op(Op::Index, *left, *right)
+			crate::Almost::Index(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Index, *left, *right)
 			}
 			crate::Almost::List(elements) => {
 				let off = self.write_op(Op::List);
@@ -441,6 +441,9 @@ impl CompileContext {
 				}
 				Ok(off)
 			},
+			crate::Almost::Ne(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Ne, *left, *right)
+			}
 			crate::Almost::Neg(_, v) => {
 				let off = self.write_op(Op::Neg);
 				self.compile_expr(*v)?;
@@ -502,15 +505,19 @@ impl CompileContext {
 				self.out.write_str(&s);
 				Ok(off)
 			}
-			crate::Almost::Sub(_, left, right) => {
-				self.compile_binary_op(Op::Sub, *left, *right)
+			crate::Almost::Sub(loc, left, right) => {
+				self.compile_binary_op(loc, Op::Sub, *left, *right)
 			}
 		}
 	}
 
-	fn compile_binary_op(&mut self, op: Op, left: crate::Almost, right: crate::Almost)
-		-> Result<usize,crate::Val>
-	{
+	fn compile_binary_op(&mut self,
+		loc: crate::grammar::Loc,
+		op: Op,
+		left: crate::Almost,
+		right: crate::Almost,
+	) -> Result<usize,crate::Val> {
+		self.write_debug(loc);
 		let off = self.write_op(op);
 		self.compile_expr(left)?;
 		self.compile_expr(right)?;
@@ -815,6 +822,11 @@ impl EvalContext {
 					items.push(Value::new(self.module.clone(), offset));
 				}
 				crate::list::List::new(self.parent.clone(), items)
+			}
+			Op::Ne => {
+				let l = self.eval_at(cursor);
+				let r = self.eval_at(cursor);
+				crate::bool::get(l.ne(&r))
 			}
 			Op::Neg => {
 				self.eval_at(cursor).neg()

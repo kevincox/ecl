@@ -38,7 +38,9 @@ pub enum Token {
 	LessEq,
 	ListClose,
 	ListOpen,
+	Ne,
 	Neg,
+	Not,
 	Num(f64),
 	ParenClose,
 	ParenOpen,
@@ -316,6 +318,11 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 
 	fn lex_code(&mut self, c: char) -> Option<Token> {
 		Some(match c {
+			'!' => match self.next() {
+				Some('=') => Token::Ne,
+				Some(c) => { self.unget(c); Token::Not },
+				None => Token::Not,
+			}
 			'+' => Token::Add,
 			':' => Token::Call,
 			'0' => self.num(),
@@ -723,11 +730,16 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 
 		loop {
 			match self.next() {
-				Some((Token::Eq, _)) => r = crate::Almost::Eq(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::Great, _)) => r = crate::Almost::Great(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::GreatEq, _)) => r = crate::Almost::GreatEq(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::Less, _)) => r = crate::Almost::Less(Box::new(r), Box::new(self.expr_ops()?)),
-				Some((Token::LessEq, _)) => r = crate::Almost::LessEq(Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Eq, loc)) =>
+					r = crate::Almost::Eq(loc, Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Great, loc)) =>
+					r = crate::Almost::Great(loc, Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::GreatEq, loc)) =>
+					r = crate::Almost::GreatEq(loc, Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::Less, loc)) =>
+					r = crate::Almost::Less(loc, Box::new(r), Box::new(self.expr_ops()?)),
+				Some((Token::LessEq, loc)) =>
+					r = crate::Almost::LessEq(loc, Box::new(r), Box::new(self.expr_ops()?)),
 				Some(other) => { self.unget(other); break },
 				None => break,
 			}
@@ -743,6 +755,9 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 			match self.next() {
 				Some((Token::Add, l)) => {
 					r = crate::Almost::Add(l, Box::new(r), Box::new(self.expr_unary()?))
+				},
+				Some((Token::Ne, l)) => {
+					r = crate::Almost::Ne(l, Box::new(r), Box::new(self.expr_unary()?))
 				},
 				Some((Token::Neg, l)) => {
 					r = crate::Almost::Sub(l, Box::new(r), Box::new(self.expr_unary()?))

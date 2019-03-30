@@ -4,6 +4,12 @@ extern crate serde;
 use std;
 use std::rc::Rc;
 
+enum EvalState {
+	Unchecked,
+	Success,
+	Error(crate::Val),
+}
+
 #[derive(Clone,Debug)]
 pub enum Source {
 	Assert{debug: usize, almost: crate::bytecode::Value},
@@ -49,6 +55,7 @@ pub struct Dict {
 }
 
 struct DictData {
+	state: EvalState,
 	data: Vec<DictPair>,
 	sources: Vec<(Rc<crate::Parent>, Source)>,
 }
@@ -72,6 +79,7 @@ impl Dict {
 		let this = crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
+				state: EvalState::Unchecked,
 				data: Vec::new(),
 				sources: Vec::new(),
 			}),
@@ -100,7 +108,7 @@ impl Dict {
 		let data = vec![
 			DictPair{key, val: val}];
 
-		let source = Source::Entry{
+		let source = Source::Entry {
 			key: Key::Pub(k),
 			almost: item,
 		};
@@ -108,6 +116,7 @@ impl Dict {
 		crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
+				state: EvalState::Success,
 				data: data,
 				sources: vec![(parent, source)],
 			}),
@@ -119,12 +128,15 @@ impl Dict {
 	}
 	
 	fn eval_items(&self) -> Result<(), crate::Val> {
-		if !self.prv.borrow().data.is_empty() {
-			return Ok(())
+		match self.prv.borrow().state {
+			EvalState::Unchecked => {}
+			EvalState::Success => return Ok(()),
+			EvalState::Error(ref e) => return Err(e.clone()),
 		}
 
 		{
 			let DictData {
+				ref mut state,
 				ref mut data,
 				ref sources,
 			} = *self.prv.borrow_mut();
@@ -144,6 +156,9 @@ impl Dict {
 					}
 				}
 			}
+
+			// Not really. But we will convert to an error later if required.
+			*state = EvalState::Success;
 		}
 
 		for (parent, source) in self.sources() {
@@ -151,9 +166,11 @@ impl Dict {
 				Source::Assert{debug, almost} => {
 					let val = almost.eval(parent.clone());
 					if !val.to_bool() {
-						crate::err::Err::new_at(
+						let e = crate::err::Err::new_at(
 							almost.module.loc(*debug),
 							"Assertion failed".into())?;
+						self.prv.borrow_mut().state = EvalState::Error(e.clone());
+						return Err(e)
 					}
 				}
 				Source::Entry{..} => {}
@@ -186,6 +203,7 @@ impl Dict {
 		let this = crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData {
+				state: EvalState::Unchecked,
 				data: Vec::new(),
 				sources: Vec::new(),
 			}),
