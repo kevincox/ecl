@@ -4,4 +4,3 @@ dict.bar	STR	"value"
 dict.foo	STR	"value"
 dict	DICT	}
 	DICT	}
-

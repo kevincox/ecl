@@ -10,24 +10,25 @@ use erased_serde::Serialize;
 fn serialize_val_with(val: ecl::Val, format: &str, compact: bool)
 {
 	match (format, compact) {
-		("json", false) =>
-			val.erased_serialize(&mut serde_json::Serializer::pretty(std::io::stdout()))
-				.unwrap(),
-		("json", true) =>
-			val.erased_serialize(&mut serde_json::Serializer::new(std::io::stdout()))
-				.unwrap(),
-		("lines", _) =>
-			val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout()))
-				.unwrap(),
+		("json", false) => {
+			val.erased_serialize(&mut serde_json::Serializer::pretty(std::io::stdout())).unwrap();
+			println!();
+		}
+		("json", true) => {
+			val.erased_serialize(&mut serde_json::Serializer::new(std::io::stdout())).unwrap();
+			println!();
+		}
+		("lines", _) => {
+			val.erased_serialize(&mut ecl::lines::Serializer::new(std::io::stdout())).unwrap();
+		}
 		("yaml", _) => {
 			let mut vec = Vec::new();
 			let seriliazable = val.rec_ser(&mut vec);
-			serde_yaml::to_writer(&mut std::io::stdout(), &seriliazable)
-				.unwrap()
+			serde_yaml::to_writer(&mut std::io::stdout(), &seriliazable).unwrap();
+			println!();
 		}
 		(other, _) => panic!("Unknown formatter: {:?}", other),
 	}
-	println!();
 }
 
 fn main() {

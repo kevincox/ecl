@@ -1,0 +1,9 @@
+---
+bool: false
+dict: 
+  list: 
+    - 1
+    - 2
+    - 3
+  nil_: ~
+num: 1
