@@ -517,7 +517,7 @@ struct Parser<'a, Input: Iterator<Item=(Token,Loc)>> {
 	directory: &'a str,
 }
 
-impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
+impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 	fn new(path: &'a str, input: Input) -> Self {
 		let last_slash = path.rfind('/').map(|i| i + 1).unwrap_or(0);
 
@@ -596,23 +596,32 @@ impl<'a, Input: Iterator<Item=(Token,Loc)>> Parser<'a, Input> {
 		Ok(crate::Almost::Dict(items))
 	}
 
-	fn dict_item(&mut self) -> Result<crate::dict::AlmostDictElement,ParseError> {
-		let ade = expect_next!{self: "parsing dict element",
+	fn dict_item(&mut self) -> Result<crate::dict::AlmostDictElement, ParseError> {
+		let ade = expect_next! {self: "parsing dict element",
 			(Token::Ident(s), _) => {
-				match s.as_str() {
-					"local" => match self.next() {
-						Some((Token::Ident(s),_)) => {
-							expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
-							return Ok(crate::dict::AlmostDictElement::local(s, self.expr()?))
-						},
-						Some(t) => self.unget(t),
-						None => {},
-					},
-					_ => {},
-				}
+				match self.peek() {
+					Some(Token::Assign) | Some(Token::Dot) => {
+						let val = self.dict_val()?;
+						crate::dict::AlmostDictElement::public(s, val)
+					}
+					_ => {
+						match s.as_str() {
+							"local" => {
+								let name = expect_next!{self: "parsing local name",
+									(Token::Ident(name), _) => name,
+								};
+								expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 
-				let val = self.dict_val()?;
-				crate::dict::AlmostDictElement::public(s, val)
+								crate::dict::AlmostDictElement::local(name, self.expr()?)
+							}
+							_ => {
+								expect_next!{self: "parsing dict key",
+									(Token::Assign, _) => unreachable!("invalid type"),
+								};
+							}
+						}
+					}
+				}
 			},
 			(Token::StrOpen(StrType::String), _) => {
 				let s = expect_next!{self: "parsing quoted dict key",
