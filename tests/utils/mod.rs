@@ -51,6 +51,10 @@ pub fn test_dir<
 		}
 	}
 
+	if tests == 0 {
+		panic!("No tests run.");
+	}
+
 	if errors == 0 {
 		eprintln!("{} tests completed successfully.", tests);
 	} else {
@@ -101,5 +105,3 @@ pub fn diff(expected: &[u8], path: &std::path::Path) {
 		panic!("ERROR: Difference found in {:?}", path);
 	}
 }
-
-// pub fn check_leaks
