@@ -1,5 +1,3 @@
-#![feature(plugin)]
-#![feature(slice_patterns)]
 #![feature(try_trait)]
 
 extern crate byteorder;
