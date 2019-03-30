@@ -5,10 +5,18 @@ use std;
 use std::rc::Rc;
 
 #[derive(Clone,Debug)]
-struct Source {
-	parent: Rc<crate::Parent>,
-	key: Key,
-	almost: crate::bytecode::Value,
+pub enum Source {
+	Assert{almost: crate::bytecode::Value},
+	Entry{key: Key, almost: crate::bytecode::Value},
+}
+
+impl Source {
+	fn sort_key<'a>(&'a self) -> impl Ord + 'a {
+		match self {
+			Source::Assert{..} => (0, &Key::Local(0)),
+			Source::Entry{key, ..} => (1, key),
+		}
+	}
 }
 
 #[derive(Clone,Debug,Eq,Ord,PartialEq,PartialOrd)]
@@ -42,7 +50,7 @@ pub struct Dict {
 
 struct DictData {
 	data: Vec<DictPair>,
-	source: Vec<Source>,
+	sources: Vec<(Rc<crate::Parent>, Source)>,
 }
 
 #[derive(Debug)]
@@ -58,18 +66,18 @@ impl DictPair {
 }
 
 impl Dict {
-	pub fn new(parent: Rc<crate::Parent>, items: Vec<(Key,crate::bytecode::Value)>) -> crate::Val {
+	pub fn new(parent: Rc<crate::Parent>, items: Vec<Source>) -> crate::Val {
 		let pool = crate::mem::PoolHandle::new();
 
 		let this = crate::Val::new(pool.clone(), Dict{
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
-				data: Vec::with_capacity(items.len()),
-				source: Vec::with_capacity(items.len()),
+				data: Vec::new(),
+				sources: Vec::new(),
 			}),
 		});
 
-		let this_parent = Rc::new(ParentSplitter{
+		let this_parent = Rc::new(crate::Parent {
 			parent: this.value.clone(),
 			grandparent: Some(parent.clone()),
 		});
@@ -77,16 +85,7 @@ impl Dict {
 		{
 			let dict = this.downcast_ref::<Dict>().unwrap();
 			let mut prv = dict.prv.borrow_mut();
-
-			for (key, item) in items {
-				prv.source.push(Source{
-					parent: parent.clone(),
-					key: key.clone(),
-					almost: item.clone()
-				});
-				let val = crate::thunk::bytecode(this_parent.clone(), item);
-				prv.data.push(DictPair{key, val});
-			}
+			prv.sources.extend(items.into_iter().map(|item| (this_parent.clone(), item)));
 		}
 
 		this
@@ -101,8 +100,7 @@ impl Dict {
 		let data = vec![
 			DictPair{key, val: val}];
 
-		let source = Source{
-			parent: parent,
+		let source = Source::Entry{
 			key: Key::Pub(k),
 			almost: item,
 		};
@@ -111,15 +109,58 @@ impl Dict {
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData{
 				data: data,
-				source: vec![source],
+				sources: vec![(parent, source)],
 			}),
 		})
 	}
 
-	fn source(&self) -> &[Source] {
-		crate::i_promise_this_will_stay_alive(&*self.prv.borrow().source)
+	fn sources(&self) -> &[(Rc<crate::Parent>, Source)] {
+		crate::i_promise_this_will_stay_alive(&*self.prv.borrow().sources)
 	}
 	
+	fn eval_items(&self) -> Result<(), crate::Val> {
+		if !self.prv.borrow().data.is_empty() {
+			return Ok(())
+		}
+
+		{
+			let DictData {
+				ref mut data,
+				ref sources,
+			} = *self.prv.borrow_mut();
+
+			for (parent, source) in sources {
+				match &source {
+					Source::Assert{..} => { }
+					Source::Entry{key, almost} => {
+						let mut val = crate::thunk::bytecode(
+							parent.clone(),
+							almost.clone());
+						if Some(key) == data.last().map(|p| &p.key) {
+							let sup = data.pop().unwrap();
+							val = override_(sup.val.clone(), val);
+						}
+						data.push(DictPair{key: key.clone(), val});
+					}
+				}
+			}
+		}
+
+		for (parent, source) in self.sources() {
+			match &source {
+				Source::Assert{almost} => {
+					let val = almost.eval(parent.clone());
+					if !val.to_bool() {
+						crate::err::Err::new("Assertion failed".into())?;
+					}
+				}
+				Source::Entry{..} => {}
+			}
+		}
+
+		Ok(())
+	}
+
 	pub fn _set_val(&self, key: Key, val: Rc<crate::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
@@ -129,6 +170,8 @@ impl Dict {
 	}
 
 	pub fn index(&self, key: &Key) -> Option<crate::Val> {
+		self.eval_items().unwrap();
+
 		let prv = self.prv.borrow();
 		prv.data.iter().find(|pair| pair.key == *key)
 			.map(|pair| pair.val(self.pool.upgrade()))
@@ -142,7 +185,7 @@ impl Dict {
 			pool: pool.downgrade(),
 			prv: std::cell::RefCell::new(DictData {
 				data: Vec::new(),
-				source: Vec::new(),
+				sources: Vec::new(),
 			}),
 		});
 
@@ -150,20 +193,19 @@ impl Dict {
 			let dict = this.clone();
 			let ref dict = dict.downcast_ref::<Dict>().unwrap();
 			let mut prv = dict.prv.borrow_mut();
-			let DictData{ref mut source, ref mut data} = *prv;
 
-			let mut left = self.source();
-			let mut right = that.source();
+			let mut left = self.sources();
+			let mut right = that.sources();
 
 			loop {
 				let ord = match (left.first(), right.first()) {
-					(Some(l), Some(r)) => l.key.cmp(&r.key),
+					(Some(l), Some(r)) => l.1.sort_key().cmp(&r.1.sort_key()),
 					(Some(_), None) => std::cmp::Ordering::Less,
 					(None, Some(_)) => std::cmp::Ordering::Greater,
 					(None, None) => break,
 				};
 
-				let s = if ord == std::cmp::Ordering::Greater {
+				let (parent, source) = if ord == std::cmp::Ordering::Greater {
 					let v = right[0].clone();
 					right = &right[1..];
 					v
@@ -173,20 +215,12 @@ impl Dict {
 					v
 				};
 
-				let parent = Rc::new(ParentSplitter{
+				let parent = Rc::new(crate::Parent {
 					parent: this.value.clone(),
-					grandparent: Some(s.parent.clone()),
+					grandparent: parent.grandparent.clone(),
 				});
 
-				let mut val = crate::thunk::bytecode(
-					parent,
-					s.almost.clone());
-				if Some(&s.key) == data.last().map(|p| &p.key) {
-					let sup = data.pop().unwrap();
-					val = override_(sup.val.clone(), val);
-				}
-				data.push(DictPair{key: s.key.clone(), val});
-				source.push(s);
+				prv.sources.push((parent, source));
 			}
 		}
 
@@ -244,6 +278,7 @@ impl crate::Value for Dict {
 	fn type_str(&self) -> &'static str { "dict" }
 
 	fn eval(&self) -> Result<(),crate::Val> {
+		self.eval_items()?;
 		for pair in &self.prv.borrow().data {
 			if pair.key.is_public() {
 				pair.val(self.pool.upgrade()).eval()?;
@@ -254,11 +289,13 @@ impl crate::Value for Dict {
 	}
 
 	fn len(&self) -> usize {
+		self.eval_items().unwrap();
 		let prv = self.prv.borrow();
 		prv.data.len()
 	}
 
 	fn is_empty(&self) -> bool {
+		self.eval_items().unwrap();
 		let prv = self.prv.borrow();
 		prv.data.iter().all(|pair| !pair.key.is_public())
 	}
@@ -284,6 +321,8 @@ impl crate::Value for Dict {
 	}
 
 	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>)> {
+		self.eval_items().unwrap();
+
 		// This is fine because the dict has been fully evaluated.
 		let data = crate::i_promise_this_will_stay_alive(&self.prv.borrow().data);
 
@@ -307,6 +346,7 @@ impl crate::Value for Dict {
 
 	fn serialize(&self, visited: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
+		self.eval_items().unwrap();
 		let prv = self.prv.borrow();
 
 		let mut state = r#try!(s.erased_serialize_map(Some(prv.data.len())));
@@ -373,21 +413,6 @@ impl std::fmt::Debug for AlmostDictElement {
 			Visibility::Local => "local ",
 		};
 		write!(f, "{} {:?} = {:?}", vis, self.key, self.val)
-	}
-}
-
-#[derive(Clone,Debug)]
-pub struct ParentSplitter {
-	pub parent: crate::Inline,
-	pub grandparent: Option<Rc<crate::Parent>>,
-}
-
-impl crate::Parent for ParentSplitter {
-	fn structural_lookup(&self, depth: usize, key: &Key) -> crate::Val {
-		match depth {
-			0 => self.parent.structural_lookup(0, key),
-			n => self.grandparent.as_ref().expect("grandparent access").structural_lookup(n-1, key),
-		}
 	}
 }
 

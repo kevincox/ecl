@@ -158,6 +158,21 @@ impl std::ops::Deref for Inline {
 	}
 }
 
+#[derive(Clone,Debug)]
+pub struct Parent {
+	pub parent: crate::Inline,
+	pub grandparent: Option<Rc<crate::Parent>>,
+}
+
+impl Parent {
+	fn structural_lookup(&self, depth: usize, key: &dict::Key) -> crate::Val {
+		match depth {
+			0 => self.parent.structural_lookup(0, key),
+			n => self.grandparent.as_ref().expect("grandparent access").structural_lookup(n-1, key),
+		}
+	}
+}
+
 #[derive(Clone)]
 pub struct Val {
 	pool: mem::PoolHandle,
@@ -501,10 +516,6 @@ impl std::fmt::Debug for Almost {
 			}
 		}
 	}
-}
-
-pub trait Parent: std::fmt::Debug {
-	fn structural_lookup(&self, depth: usize, key: &crate::dict::Key) -> crate::Val;
 }
 
 pub fn eval(source: &str, doc: &str) -> Val {

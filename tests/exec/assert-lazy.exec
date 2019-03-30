@@ -1,0 +1,2 @@
+cmd: load assert-lazy.ecl -flines
+status: 0

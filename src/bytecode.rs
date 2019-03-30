@@ -56,11 +56,8 @@ codes!{Op
 	Sub,
 }
 
-codes!{DictAction
-	Assert,
-}
-
 codes!{DictItem
+	Assert,
 	Pub,
 	Local,
 }
@@ -353,7 +350,7 @@ impl CompileContext {
 		self.compile_expr(ast)
 	}
 
-	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize,crate::Val> {
+	fn compile_expr(&mut self, ast: crate::Almost) -> Result<usize, crate::Val> {
 		match ast {
 			crate::Almost::Add(loc, left, right) => {
 				self.write_debug(loc);
@@ -384,57 +381,40 @@ impl CompileContext {
 				self.out.write_str(&key);
 				Ok(off)
 			}
-			crate::Almost::Dict(ast_elements) => {
-				let mut vars = Vec::with_capacity(ast_elements.len());
+			crate::Almost::Dict(elements) => {
+				let mut vars = Vec::with_capacity(elements.len());
 
-				let mut actions = Vec::new();
-				let mut elements = Vec::with_capacity(ast_elements.len());
-
-				for e in ast_elements {
+				for e in &elements {
 					if e.is_element() {
-						let (k, id) = self.new_var(e.key.clone(), e.is_public());
-						vars.push((k, id));
-						elements.push((e.key, id, e.val));
-					} else {
-						actions.push(e);
+						vars.push(self.new_var(e.key.clone(), e.is_public()));
 					}
 				}
 
-				self.scope = Rc::new(Scope{
+				let scope = Rc::new(Scope{
 					vars,
 					parent: Some(self.scope.clone()),
 				});
 
 				let off = self.write_op(Op::Dict);
 				self.out.write_varint(elements.len());
-				for (key, id, val) in elements {
-					match id {
-						0 => {
-							self.out.write_u8(DictItem::Pub.to());
-							self.out.write_str(&key);
-						}
-						id => {
-							self.out.write_u8(DictItem::Local.to());
-							self.out.write_varint(id);
-						}
-					}
-					self.compile_outofline(self.scope.clone(), val);
-				}
-
-				self.out.write_varint(actions.len());
-				for e in actions {
+				for e in elements {
 					match e.visibility {
-						crate::dict::Visibility::Local => unreachable!(),
-						crate::dict::Visibility::Pub => unreachable!(),
-
 						crate::dict::Visibility::Assert => {
-							self.out.write_u8(DictAction::Assert.to());
-							self.compile(e.val)?;
+							self.out.write_u8(DictItem::Assert.to());
+							self.compile_outofline(scope.clone(), e.val);
 						}
+						crate::dict::Visibility::Local => {
+							self.out.write_u8(DictItem::Local.to());
+							self.out.write_varint(scope.find_at(&e.key, 0).unwrap());
+							self.compile_outofline(scope.clone(), e.val);
+						},
+						crate::dict::Visibility::Pub => {
+							self.out.write_u8(DictItem::Pub.to());
+							self.out.write_str(&e.key);
+							self.compile_outofline(scope.clone(), e.val);
+						},
 					}
 				}
-
-				self.scope = self.scope.parent.clone().unwrap();
 
 				Ok(off)
 			}
@@ -593,7 +573,7 @@ pub fn compile_to_vec(ast: crate::Almost) -> Result<Vec<u8>,crate::Val> {
 	Ok(ctx.out.to_bytes())
 }
 
-#[derive(PartialEq)]
+#[derive(Clone,Eq,Ord,PartialEq,PartialOrd)]
 pub struct Module {
 	pub file: std::path::PathBuf,
 	pub code: Vec<u8>,
@@ -740,43 +720,41 @@ impl EvalContext {
 					Value::new(self.module.clone(), childoff))
 			}
 			Op::Dict => {
-				let len = cursor.read_varint();
-				let mut items = Vec::with_capacity(len);
-				for _ in 0..len {
-					let key = match DictItem::from(cursor.read_u8().unwrap())? {
-						DictItem::Pub => crate::dict::Key::Pub(cursor.read_str().to_owned()),
+				let entries_len = cursor.read_varint();
+				let mut entries = Vec::with_capacity(entries_len);
+				for _ in 0..entries_len {
+					let source = match DictItem::from(cursor.read_u8().unwrap())? {
+						DictItem::Assert => {
+							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							crate::dict::Source::Assert {
+								almost: Value::new(self.module.clone(), offset),
+							}
+						}
+						DictItem::Pub => {
+							let key = crate::dict::Key::Pub(cursor.read_str().to_owned());
+
+							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							crate::dict::Source::Entry {
+								key,
+								almost: Value::new(self.module.clone(), offset),
+							}
+						}
 						DictItem::Local => {
 							let mut id = cursor.read_varint();
 							id += self.module.unique_id();
-							crate::dict::Key::Local(id)
+							let key = crate::dict::Key::Local(id);
+
+							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							crate::dict::Source::Entry {
+								key,
+								almost: Value::new(self.module.clone(), offset),
+							}
 						},
 					};
-					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
-					items.push((key, Value::new(self.module.clone(), offset)));
-				}
-				let dict = crate::dict::Dict::new(self.parent.clone(), items);
-
-				let dict_ctx = EvalContext {
-					module: self.module.clone(),
-					pc: 0,
-					parent: Rc::new(crate::dict::ParentSplitter {
-						parent: dict.value.clone(),
-						grandparent: None,
-					}),
-				};
-
-				for _ in 0..cursor.read_varint() {
-					match DictAction::from(cursor.read_u8().unwrap())? {
-						DictAction::Assert => {
-							let cond = dict_ctx.eval_at(cursor);
-							if !cond.to_bool() {
-								return crate::err::Err::new("Assertion failed".into())?;
-							}
-						}
-					}
+					entries.push(source);
 				}
 
-				dict
+				crate::dict::Dict::new(self.parent.clone(), entries)
 			}
 			Op::Func => {
 				let bodyoff = cursor.read_ref();
@@ -879,14 +857,14 @@ pub fn eval(code: Vec<u8>) -> crate::Val {
 	});
 
 	let pc = module.start_pc();
-	let parent = Rc::new(crate::dict::ParentSplitter{
+	let parent = Rc::new(crate::Parent {
 		parent: crate::nil::get().value,
 		grandparent: None,
 	});
 	EvalContext{module, pc, parent}.eval()
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,Eq,PartialEq)]
 pub struct Value {
 	module: Rc<Module>,
 	offset: u64,
@@ -928,7 +906,7 @@ impl Func {
 		let pool = dict.pool.clone();
 		let dict = dict.downcast_ref::<crate::dict::Dict>().unwrap();
 
-		let parent = Rc::new(crate::dict::ParentSplitter{
+		let parent = Rc::new(crate::Parent {
 			parent: args.value.clone(),
 			grandparent: Some(parent),
 		});
