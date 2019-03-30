@@ -398,6 +398,7 @@ impl CompileContext {
 				let off = self.write_op(Op::Dict);
 				self.out.write_varint(elements.len());
 				for e in elements {
+					self.write_debug(e.loc);
 					match e.visibility {
 						crate::dict::Visibility::Assert => {
 							self.out.write_u8(DictItem::Assert.to());
@@ -595,6 +596,30 @@ impl Module {
 	fn read_u64(&self, i: usize) -> u64 {
 		EclByteOrder::read_u64(&self.code[i..(i+8)])
 	}
+
+	pub fn loc(&self, off: usize) -> crate::grammar::Loc {
+		let debug_off = self.start_debug() as usize;
+		let mut cursor = std::io::Cursor::new(&self.code[debug_off..]);
+
+		let mut rec_off = 0;
+		let loc = loop {
+			rec_off += cursor.read_varint();
+
+			if rec_off > off {
+				break crate::grammar::Loc { line: 0, col: 0, };
+			}
+
+			let loc = crate::grammar::Loc {
+				line: cursor.read_varint(),
+				col: cursor.read_varint(),
+			};
+			if rec_off == off {
+				break loc;
+			}
+		};
+
+		loc
+	}
 }
 
 trait CursorExt<'a> {
@@ -670,7 +695,7 @@ impl EvalContext {
 	fn eval_at(&self, cursor: &mut std::io::Cursor<&[u8]>) -> crate::Val {
 		let off = cursor.pos();
 		let op = Op::from(cursor.read_u8().unwrap())?;
-		// eprintln!("Executing OP {:?} @ {}", op, cursor.position() as usize - 1);
+		// eprintln!("Executing OP {:?} @ {}", op, off);
 		match op {
 			Op::Global => {
 				let id = cursor.read_varint();
@@ -678,9 +703,9 @@ impl EvalContext {
 			}
 			Op::Add => {
 				let l = self.eval_at(cursor)
-					.annotate_at_with(|| (self.loc(off), "On left side of add".into()));
+					.annotate_at_with(|| (self.module.loc(off), "On left side of add".into()));
 				let r = self.eval_at(cursor)
-					.annotate_at_with(|| (self.loc(off), "On right side of add".into()));
+					.annotate_at_with(|| (self.module.loc(off), "On right side of add".into()));
 				l.add(r)
 			}
 			Op::Call => {
@@ -723,10 +748,12 @@ impl EvalContext {
 				let entries_len = cursor.read_varint();
 				let mut entries = Vec::with_capacity(entries_len);
 				for _ in 0..entries_len {
+					let pos = cursor.pos();
 					let source = match DictItem::from(cursor.read_u8().unwrap())? {
 						DictItem::Assert => {
 							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 							crate::dict::Source::Assert {
+								debug: pos,
 								almost: Value::new(self.module.clone(), offset),
 							}
 						}
@@ -831,23 +858,6 @@ impl EvalContext {
 			}
 		}
 	}
-
-	fn loc(&self, off: usize) -> crate::grammar::Loc {
-		let debug_off = self.module.start_debug() as usize;
-		let mut cursor = std::io::Cursor::new(&self.module.code[debug_off..]);
-
-		let mut loc = crate::grammar::Loc{line: 0, col: 0};
-
-		loop {
-			let rec_off = cursor.read_varint();
-			if rec_off > off {
-				return loc
-			}
-
-			loc.line = cursor.read_varint();
-			loc.col = cursor.read_varint();
-		}
-	}
 }
 
 pub fn eval(code: Vec<u8>) -> crate::Val {
@@ -866,7 +876,7 @@ pub fn eval(code: Vec<u8>) -> crate::Val {
 
 #[derive(Clone,Debug,Eq,PartialEq)]
 pub struct Value {
-	module: Rc<Module>,
+	pub module: Rc<Module>,
 	offset: u64,
 }
 
@@ -881,6 +891,10 @@ impl Value {
 			pc: self.offset,
 			parent: parent,
 		}.eval()
+	}
+
+	pub fn loc(&self) -> crate::grammar::Loc {
+		self.module.loc(self.offset as usize)
 	}
 }
 

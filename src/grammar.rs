@@ -598,16 +598,16 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 
 	fn dict_item(&mut self) -> Result<crate::dict::AlmostDictElement, ParseError> {
 		let ade = expect_next! {self: "parsing dict element",
-			(Token::Ident(s), _) => {
+			(Token::Ident(s), loc) => {
 				match self.peek() {
 					Some(Token::Assign) | Some(Token::Dot) => {
 						let val = self.dict_val()?;
-						crate::dict::AlmostDictElement::public(s, val)
+						crate::dict::AlmostDictElement::public(loc, s, val)
 					}
 					_ => {
 						match s.as_str() {
 							"assert" => {
-								crate::dict::AlmostDictElement::assert(self.expr()?)
+								crate::dict::AlmostDictElement::assert(loc, self.expr()?)
 							}
 							"local" => {
 								let name = expect_next!{self: "parsing local name",
@@ -615,7 +615,7 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 								};
 								expect_next!{self: "parsing local var", (Token::Assign, _) => {}};
 
-								crate::dict::AlmostDictElement::local(name, self.expr()?)
+								crate::dict::AlmostDictElement::local(loc, name, self.expr()?)
 							}
 							_ => {
 								expect_next!{self: "parsing dict key",
@@ -626,7 +626,7 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 					}
 				}
 			},
-			(Token::StrOpen(StrType::String), _) => {
+			(Token::StrOpen(StrType::String), loc) => {
 				let s = expect_next!{self: "parsing quoted dict key",
 					(Token::StrChunk(s), _) => {
 						expect_next!{self: "parsing quoted dict key", (Token::StrClose, _) => {}};
@@ -636,7 +636,7 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 				};
 
 				let val = self.dict_val()?;
-				crate::dict::AlmostDictElement::public(s, val)
+				crate::dict::AlmostDictElement::public(loc, s, val)
 			},
 		};
 

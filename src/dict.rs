@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 #[derive(Clone,Debug)]
 pub enum Source {
-	Assert{almost: crate::bytecode::Value},
+	Assert{debug: usize, almost: crate::bytecode::Value},
 	Entry{key: Key, almost: crate::bytecode::Value},
 }
 
@@ -147,11 +147,13 @@ impl Dict {
 		}
 
 		for (parent, source) in self.sources() {
-			match &source {
-				Source::Assert{almost} => {
+			match source {
+				Source::Assert{debug, almost} => {
 					let val = almost.eval(parent.clone());
 					if !val.to_bool() {
-						crate::err::Err::new("Assertion failed".into())?;
+						crate::err::Err::new_at(
+							almost.module.loc(*debug),
+							"Assertion failed".into())?;
 					}
 				}
 				Source::Entry{..} => {}
@@ -373,19 +375,20 @@ pub struct AlmostDictElement {
 	pub visibility: Visibility,
 	pub key: String,
 	pub val: crate::Almost,
+	pub loc: crate::grammar::Loc,
 }
 
 impl AlmostDictElement {
-	pub fn assert(val: crate::Almost) -> Self {
-		AlmostDictElement{visibility: Visibility::Assert, key: String::new(), val}
+	pub fn assert(loc: crate::grammar::Loc, val: crate::Almost) -> Self {
+		AlmostDictElement{loc, visibility: Visibility::Assert, key: String::new(), val}
 	}
 
-	pub fn local(key: String, val: crate::Almost) -> Self {
-		AlmostDictElement{visibility: Visibility::Local, key, val}
+	pub fn local(loc: crate::grammar::Loc, key: String, val: crate::Almost) -> Self {
+		AlmostDictElement{loc, visibility: Visibility::Local, key, val}
 	}
 
-	pub fn public(key: String, val: crate::Almost) -> Self {
-		AlmostDictElement{visibility: Visibility::Pub, key, val}
+	pub fn public(loc: crate::grammar::Loc, key: String, val: crate::Almost) -> Self {
+		AlmostDictElement{loc, visibility: Visibility::Pub, key, val}
 	}
 
 	pub fn is_element(&self) -> bool {

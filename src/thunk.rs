@@ -27,7 +27,9 @@ pub fn shim(v: crate::Val) -> Rc<Thunky> {
 }
 
 pub fn bytecode(parent: Rc<crate::Parent>, code: crate::bytecode::Value) -> Rc<Thunky> {
-	const F: &Fn((Rc<crate::Parent>, crate::bytecode::Value)) -> crate::Val = &|a| a.1.eval(a.0);
+	const F: &Fn((Rc<crate::Parent>, crate::bytecode::Value)) -> crate::Val =
+		&|(parent, val)| val.eval(parent);
+
 	Thunk::new((parent, code), F)
 }
 
