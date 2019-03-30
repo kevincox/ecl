@@ -381,7 +381,42 @@ impl crate::Value for Dict {
 	}
 }
 
-impl crate::SameOps for Dict { }
+impl crate::SameOps for Dict {
+	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,crate::Val> {
+		self.eval_items()?;
+		that.eval_items()?;
+
+		// This is fine because the dict has been fully evaluated.
+		let l = crate::i_promise_this_will_stay_alive(&self.prv.borrow().data);
+		let r = crate::i_promise_this_will_stay_alive(&that.prv.borrow().data);
+
+		let l = l.iter().filter_map(|pair| match pair.key {
+				Key::Pub(ref name) => Some((name, &pair.val)),
+				_ => None,
+			});
+		let r = r.iter().filter_map(|pair| match pair.key {
+				Key::Pub(ref name) => Some((name, &pair.val)),
+				_ => None,
+			});
+
+		let l_pool = self.pool.upgrade();
+		let r_pool = that.pool.upgrade();
+
+		for (l, r) in l.zip(r) {
+			let ord = l.0.cmp(r.0);
+			if ord != std::cmp::Ordering::Equal {
+				return Ok(ord)
+			}
+
+			let ord = l.1.eval(l_pool.clone()).cmp(r.1.eval(r_pool.clone()))?;
+			if ord != std::cmp::Ordering::Equal {
+				return Ok(ord)
+			}
+		}
+
+		return Ok(std::cmp::Ordering::Equal)
+	}
+}
 
 #[derive(Clone,Copy,Eq,Ord,PartialEq,PartialOrd)]
 pub enum Visibility {
