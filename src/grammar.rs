@@ -606,6 +606,9 @@ impl<'a, Input: Iterator<Item = (Token, Loc)>> Parser<'a, Input> {
 					}
 					_ => {
 						match s.as_str() {
+							"assert" => {
+								crate::dict::AlmostDictElement::assert(self.expr()?)
+							}
 							"local" => {
 								let name = expect_next!{self: "parsing local name",
 									(Token::Ident(name), _) => name,

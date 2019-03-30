@@ -186,7 +186,6 @@ impl Val {
 		Self::new(mem::PoolHandle::new(), value)
 	}
 
-
 	fn value(&self) -> Result<&Value,Val> {
 		let this = self.deref();
 		if this.is_err() { Err(self.clone()) } else { Ok(this) }

@@ -325,7 +325,7 @@ impl crate::SameOps for Dict { }
 
 #[derive(Clone,Copy,Eq,Ord,PartialEq,PartialOrd)]
 pub enum Visibility {
-	Local, Pub
+	Assert, Local, Pub
 }
 
 #[derive(PartialEq)]
@@ -336,12 +336,24 @@ pub struct AlmostDictElement {
 }
 
 impl AlmostDictElement {
+	pub fn assert(val: crate::Almost) -> Self {
+		AlmostDictElement{visibility: Visibility::Assert, key: String::new(), val}
+	}
+
 	pub fn local(key: String, val: crate::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Local, key, val}
 	}
 
 	pub fn public(key: String, val: crate::Almost) -> Self {
 		AlmostDictElement{visibility: Visibility::Pub, key, val}
+	}
+
+	pub fn is_element(&self) -> bool {
+		match self.visibility {
+			Visibility::Assert => false,
+			Visibility::Local => true,
+			Visibility::Pub => true,
+		}
 	}
 
 	pub fn is_public(&self) -> bool {
@@ -356,8 +368,9 @@ impl AlmostDictElement {
 impl std::fmt::Debug for AlmostDictElement {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		let vis = match self.visibility {
-			Visibility::Pub => "pub  ",
-			Visibility::Local => "local",
+			Visibility::Assert => "assert",
+			Visibility::Pub => "pub   ",
+			Visibility::Local => "local ",
 		};
 		write!(f, "{} {:?} = {:?}", vis, self.key, self.val)
 	}

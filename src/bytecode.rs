@@ -56,6 +56,10 @@ codes!{Op
 	Sub,
 }
 
+codes!{DictAction
+	Assert,
+}
+
 codes!{DictItem
 	Pub,
 	Local,
@@ -380,19 +384,24 @@ impl CompileContext {
 				self.out.write_str(&key);
 				Ok(off)
 			}
-			crate::Almost::Dict(elements) => {
-				let mut vars = Vec::with_capacity(elements.len());
+			crate::Almost::Dict(ast_elements) => {
+				let mut vars = Vec::with_capacity(ast_elements.len());
 
-				let elements = elements.into_iter()
-					.map(|e| {
+				let mut actions = Vec::new();
+				let mut elements = Vec::with_capacity(ast_elements.len());
+
+				for e in ast_elements {
+					if e.is_element() {
 						let (k, id) = self.new_var(e.key.clone(), e.is_public());
 						vars.push((k, id));
-						(e.key, id, e.val)
-					})
-					.collect::<Vec<_>>();
+						elements.push((e.key, id, e.val));
+					} else {
+						actions.push(e);
+					}
+				}
 
-				let scope = Rc::new(Scope{
-					vars: vars,
+				self.scope = Rc::new(Scope{
+					vars,
 					parent: Some(self.scope.clone()),
 				});
 
@@ -409,8 +418,23 @@ impl CompileContext {
 							self.out.write_varint(id);
 						}
 					}
-					self.compile_outofline(scope.clone(), val);
+					self.compile_outofline(self.scope.clone(), val);
 				}
+
+				self.out.write_varint(actions.len());
+				for e in actions {
+					match e.visibility {
+						crate::dict::Visibility::Local => unreachable!(),
+						crate::dict::Visibility::Pub => unreachable!(),
+
+						crate::dict::Visibility::Assert => {
+							self.out.write_u8(DictAction::Assert.to());
+							self.compile(e.val)?;
+						}
+					}
+				}
+
+				self.scope = self.scope.parent.clone().unwrap();
 
 				Ok(off)
 			}
@@ -730,7 +754,29 @@ impl EvalContext {
 					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
 					items.push((key, Value::new(self.module.clone(), offset)));
 				}
-				crate::dict::Dict::new(self.parent.clone(), items)
+				let dict = crate::dict::Dict::new(self.parent.clone(), items);
+
+				let dict_ctx = EvalContext {
+					module: self.module.clone(),
+					pc: 0,
+					parent: Rc::new(crate::dict::ParentSplitter {
+						parent: dict.value.clone(),
+						grandparent: None,
+					}),
+				};
+
+				for _ in 0..cursor.read_varint() {
+					match DictAction::from(cursor.read_u8().unwrap())? {
+						DictAction::Assert => {
+							let cond = dict_ctx.eval_at(cursor);
+							if !cond.to_bool() {
+								return crate::err::Err::new("Assertion failed".into())?;
+							}
+						}
+					}
+				}
+
+				dict
 			}
 			Op::Func => {
 				let bodyoff = cursor.read_ref();

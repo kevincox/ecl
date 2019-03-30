@@ -1,0 +1,2 @@
+cmd: load assert-pass.ecl -flines
+status: 0
