@@ -65,7 +65,7 @@ fn main() {
 			}
 
 			if let Err(e) = val.eval() {
-				eprintln!("{:?}\nError occured.", e);
+				eprintln!("{:?}\nError occurred.", e);
 				std::process::exit(1)
 			}
 
