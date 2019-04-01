@@ -34,7 +34,7 @@ impl List {
 
 impl crate::Value for List {
 	fn type_str(&self) -> &'static str { "list" }
-	fn is_empty(&self) -> bool { self.data.is_empty() }
+	fn is_empty(&self) -> crate::Val { crate::bool::get(self.data.is_empty()) }
 	fn len(&self) -> usize { self.data.len() }
 
 	fn index_int(&self, k: usize) -> crate::Val {

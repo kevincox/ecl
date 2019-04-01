@@ -40,7 +40,7 @@ pub trait Value:
 
 	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
-	fn is_empty(&self) -> bool { panic!("Don't know if {:?} is empty", self) }
+	fn is_empty(&self) -> Val { err::Err::new(format!("Can't check if {:?} is empty", self)) }
 	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
@@ -53,6 +53,7 @@ pub trait Value:
 	fn get_num(&self) -> Option<f64> { None }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
 	fn to_bool(&self) -> bool { true }
+	fn get_bool(&self) -> Option<bool> { None }
 	fn neg(&self) -> Val { err::Err::new(format!("Can't negate {:?}", self)) }
 	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
@@ -242,11 +243,15 @@ impl Val {
 		self.value().unwrap().type_str()
 	}
 
+	pub fn get_bool(&self) -> Option<bool> {
+		self.value().unwrap().get_bool()
+	}
+
 	pub fn get_num(&self) -> Option<f64> {
 		self.value().unwrap().get_num()
 	}
 
-	pub fn is_empty(&self) -> bool {
+	pub fn is_empty(&self) -> Val {
 		self.value().unwrap().is_empty()
 	}
 
@@ -634,8 +639,9 @@ mod tests {
 
 	#[test]
 	fn list() {
-		assert!(eval("<str>", "[]").is_empty());
+		assert_eq!(eval("<str>", "[]").is_empty().get_bool(), Some(true));
 		let v = eval("<str>", "[0d29 0b1.1]");
+		assert_eq!(v.is_empty().get_bool(), Some(false));
 		assert_eq!(v.index_int(0), Val::new_atomic(29.0));
 		assert_eq!(v.index_int(1), Val::new_atomic(1.5));
 	}

@@ -17,6 +17,10 @@ impl crate::Value for bool {
 	fn to_bool(&self) -> bool {
 		*self
 	}
+
+	fn get_bool(&self) -> Option<bool> {
+		Some(*self)
+	}
 }
 
 impl crate::SameOps for bool {

@@ -314,10 +314,11 @@ impl crate::Value for Dict {
 		prv.data.len()
 	}
 
-	fn is_empty(&self) -> bool {
+	fn is_empty(&self) -> crate::Val {
 		self.eval_items().unwrap();
 		let prv = self.prv.borrow();
-		prv.data.iter().all(|pair| !pair.key.is_public())
+		let is_empty = prv.data.iter().all(|pair| !pair.key.is_public());
+		crate::bool::get(is_empty)
 	}
 
 	fn index_str(&self, key: &str) -> crate::Val {
@@ -478,13 +479,15 @@ mod tests {
 
 	#[test]
 	fn dict() {
-		assert!(eval("<str>", "{}").is_empty());
+		assert_eq!(eval("<str>", "{}").is_empty().get_bool(), Some(true));
 
 		let v = eval("<str>", "{a=4 b = 0}");
+		assert_eq!(v.is_empty().get_bool(), Some(false));
 		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
 		assert_eq!(v.index_str("b"), crate::Val::new_atomic(0.0));
 
 		let v = eval("<str>", "{a=4 b=a}");
+		assert_eq!(v.is_empty().get_bool(), Some(false));
 		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
 		assert_eq!(v.index_str("b"), crate::Val::new_atomic(4.0));
 	}
