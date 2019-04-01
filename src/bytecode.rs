@@ -687,84 +687,81 @@ impl std::fmt::Debug for Module {
 	}
 }
 
-struct EvalContext {
-	module: Rc<Module>,
-	pc: u64,
+struct EvalContext<'a> {
+	module: &'a Rc<Module>,
+	cursor: std::io::Cursor<&'a [u8]>,
 	parent: Rc<crate::Parent>,
 }
 
-impl EvalContext {
-	pub fn eval(&self) -> crate::Val {
-		// eprintln!("Executing @ {}", self.pc);
-		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
-		cursor.set_position(self.pc as u64);
-		self.eval_at(&mut cursor)
+impl<'a> EvalContext<'a> {
+	fn eval(mut self) -> crate::Val {
+		self.continue_eval()
 	}
 
-	fn eval_at(&self, cursor: &mut std::io::Cursor<&[u8]>) -> crate::Val {
-		let off = cursor.pos();
-		let op = Op::from(cursor.read_u8().unwrap())?;
+	fn continue_eval(&mut self) -> crate::Val {
+		let off = self.cursor.pos();
+		let op = Op::from(self.cursor.read_u8().unwrap())?;
 		// eprintln!("Executing OP {:?} @ {}", op, off);
 		match op {
 			Op::Global => {
-				let id = cursor.read_varint();
+				let id = self.cursor.read_varint();
 				crate::builtins::get_id(id)
 			}
-			Op::Add => self.eval_binop(cursor, off, "addition", crate::Val::add),
-			Op::Call => self.eval_binop(cursor, off, "call", crate::Val::call),
+			Op::Add => self.eval_binop(off, "addition", crate::Val::add),
+			Op::Call => self.eval_binop(off, "call", crate::Val::call),
 			Op::Ge => {
-				self.eval_cmp(cursor, off, ">=", |o| o != std::cmp::Ordering::Less)
+				self.eval_cmp(off, ">=", |o| o != std::cmp::Ordering::Less)
 			}
 			Op::Gt => {
-				self.eval_cmp(cursor, off, ">", |o| o == std::cmp::Ordering::Greater)
+				self.eval_cmp(off, ">", |o| o == std::cmp::Ordering::Greater)
 			}
 			Op::Eq => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
+				let l = self.continue_eval();
+				let r = self.continue_eval();
 				crate::bool::get(l == r)
 			}
 			Op::Lt => {
-				self.eval_cmp(cursor, off, "<", |o| o == std::cmp::Ordering::Less)
+				self.eval_cmp(off, "<", |o| o == std::cmp::Ordering::Less)
 			}
 			Op::Le => {
-				self.eval_cmp(cursor, off, "<=", |o| o != std::cmp::Ordering::Greater)
+				self.eval_cmp(off, "<=", |o| o != std::cmp::Ordering::Greater)
 			}
 			Op::ADict => {
-				let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
-				let key = cursor.read_str();
+				let childoff = self.cursor.read_u64::<EclByteOrder>().unwrap();
+				let key = self.cursor.read_str();
 				crate::dict::Dict::new_adict(
 					self.parent.clone(),
 					key.to_owned(),
 					Value::new(self.module.clone(), childoff))
 			}
 			Op::Dict => {
-				let entries_len = cursor.read_varint();
+				let entries_len = self.cursor.read_varint();
 				let mut entries = Vec::with_capacity(entries_len);
 				for _ in 0..entries_len {
-					let pos = cursor.pos();
-					let source = match DictItem::from(cursor.read_u8().unwrap())? {
+					let pos = self.cursor.pos();
+					let source = match DictItem::from(self.cursor.read_u8().unwrap())? {
 						DictItem::Assert => {
-							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							let offset = self.cursor.read_u64::<EclByteOrder>().unwrap();
 							crate::dict::Source::Assert {
 								debug: pos,
 								almost: Value::new(self.module.clone(), offset),
 							}
 						}
 						DictItem::Pub => {
-							let key = crate::dict::Key::Pub(cursor.read_str().to_owned());
+							let key = crate::dict::Key::Pub(self.cursor.read_str().to_owned());
 
-							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							let offset = self.cursor.read_u64::<EclByteOrder>().unwrap();
 							crate::dict::Source::Entry {
 								key,
 								almost: Value::new(self.module.clone(), offset),
 							}
 						}
 						DictItem::Local => {
-							let mut id = cursor.read_varint();
+							let mut id = self.cursor.read_varint();
 							id += self.module.unique_id();
 							let key = crate::dict::Key::Local(id);
 
-							let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+							let offset = self.cursor.read_u64::<EclByteOrder>().unwrap();
 							crate::dict::Source::Entry {
 								key,
 								almost: Value::new(self.module.clone(), offset),
@@ -777,18 +774,18 @@ impl EvalContext {
 				crate::dict::Dict::new(self.parent.clone(), entries)
 			}
 			Op::Func => {
-				let bodyoff = cursor.read_ref();
+				let bodyoff = self.cursor.read_ref();
 				crate::func::Func::new(
 					self.parent.clone(),
 					Func::new(self.module.clone(), bodyoff))
 			}
-			Op::Index => self.eval_binop(cursor, off, "index", crate::Val::index),
+			Op::Index => self.eval_binop(off, "index", crate::Val::index),
 			Op::Interpolate => {
 				let mut buf = String::new();
 
-				let chunks = cursor.read_varint();
+				let chunks = self.cursor.read_varint();
 				for _ in 0..chunks {
-					let b = self.eval_at(cursor);
+					let b = self.continue_eval();
 					let b = b.to_string();
 					let b = b.get_str().unwrap();
 					buf += b;
@@ -797,31 +794,31 @@ impl EvalContext {
 				crate::Val::new_atomic(buf)
 			}
 			Op::List => {
-				let len = cursor.read_varint();
+				let len = self.cursor.read_varint();
 				let mut items = Vec::with_capacity(len);
 				for _ in 0..len {
-					let offset = cursor.read_u64::<EclByteOrder>().unwrap();
+					let offset = self.cursor.read_u64::<EclByteOrder>().unwrap();
 					items.push(Value::new(self.module.clone(), offset));
 				}
 				crate::list::List::new(self.parent.clone(), items)
 			}
 			Op::Ne => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
+				let l = self.continue_eval();
+				let r = self.continue_eval();
 				crate::bool::get(l.ne(&r))
 			}
 			Op::Neg => {
-				self.eval_at(cursor).neg()
+				self.continue_eval().neg()
 			}
 			Op::Num => {
-				let num = cursor.read_f64::<EclByteOrder>().unwrap();
+				let num = self.cursor.read_f64::<EclByteOrder>().unwrap();
 				// eprintln!("Num: {}", num);
 				crate::num::get(num)
 			}
 			Op::Ref => {
-				let strkey = cursor.read_str();
-				let depth = cursor.read_varint();
-				let mut id = cursor.read_varint();
+				let strkey = self.cursor.read_str();
+				let depth = self.cursor.read_varint();
+				let mut id = self.cursor.read_varint();
 				let key = if id == 0 {
 					crate::dict::Key::Pub(strkey.to_owned())
 				} else {
@@ -836,8 +833,8 @@ impl EvalContext {
 					))
 			}
 			Op::RefRel => {
-				let key = cursor.read_str();
-				let depth = cursor.read_varint();
+				let key = self.cursor.read_str();
+				let depth = self.cursor.read_varint();
 				let key = crate::dict::Key::Pub(key.to_owned());
 				self.parent.structural_lookup(depth, &key)
 					.annotate_at_with(|| (
@@ -848,38 +845,37 @@ impl EvalContext {
 			Op::Str => {
 				let s = crate::str::CodeString {
 					module: self.module.clone(),
-					len: cursor.read_varint(),
-					offset: std::convert::TryInto::try_into(cursor.position()).unwrap(),
+					len: self.cursor.read_varint(),
+					offset: self.cursor.pos(),
 				};
-				cursor.consume(s.len);
+				self.cursor.consume(s.len);
+				// eprintln!("  {:?}", s);
 				crate::Val::new_atomic(s)
 			}
-			Op::Sub => self.eval_binop(cursor, off, "subtraction", crate::Val::subtract),
+			Op::Sub => self.eval_binop(off, "subtraction", crate::Val::subtract),
 		}
 	}
 
-	fn eval_binop(&self,
-		cursor: &mut std::io::Cursor<&[u8]>,
+	fn eval_binop(&mut self,
 		off: usize,
 		desc: &str,
 		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
 	) -> crate::Val {
-		let left = self.eval_at(cursor)
+		let left = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
-		let right = self.eval_at(cursor)
+		let right = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
 		f(&left, right)
 	}
 
-	fn eval_cmp(&self,
-		cursor: &mut std::io::Cursor<&[u8]>,
+	fn eval_cmp(&mut self,
 		off: usize,
 		desc: &str,
 		f: impl FnOnce(std::cmp::Ordering) -> bool,
 	) -> crate::Val {
-		let left = self.eval_at(cursor)
+		let left = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
-		let right = self.eval_at(cursor)
+		let right = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
 		crate::bool::get(f(left.cmp(right)?))
 	}
@@ -896,7 +892,7 @@ pub fn eval(code: Vec<u8>) -> crate::Val {
 		parent: crate::nil::get().value,
 		grandparent: None,
 	});
-	EvalContext{module, pc, parent}.eval()
+	Value::new(module, pc).eval(parent)
 }
 
 #[derive(Clone,Debug,Eq,PartialEq)]
@@ -911,11 +907,9 @@ impl Value {
 	}
 
 	pub fn eval(&self, parent: Rc<crate::Parent>) -> crate::Val {
-		EvalContext{
-			module: self.module.clone(),
-			pc: self.offset,
-			parent: parent,
-		}.eval()
+		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
+		cursor.set_position(self.offset as u64);
+		EvalContext { module: &self.module, cursor, parent }.eval()
 	}
 
 	pub fn loc(&self) -> crate::grammar::Loc {
@@ -1053,11 +1047,7 @@ impl Func {
 			}
 		};
 
-		let r = EvalContext{
-			module: self.module.clone(),
-			pc: cursor.position(),
-			parent: parent,
-		}.eval();
+		let r = EvalContext { module: &self.module, cursor, parent }.eval();
 		pool.merge(r.pool.clone());
 		r
 	}
