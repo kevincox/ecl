@@ -708,25 +708,13 @@ impl EvalContext {
 				let id = cursor.read_varint();
 				crate::builtins::get_id(id)
 			}
-			Op::Add => {
-				let l = self.eval_at(cursor)
-					.annotate_at_with(|| (self.module.loc(off), "On left side of add".into()));
-				let r = self.eval_at(cursor)
-					.annotate_at_with(|| (self.module.loc(off), "On right side of add".into()));
-				l.add(r)
-			}
-			Op::Call => {
-				self.eval_at(cursor).call(self.eval_at(cursor))
-			}
+			Op::Add => self.eval_binop(cursor, off, "addition", crate::Val::add),
+			Op::Call => self.eval_binop(cursor, off, "call", crate::Val::call),
 			Op::Ge => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
-				crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Less)
+				self.eval_cmp(cursor, off, ">=", |o| o != std::cmp::Ordering::Less)
 			}
 			Op::Gt => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
-				crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Greater)
+				self.eval_cmp(cursor, off, ">", |o| o == std::cmp::Ordering::Greater)
 			}
 			Op::Eq => {
 				let l = self.eval_at(cursor);
@@ -734,14 +722,10 @@ impl EvalContext {
 				crate::bool::get(l == r)
 			}
 			Op::Lt => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
-				crate::bool::get(l.cmp(r)? == std::cmp::Ordering::Less)
+				self.eval_cmp(cursor, off, "<", |o| o == std::cmp::Ordering::Less)
 			}
 			Op::Le => {
-				let l = self.eval_at(cursor);
-				let r = self.eval_at(cursor);
-				crate::bool::get(l.cmp(r)? != std::cmp::Ordering::Greater)
+				self.eval_cmp(cursor, off, "<=", |o| o != std::cmp::Ordering::Greater)
 			}
 			Op::ADict => {
 				let childoff = cursor.read_u64::<EclByteOrder>().unwrap();
@@ -796,11 +780,7 @@ impl EvalContext {
 					self.parent.clone(),
 					Func::new(self.module.clone(), bodyoff))
 			}
-			Op::Index => {
-				let val = self.eval_at(cursor);
-				let key = self.eval_at(cursor);
-				val.index(key)
-			}
+			Op::Index => self.eval_binop(cursor, off, "index", crate::Val::index),
 			Op::Interpolate => {
 				let mut buf = String::new();
 
@@ -865,10 +845,34 @@ impl EvalContext {
 				cursor.consume(s.len);
 				crate::Val::new_atomic(s)
 			}
-			Op::Sub => {
-				self.eval_at(cursor).subtract(self.eval_at(cursor))
-			}
+			Op::Sub => self.eval_binop(cursor, off, "subtraction", crate::Val::subtract),
 		}
+	}
+
+	fn eval_binop(&self,
+		cursor: &mut std::io::Cursor<&[u8]>,
+		off: usize,
+		desc: &str,
+		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
+	) -> crate::Val {
+		let left = self.eval_at(cursor)
+			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
+		let right = self.eval_at(cursor)
+			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
+		f(&left, right)
+	}
+
+	fn eval_cmp(&self,
+		cursor: &mut std::io::Cursor<&[u8]>,
+		off: usize,
+		desc: &str,
+		f: impl FnOnce(std::cmp::Ordering) -> bool,
+	) -> crate::Val {
+		let left = self.eval_at(cursor)
+			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
+		let right = self.eval_at(cursor)
+			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
+		crate::bool::get(f(left.cmp(right)?))
 	}
 }
 
