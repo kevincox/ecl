@@ -384,6 +384,17 @@ impl crate::Value for Dict {
 }
 
 impl crate::SameOps for Dict {
+	fn eq(&self, that: &Self) -> crate::Val {
+		self.eval_items()?;
+		that.eval_items()?;
+
+		if self.prv.borrow().data.len() != that.prv.borrow().data.len() {
+			return crate::bool::get(false)
+		}
+
+		crate::bool::get(self.cmp(that)? == std::cmp::Ordering::Equal)
+	}
+
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,crate::Val> {
 		self.eval_items()?;
 		that.eval_items()?;
