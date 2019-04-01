@@ -41,7 +41,7 @@ pub trait Value:
 	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
 	fn is_empty(&self) -> Val { err::Err::new(format!("Can't check if {:?} is empty", self)) }
-	fn len(&self) -> usize { panic!("{:?} doesn't have a length", self) }
+	fn len(&self) -> Val { err::Err::new(format!("{:?} doesn't have a length", self)) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
 	fn index_str(&self, _k: &str) -> Val { err::Err::new(format!("Can't index {:?} with string", self)) }
 	fn structural_lookup(&self, _depth: usize, key: &dict::Key) -> Val {
@@ -183,10 +183,6 @@ pub struct Val {
 unsafe impl Sync for Val { }
 
 impl Val {
-	fn new_num(n: f64) -> Self {
-		Self::new_inline(Inline::Num(n))
-	}
-
 	fn new<T: Value + Sized>(pool: mem::PoolHandle, value: T) -> Self {
 		let rc = Rc::new(value);
 		let value = Rc::downgrade(&rc);
@@ -235,6 +231,16 @@ impl Val {
 		}
 	}
 
+	fn check_is<T: 'static>(&self) -> Result<(), Val> {
+		if self.deref().as_any().is::<T>() {
+			Ok(())
+		} else if self.is_err() {
+			Err(err::Err::new_from(self.clone(), format!("Expected {} got error", "")))
+		} else {
+			Err(err::Err::new(format!("Expected {} got {:?}", "", self)))
+		}
+	}
+
 	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
 		self.deref().as_any().downcast_ref::<T>().map(i_promise_this_will_stay_alive)
 	}
@@ -259,8 +265,8 @@ impl Val {
 		self.deref().is_err()
 	}
 
-	pub fn len(&self) -> usize {
-		self.value().unwrap().len()
+	pub fn len(&self) -> Val {
+		self.value()?.len()
 	}
 
 	pub fn index(&self, k: Val) -> Val {

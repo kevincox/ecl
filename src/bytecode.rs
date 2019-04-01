@@ -816,7 +816,7 @@ impl EvalContext {
 			Op::Num => {
 				let num = cursor.read_f64::<EclByteOrder>().unwrap();
 				// eprintln!("Num: {}", num);
-				crate::Val::new_num(num)
+				crate::num::get(num)
 			}
 			Op::Ref => {
 				let strkey = cursor.read_str();
@@ -966,7 +966,7 @@ impl Func {
 						"Function must be called with dict, called with {:?}",
 						arg)),
 				};
-				let mut unused_args = sourcedict.len();
+				let mut unused_args = sourcedict.len().get_num().unwrap() as usize;
 
 				let len = cursor.read_usize();
 				for _ in 0..len {
@@ -1015,12 +1015,13 @@ impl Func {
 						"Function must be called with list, called with {:?}",
 						arg)),
 				};
+				let arg_len = list.len().get_num().unwrap() as usize;
 
 				let len = cursor.read_varint();
-				if list.len() > len {
+				if arg_len > len {
 					return crate::err::Err::new(format!(
 						"Function called with too many arguments, expected {} got {}",
-						len, list.len()))
+						len, arg_len))
 				}
 
 				for i in 0..len {

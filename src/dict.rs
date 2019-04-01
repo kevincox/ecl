@@ -308,10 +308,11 @@ impl crate::Value for Dict {
 		Ok(())
 	}
 
-	fn len(&self) -> usize {
+	fn len(&self) -> crate::Val {
 		self.eval_items().unwrap();
 		let prv = self.prv.borrow();
-		prv.data.len()
+		let len = prv.data.len();
+		crate::num::int(len)
 	}
 
 	fn is_empty(&self) -> crate::Val {

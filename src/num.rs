@@ -1,6 +1,9 @@
 use std;
 use erased_serde;
 
+pub fn int(n: usize) -> crate::Val { crate::Val::new_inline(crate::Inline::Num(n as f64)) }
+pub fn get(n: f64) -> crate::Val { crate::Val::new_inline(crate::Inline::Num(n)) }
+
 impl crate::Value for f64 {
 	fn type_str(&self) -> &'static str { "num" }
 
@@ -24,11 +27,11 @@ impl crate::Value for f64 {
 
 impl crate::SameOps for f64 {
 	fn add(&self, that: &Self) -> crate::Val {
-		crate::Val::new_num(*self + *that)
+		get(*self + *that)
 	}
 
 	fn subtract(&self, that: &Self) -> crate::Val {
-		crate::Val::new_num(*self - *that)
+		get(*self - *that)
 	}
 
 	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,crate::Val> {

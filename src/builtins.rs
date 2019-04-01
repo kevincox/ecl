@@ -104,8 +104,10 @@ impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> std::fmt::Debug
 }
 
 fn cond(args: crate::Val) -> crate::Val {
+	args.check_is::<crate::list::List>()?;
+
 	let mut current = 0;
-	let len = args.len();
+	let len = args.len().get_num().unwrap() as usize;
 	loop {
 		if current == len { return crate::nil::get() }
 		if current + 1 == len { return args.index_int(current) }

@@ -35,7 +35,7 @@ impl List {
 impl crate::Value for List {
 	fn type_str(&self) -> &'static str { "list" }
 	fn is_empty(&self) -> crate::Val { crate::bool::get(self.data.is_empty()) }
-	fn len(&self) -> usize { self.data.len() }
+	fn len(&self) -> crate::Val { crate::num::int(self.data.len()) }
 
 	fn index_int(&self, k: usize) -> crate::Val {
 		self.data[k].eval(self.pool.upgrade())

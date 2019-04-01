@@ -16,6 +16,10 @@ impl Err {
 		crate::Val::new_atomic(Err{msg, loc, chained: crate::Inline::Nil})
 	}
 
+	pub fn new_from(chained: crate::Val, msg: String) -> crate::Val {
+		Self::new_from_at(chained, crate::grammar::Loc{line: 0, col: 0}, msg)
+	}
+
 	pub fn new_from_at(chained: crate::Val, loc: crate::grammar::Loc, msg: String) -> crate::Val {
 		debug_assert!(chained.is_err(), "Expected to chain to error got {:#?}", chained);
 		crate::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
