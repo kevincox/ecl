@@ -456,6 +456,7 @@ impl CompileContext {
 				Ok(off)
 			}
 			crate::Almost::Ref(loc, name) => {
+				self.write_debug(loc);
 				if let Some((depth, id)) = self.scope.find(&name) {
 					let off = self.write_op(Op::Ref);
 					self.out.write_str(&name); // TODO: remove this.
@@ -828,7 +829,10 @@ impl EvalContext {
 				};
 				// eprintln!("Ref: {:?}@{} {:?}", key, depth, strkey);
 				self.parent.structural_lookup(depth, &key)
-					.annotate_with(|| format!("Referenced by {:?}", strkey))
+					.annotate_at_with(|| (
+						self.module.loc(off),
+						format!("Referenced by {:?}", strkey),
+					))
 			}
 			Op::RefRel => {
 				let key = cursor.read_str();
