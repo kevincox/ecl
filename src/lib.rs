@@ -225,10 +225,6 @@ impl Val {
 		}
 	}
 
-	fn annotate_with<F: FnOnce() -> String>(&self, f: F) -> Val {
-		self.annotate_at_with(|| (crate::grammar::Loc{line: 0, col: 0}, f()))
-	}
-
 	fn annotate_at_with(&self, f: impl FnOnce() -> (grammar::Loc, String)) -> Val {
 		if self.is_err() {
 			let (loc, msg) = f();
