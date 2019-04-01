@@ -24,7 +24,7 @@ impl crate::Value for bool {
 }
 
 impl crate::SameOps for bool {
-	fn eq(&self, that: &Self) -> crate::Val {
-		get(*self == *that)
+	fn cmp(&self, that: &Self) -> Result<std::cmp::Ordering,crate::Val> {
+		Ok(std::cmp::Ord::cmp(self, that))
 	}
 }

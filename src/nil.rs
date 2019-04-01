@@ -25,7 +25,7 @@ impl crate::Value for Nil {
 }
 
 impl crate::SameOps for Nil {
-	fn eq(&self, _: &Self) -> crate::Val {
-		crate::bool::get(true)
+	fn cmp(&self, _that: &Self) -> Result<std::cmp::Ordering,crate::Val> {
+		Ok(std::cmp::Ordering::Equal)
 	}
 }

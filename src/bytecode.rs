@@ -955,8 +955,8 @@ impl Func {
 				use crate::Value;
 
 				let sourcedict = match arg.downcast_ref::<crate::dict::Dict>() {
-					Some(d) => d,
-					None => return crate::err::Err::new(format!(
+					Ok(d) => d,
+					Err(_) => return crate::err::Err::new(format!(
 						"Function must be called with dict, called with {:?}",
 						arg)),
 				};
@@ -1004,8 +1004,8 @@ impl Func {
 				use crate::Value;
 
 				let list = match arg.downcast_ref::<crate::list::List>() {
-					Some(l) => l,
-					None => return crate::err::Err::new(format!(
+					Ok(l) => l,
+					Err(_) => return crate::err::Err::new(format!(
 						"Function must be called with list, called with {:?}",
 						arg)),
 				};

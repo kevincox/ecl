@@ -104,7 +104,7 @@ impl<F: Fn(Vec<crate::Val>, crate::Val) -> crate::Val + 'static> std::fmt::Debug
 }
 
 fn cond(args: crate::Val) -> crate::Val {
-	args.check_is::<crate::list::List>()?;
+	args.downcast_ref::<crate::list::List>()?;
 
 	let mut current = 0;
 	let len = args.len().get_num().unwrap() as usize;

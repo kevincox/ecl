@@ -231,18 +231,14 @@ impl Val {
 		}
 	}
 
-	fn check_is<T: 'static>(&self) -> Result<(), Val> {
-		if self.deref().as_any().is::<T>() {
-			Ok(())
+	fn downcast_ref<T: 'static>(&self) -> Result<&T, Val> {
+		if let Some(v) = self.deref().as_any().downcast_ref::<T>() {
+			Ok(i_promise_this_will_stay_alive(v))
 		} else if self.is_err() {
 			Err(err::Err::new_from(self.clone(), format!("Expected {} got error", "")))
 		} else {
 			Err(err::Err::new(format!("Expected {} got {:?}", "", self)))
 		}
-	}
-
-	fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-		self.deref().as_any().downcast_ref::<T>().map(i_promise_this_will_stay_alive)
 	}
 
 	pub fn type_str(&self) -> &'static str {
@@ -300,6 +296,10 @@ impl Val {
 
 	fn neg(&self) -> Val {
 		self.value()?.neg()
+	}
+
+	fn eq(&self, that: crate::Val) -> Val {
+		self.value()?.eq(&*that.value()?)
 	}
 
 	fn cmp(&self, that: crate::Val) -> Result<std::cmp::Ordering,Val> {

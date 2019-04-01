@@ -255,9 +255,9 @@ pub fn override_(
 	const F: &Fn((Rc<crate::thunk::Thunky>, Rc<crate::thunk::Thunky>)) -> crate::Val = &|(sup, sub)| {
 		let sub = sub.eval(crate::mem::PoolHandle::new());
 
-		if let Some(sub_dict) = sub.downcast_ref::<Dict>() {
+		if let Ok(sub_dict) = sub.downcast_ref::<Dict>() {
 			let sup = sup.eval(sub.pool.clone()).annotate("overriding error value")?;
-			if let Some(sup_dict) = sup.downcast_ref::<Dict>() {
+			if let Ok(sup_dict) = sup.downcast_ref::<Dict>() {
 				return sup_dict.call(sub_dict)
 			}
 		}
@@ -337,8 +337,8 @@ impl crate::Value for Dict {
 
 	fn call(&self, arg: crate::Val) -> crate::Val {
 		match arg.downcast_ref::<Dict>() {
-			Some(dict) => self.call(dict),
-			None => crate::err::Err::new(format!("Can't call dict with {:?}", arg)),
+			Ok(dict) => self.call(dict),
+			Err(_) => crate::err::Err::new(format!("Can't call dict with {:?}", arg)),
 		}
 	}
 
