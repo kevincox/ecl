@@ -459,7 +459,7 @@ impl CompileContext {
 				self.write_debug(loc);
 				if let Some((depth, id)) = self.scope.find(&name) {
 					let off = self.write_op(Op::Ref);
-					self.out.write_str(&name); // TODO: remove this.
+					self.out.write_str(&name);
 					self.out.write_varint(depth);
 					self.out.write_varint(id);
 					Ok(off)
@@ -471,16 +471,17 @@ impl CompileContext {
 					Err(crate::err::Err::new(format!("{:?} Invalid reference {:?}", loc, name)))
 				}
 			}
-			crate::Almost::StructRef(_, depth, key) => {
+			crate::Almost::StructRef(loc, depth, key) => {
+				self.write_debug(loc);
 				if let Some(id) = self.scope.find_at(&key, depth) {
 					let off = self.write_op(Op::Ref);
-					self.out.write_str(&key); // TODO: remove this.
+					self.out.write_str(&key);
 					self.out.write_varint(depth);
 					self.out.write_varint(id);
 					Ok(off)
 				} else {
 					let off = self.write_op(Op::RefRel);
-					self.out.write_str(&key); // TODO: remove this.
+					self.out.write_str(&key);
 					self.out.write_varint(depth);
 					Ok(off)
 				}
@@ -839,6 +840,10 @@ impl EvalContext {
 				let depth = cursor.read_varint();
 				let key = crate::dict::Key::Pub(key.to_owned());
 				self.parent.structural_lookup(depth, &key)
+					.annotate_at_with(|| (
+						self.module.loc(off),
+						format!("referenced by {:.>2$}{}", "", key, depth+1),
+					))
 			}
 			Op::Str => {
 				let s = crate::str::CodeString {

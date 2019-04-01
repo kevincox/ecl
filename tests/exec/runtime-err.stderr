@@ -2,6 +2,7 @@ At line 4.11 On left side of call
 At line 4.8 Referenced by "add"
 At line 3.20 On left side of addition
 At line 2.20 Referenced by "ref"
+At line 1.13 referenced by .."fart"
 Can't lookup "fart" in Nil
 
 Error occurred.
