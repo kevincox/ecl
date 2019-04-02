@@ -715,11 +715,7 @@ impl<'a> EvalContext<'a> {
 			Op::Gt => {
 				self.eval_cmp(off, ">", |o| o == std::cmp::Ordering::Greater)
 			}
-			Op::Eq => {
-				let l = self.continue_eval();
-				let r = self.continue_eval();
-				crate::bool::get(l == r)
-			}
+			Op::Eq => self.eval_binop(off, "==", crate::Val::eq),
 			Op::Lt => {
 				self.eval_cmp(off, "<", |o| o == std::cmp::Ordering::Less)
 			}
@@ -802,11 +798,7 @@ impl<'a> EvalContext<'a> {
 				}
 				crate::list::List::new(self.parent.clone(), items)
 			}
-			Op::Ne => {
-				let l = self.continue_eval();
-				let r = self.continue_eval();
-				crate::bool::get(l.ne(&r))
-			}
+			Op::Ne => self.eval_binop(off, "!=", crate::Val::ne),
 			Op::Neg => {
 				self.continue_eval().neg()
 			}

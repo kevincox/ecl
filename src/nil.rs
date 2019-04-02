@@ -19,8 +19,8 @@ impl crate::Value for Nil {
 		crate::Val::new_atomic("nil".to_owned())
 	}
 
-	fn to_bool(&self) -> bool {
-		false
+	fn to_bool(&self) -> crate::Val {
+		crate::bool::get(false)
 	}
 }
 

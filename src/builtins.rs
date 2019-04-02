@@ -111,7 +111,7 @@ fn cond(args: crate::Val) -> crate::Val {
 	loop {
 		if current == len { return crate::nil::get() }
 		if current + 1 == len { return args.index_int(current) }
-		if args.index_int(current).to_bool() {
+		if args.index_int(current).to_bool()?.get_bool().unwrap() {
 			return args.index_int(current + 1)
 		}
 		current += 2;

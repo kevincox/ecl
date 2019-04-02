@@ -14,12 +14,16 @@ impl crate::Value for bool {
 		crate::Val::new_atomic(ToString::to_string(self))
 	}
 
-	fn to_bool(&self) -> bool {
-		*self
+	fn to_bool(&self) -> crate::Val {
+		get(*self)
 	}
 
 	fn get_bool(&self) -> Option<bool> {
 		Some(*self)
+	}
+
+	fn not(&self) -> crate::Val {
+		get(!self)
 	}
 }
 

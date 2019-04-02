@@ -52,9 +52,10 @@ pub trait Value:
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
 	fn to_string(&self) -> Val { err::Err::new(format!("Can't turn {:?} into a string", self)) }
-	fn to_bool(&self) -> bool { true }
+	fn to_bool(&self) -> Val { crate::bool::get(true) }
 	fn get_bool(&self) -> Option<bool> { None }
 	fn neg(&self) -> Val { err::Err::new(format!("Can't negate {:?}", self)) }
+	fn not(&self) -> Val { err::Err::new(format!("Can't bool NOT {:?}", self)) }
 	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
 	fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> { None }
@@ -92,7 +93,7 @@ pub trait SameOpsTrait: std::fmt::Debug {
 	}
 
 	fn eq(&self, that: &Value) -> Val {
-		bool::get(self.cmp(that) == Ok(std::cmp::Ordering::Equal))
+		bool::get(self.cmp(that)? == std::cmp::Ordering::Equal)
 	}
 
 	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
@@ -298,8 +299,16 @@ impl Val {
 		self.value()?.neg()
 	}
 
+	fn not(&self) -> Val {
+		self.value()?.not()
+	}
+
 	fn eq(&self, that: crate::Val) -> Val {
 		self.value()?.eq(&*that.value()?)
+	}
+
+	fn ne(&self, that: crate::Val) -> Val {
+		self.eq(that).not()
 	}
 
 	fn cmp(&self, that: crate::Val) -> Result<std::cmp::Ordering,Val> {
@@ -324,8 +333,8 @@ impl Val {
 		v.to_string()
 	}
 
-	fn to_bool(&self) -> bool {
-		self.value().unwrap().to_bool()
+	fn to_bool(&self) -> Val {
+		self.value()?.to_bool()
 	}
 
 	pub fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> {
@@ -394,12 +403,6 @@ impl Val {
 	pub fn eval(&self) -> Result<Val,Val> {
 		self.deref().eval()?;
 		Ok(self.clone())
-	}
-}
-
-impl PartialEq for Val {
-	fn eq(&self, that: &Val) -> bool {
-		self.value().unwrap().eq(&*that.deref()).to_bool()
 	}
 }
 
