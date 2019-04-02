@@ -453,7 +453,8 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 					Some(c@'a'...'z') |
 					Some(c@'A'...'Z') |
 					Some(c@'0'...'9') =>
-						panic!("Unknown escape sequence \"\\{}\"", c),
+						// Unknown escape sequence.
+						return Token::Unexpected(c),
 					Some(c) => s.push(c),
 					None => return Token::Unfinished,
 				},
