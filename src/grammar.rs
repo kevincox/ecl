@@ -65,6 +65,14 @@ pub struct ParseError {
 	msg: &'static str,
 }
 
+impl std::fmt::Display for ParseError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{} {:?}", self.msg, self.typ)
+	}
+}
+
+impl std::error::Error for ParseError { }
+
 macro_rules! while_next {
 	{$i:ident, $($($p:pat)|+ => $e:expr),+ $(,)* } => {
 		loop {

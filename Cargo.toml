@@ -4,6 +4,7 @@ edition = "2018"
 name = "ecl"
 version = "0.1.0"
 license = "Apache-2.0"
+
 [dependencies]
 byteorder = "1.2.1"
 clap = "2.25.1"
@@ -22,6 +23,7 @@ serde_derive = "0.8"
 
 [profile.release]
 debug = true
+panic = "abort"
 
 [[test]]
 name = "assert"

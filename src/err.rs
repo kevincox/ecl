@@ -27,9 +27,9 @@ impl Err {
 
 	fn from(e: &std::error::Error) -> crate::Val {
 		if let Some(sub) = e.source() {
-			Self::from(sub).annotate(e.description())
+			Self::from(sub).annotate(&format!("{}", e))
 		} else {
-			Err::new(e.description().to_string())
+			Err::new(format!("{}", e))
 		}
 	}
 }

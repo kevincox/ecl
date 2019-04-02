@@ -438,8 +438,7 @@ impl<'a> serde::Serialize for SerializeVal<'a> {
 }
 
 fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
-	use std::error::Error;
-	E::custom(e.description())
+	E::custom(format!("{}", e))
 }
 
 impl serde::Serialize for Val {
@@ -536,16 +535,15 @@ pub fn eval(source: &str, doc: &str) -> Val {
 		.unwrap_or_else(|e| e)
 }
 
-pub fn parse_file(path: &str) -> Result<crate::Almost,crate::grammar::ParseError> {
-	let mut file = match std::fs::File::open(path) {
-		Ok(file) => file,
-		Err(e) => panic!("Failed to open {:?}: {:?}", path, e),
-	};
+pub fn parse_file(path: &str) -> Result<Almost,Val> {
+	let mut file = std::fs::File::open(path)
+		.map_err(|e| err::Err::new(format!("Failed to open {:?}: {:?}", path, e)))?;
 
 	let mut buf = String::with_capacity(4096);
-	file.read_to_string(&mut buf).unwrap();
+	file.read_to_string(&mut buf)?;
 
-	grammar::parse(path, buf.chars())
+	let ast = grammar::parse(path, buf.chars())?;
+	Ok(ast)
 }
 
 pub fn eval_file(path: &str) -> Val {
