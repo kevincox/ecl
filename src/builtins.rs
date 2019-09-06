@@ -1,5 +1,24 @@
 use std;
 
+static LEAK_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+struct Leakable;
+
+impl Leakable {
+	fn new() -> Self {
+		let previous = LEAK_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+		assert_ne!(previous, u32::max_value());
+		Leakable
+	}
+}
+
+impl Drop for Leakable {
+	fn drop(&mut self) {
+		let previous = LEAK_COUNT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+		assert_ne!(previous, u32::min_value());
+	}
+}
+
 static BUILTINS: &[(&str, &(dyn Fn() -> crate::Val + Sync))] = &[
 	("nil", &|| crate::nil::get()),
 	("cond", &|| new("if", |v| cond(v))),
@@ -37,7 +56,18 @@ static BUILTINS: &[(&str, &(dyn Fn() -> crate::Val + Sync))] = &[
 			unevaluated.set(false);
 			r
 		};
-		new("_testing_assert_eval_once", func)
+		new("_testing_assert_cache_eval", func)
+	}),
+	("_testing_leak_count", &|| {
+		crate::Val::new_atomic(LEAK_COUNT.load(std::sync::atomic::Ordering::SeqCst) as f64)
+	}),
+	("_testing_leak_trace", &|| {
+		let tracker = Leakable::new();
+		let func = move |r| {
+			let _ = tracker;
+			r
+		};
+		new("_testing_leak", func)
 	}),
 ];
 
