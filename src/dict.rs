@@ -164,11 +164,7 @@ impl Dict {
 		for (parent, source) in self.sources() {
 			match source {
 				Source::Assert{debug, almost} => {
-					let val = almost.eval(parent.clone());
-					if !val.to_bool()?.get_bool().unwrap() {
-						let e = crate::err::Err::new_at(
-							almost.module.loc(*debug),
-							"Assertion failed".into())?;
+					if let Err(e) = almost.eval_assert(parent.clone(), *debug) {
 						self.prv.borrow_mut().state = EvalState::Error(e.clone());
 						return Err(e)
 					}

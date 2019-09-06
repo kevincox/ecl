@@ -1,0 +1,2 @@
+cmd: load assert-nil.ecl
+status: 1

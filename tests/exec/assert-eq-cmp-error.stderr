@@ -1,5 +1,5 @@
 At line 1.1 Assertion failed left == right:
 left:  1.0
-right: 2.0
+right: "1"
 
 Error occurred.

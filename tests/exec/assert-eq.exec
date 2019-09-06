@@ -1,0 +1,2 @@
+cmd: load assert-eq.ecl
+status: 1

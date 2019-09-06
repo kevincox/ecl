@@ -40,6 +40,7 @@ pub trait Value:
 
 	fn eval(&self) -> Result<(),Val> { Ok(()) }
 	fn is_err(&self) -> bool { false }
+	fn is_nil(&self) -> bool { false }
 	fn is_empty(&self) -> Val { err::Err::new(format!("Can't check if {:?} is empty", self)) }
 	fn len(&self) -> Val { err::Err::new(format!("{:?} doesn't have a length", self)) }
 	fn index_int(&self, _k: usize) -> Val { err::Err::new(format!("Can't index {:?} with an int", self)) }
@@ -260,6 +261,10 @@ impl Val {
 
 	pub fn is_err(&self) -> bool {
 		self.deref().is_err()
+	}
+
+	pub fn is_nil(&self) -> bool {
+		self.deref().is_nil()
 	}
 
 	pub fn len(&self) -> Val {

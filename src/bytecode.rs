@@ -402,19 +402,17 @@ impl CompileContext {
 					match e.visibility {
 						crate::dict::Visibility::Assert => {
 							self.out.write_u8(DictItem::Assert.to());
-							self.compile_outofline(scope.clone(), e.val);
 						}
 						crate::dict::Visibility::Local => {
 							self.out.write_u8(DictItem::Local.to());
 							self.out.write_varint(scope.find_at(&e.key, 0).unwrap());
-							self.compile_outofline(scope.clone(), e.val);
 						},
 						crate::dict::Visibility::Pub => {
 							self.out.write_u8(DictItem::Pub.to());
 							self.out.write_str(&e.key);
-							self.compile_outofline(scope.clone(), e.val);
 						},
 					}
+					self.compile_outofline(scope.clone(), e.val);
 				}
 
 				Ok(off)
@@ -860,6 +858,27 @@ impl<'a> EvalContext<'a> {
 		f(&left, right)
 	}
 
+	fn assert_binop(&mut self,
+		assert_loc: crate::grammar::Loc,
+		off: u64,
+		desc: &str,
+		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
+	) -> Result<(), crate::Val> {
+		let loc = self.module.loc(off as usize);
+		let left = self.continue_eval()
+			.annotate_at_with(|| (loc, format!("On left side of {}", desc)))?;
+		let right = self.continue_eval()
+			.annotate_at_with(|| (loc, format!("On right side of {}", desc)))?;
+		let val = f(&left, right.clone())
+			.to_bool()?;
+		if !val.get_bool().unwrap() {
+			Err(crate::err::Err::new_at(assert_loc,
+				format!("Assertion failed left {} right:\nleft:  {:?}\nright: {:?}", desc, left, right)))
+		} else {
+			Ok(())
+		}
+	}
+
 	fn eval_cmp(&mut self,
 		off: usize,
 		desc: &str,
@@ -869,7 +888,34 @@ impl<'a> EvalContext<'a> {
 			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
 		let right = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
-		crate::bool::get(f(left.cmp(right)?))
+
+		let ord = left.cmp(right)
+			.map_err(|e| e.annotate_at_with(|| (self.module.loc(off), format!("At {}", desc))))?;
+
+		crate::bool::get(f(ord))
+	}
+
+	fn assert_cmp(&mut self,
+		assert_loc: crate::grammar::Loc,
+		off: u64,
+		desc: &str,
+		f: impl FnOnce(std::cmp::Ordering) -> bool,
+	) -> Result<(), crate::Val> {
+		let loc = self.module.loc(off as usize);
+		let left = self.continue_eval()
+			.annotate_at_with(|| (loc, format!("On left side of {}", desc)))?;
+		let right = self.continue_eval()
+			.annotate_at_with(|| (loc, format!("On right side of {}", desc)))?;
+
+		let ord = left.cmp(right.clone())
+			.map_err(|e| e.annotate_at_with(|| (loc, format!("At {}", desc))))?;
+
+		if !f(ord) {
+			Err(crate::err::Err::new_at(assert_loc,
+				format!("Assertion failed left {} right:\nleft:  {:?}\nright: {:?}", desc, left, right)))
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -900,8 +946,51 @@ impl Value {
 
 	pub fn eval(&self, parent: Rc<crate::Parent>) -> crate::Val {
 		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
-		cursor.set_position(self.offset as u64);
+		cursor.set_position(self.offset);
 		EvalContext { module: &self.module, cursor, parent }.eval()
+	}
+
+	pub fn eval_assert(&self, parent: Rc<crate::Parent>, debug: usize) -> Result<(), crate::Val> {
+		let loc = self.module.loc(debug);
+
+		let mut cursor = std::io::Cursor::new(&self.module.code[..]);
+		cursor.set_position(self.offset);
+		let op = Op::from(cursor.read_u8().unwrap())?;
+		let mut context = EvalContext { module: &self.module, cursor, parent };
+
+		match op {
+			Op::Ge => {
+				context.assert_cmp(loc, self.offset, ">=", |o| o != std::cmp::Ordering::Less)
+			}
+			Op::Gt => {
+				context.assert_cmp(loc, self.offset, ">", |o| o == std::cmp::Ordering::Greater)
+			}
+			Op::Eq => context.assert_binop(loc, self.offset, "==", crate::Val::eq),
+			Op::Lt => {
+				context.assert_cmp(loc, self.offset, "<", |o| o == std::cmp::Ordering::Less)
+			}
+			Op::Le => {
+				context.assert_cmp(loc, self.offset, "<=", |o| o != std::cmp::Ordering::Greater)
+			}
+			Op::Ne => context.assert_binop(loc, self.offset, "!=", crate::Val::ne),
+			_ => {
+				context.cursor.set_position(self.offset as u64);
+				let val = context.eval();
+				if val.is_nil() {
+					return Err(crate::err::Err::new_at(loc, "Assertion nil".into()))
+				}
+
+				let val = val
+					.to_bool()
+					.annotate_at(loc, "Evaluating assertion condition")?;
+
+				if !val.get_bool().unwrap() {
+					Err(crate::err::Err::new_at(loc, "Assertion failed".into()))
+				} else {
+					Ok(())
+				}
+			}
+		}
 	}
 
 	pub fn loc(&self) -> crate::grammar::Loc {
