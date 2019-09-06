@@ -6,7 +6,7 @@ use std::rc::Rc;
 // easily. Unfortunately I can't make them into a trait that does so because it
 // would "conflict" with ::SameOps.
 
-fn str_add(this: &str, that: &crate::Value) -> crate::Val {
+fn str_add(this: &str, that: &dyn crate::Value) -> crate::Val {
 	if let Some(s) = that.get_str() {
 		crate::Val::new_atomic(format!("{}{}", this, s))
 	} else {
@@ -14,7 +14,7 @@ fn str_add(this: &str, that: &crate::Value) -> crate::Val {
 	}
 }
 
-fn str_cmp(this: &str, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> {
+fn str_cmp(this: &str, that: &dyn crate::Value) -> Result<std::cmp::Ordering,crate::Val> {
 	if let Some(s) = that.get_str() {
 		Ok(this.cmp(s))
 	} else {
@@ -29,17 +29,17 @@ impl crate::Value for String {
 		Some(self)
 	}
 
-	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self)
 	}
 }
 
 impl crate::SameOpsTrait for String {
-	fn as_any(&self) -> &std::any::Any { self }
+	fn as_any(&self) -> &dyn std::any::Any { self }
 
-	fn add(&self, that: &crate::Value) -> crate::Val { str_add(self, that) }
-	fn cmp(&self, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self, that) }
+	fn add(&self, that: &dyn crate::Value) -> crate::Val { str_add(self, that) }
+	fn cmp(&self, that: &dyn crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self, that) }
 }
 
 pub struct CodeString {
@@ -62,17 +62,17 @@ impl crate::Value for CodeString {
 		Some(self.get())
 	}
 
-	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_str(self.get())
 	}
 }
 
 impl crate::SameOpsTrait for CodeString {
-	fn as_any(&self) -> &std::any::Any { self }
+	fn as_any(&self) -> &dyn std::any::Any { self }
 
-	fn add(&self, that: &crate::Value) -> crate::Val { str_add(self.get(), that) }
-	fn cmp(&self, that: &crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self.get(), that) }
+	fn add(&self, that: &dyn crate::Value) -> crate::Val { str_add(self.get(), that) }
+	fn cmp(&self, that: &dyn crate::Value) -> Result<std::cmp::Ordering,crate::Val> { str_cmp(self.get(), that) }
 }
 
 impl std::fmt::Debug for CodeString {

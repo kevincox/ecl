@@ -10,7 +10,7 @@ pub fn get() -> crate::Val {
 impl crate::Value for Nil {
 	fn type_str(&self) -> &'static str { "nil" }
 
-	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_none()
 	}

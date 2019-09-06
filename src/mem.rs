@@ -35,7 +35,7 @@ impl Drop for State {
 
 #[derive(Debug)]
 pub struct Data {
-	allocated: Vec<Rc<crate::Value>>,
+	allocated: Vec<Rc<dyn crate::Value>>,
 }
 
 #[derive(Clone,Debug)]
@@ -203,7 +203,7 @@ impl PoolHandle {
 		WeakPoolHandle(self.0.clone())
 	}
 
-	pub fn push(&self, v: Rc<crate::Value>) {
+	pub fn push(&self, v: Rc<dyn crate::Value>) {
 		debug_assert!(!self.is_empty());
 
 		let pool = self.0.get();

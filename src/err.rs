@@ -25,7 +25,7 @@ impl Err {
 		crate::Val::new(chained.pool.clone(), Err{msg, loc, chained: chained.value})
 	}
 
-	fn from(e: &std::error::Error) -> crate::Val {
+	fn from(e: &dyn std::error::Error) -> crate::Val {
 		if let Some(sub) = e.source() {
 			Self::from(sub).annotate(&format!("{}", e))
 		} else {

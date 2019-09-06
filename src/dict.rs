@@ -63,7 +63,7 @@ struct DictData {
 #[derive(Debug)]
 pub struct DictPair {
 	pub key: Key,
-	pub val: Rc<crate::thunk::Thunky>,
+	pub val: Rc<dyn crate::thunk::Thunky>,
 }
 
 impl DictPair {
@@ -180,7 +180,7 @@ impl Dict {
 		Ok(())
 	}
 
-	pub fn _set_val(&self, key: Key, val: Rc<crate::thunk::Thunky>) {
+	pub fn _set_val(&self, key: Key, val: Rc<dyn crate::thunk::Thunky>) {
 		let mut prv = self.prv.borrow_mut();
 		match prv.data.binary_search_by(|pair| pair.key.cmp(&key)) {
 			Ok(_) => unreachable!("_set_val() for duplicate key {:?}", key),
@@ -249,10 +249,10 @@ impl Dict {
 }
 
 pub fn override_(
-	sup: Rc<crate::thunk::Thunky>,
-	sub: Rc<crate::thunk::Thunky>,
-) -> Rc<crate::thunk::Thunky> {
-	const F: &Fn((Rc<crate::thunk::Thunky>, Rc<crate::thunk::Thunky>)) -> crate::Val = &|(sup, sub)| {
+	sup: Rc<dyn crate::thunk::Thunky>,
+	sub: Rc<dyn crate::thunk::Thunky>,
+) -> Rc<dyn crate::thunk::Thunky> {
+	const F: &dyn Fn((Rc<dyn crate::thunk::Thunky>, Rc<dyn crate::thunk::Thunky>)) -> crate::Val = &|(sup, sub)| {
 		let sub = sub.eval(crate::mem::PoolHandle::new());
 
 		if let Ok(sub_dict) = sub.downcast_ref::<Dict>() {
@@ -342,7 +342,7 @@ impl crate::Value for Dict {
 		}
 	}
 
-	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>)> {
+	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<dyn Iterator<Item=crate::Val> + 'a>)> {
 		self.eval_items().unwrap();
 
 		// This is fine because the dict has been fully evaluated.
@@ -366,7 +366,7 @@ impl crate::Value for Dict {
 				}))))
 	}
 
-	fn serialize(&self, visited: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		self.eval_items().unwrap();
 		let prv = self.prv.borrow();

@@ -217,7 +217,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'o' => self.num_base(8, '0'),
 			'd' => self.num_base(10, '0'),
 			'x' => self.num_base(16, '0'),
-			c@'0'...'9' => self.num_base(10, c),
+			c@'0'..='9' => self.num_base(10, c),
 			'.' => self.num_base(10, '0'),
 		).unwrap_or(Token::Num(0.0))
 	}
@@ -227,9 +227,9 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 
 		while_next! { self,
 			'_' => {},
-			c@'0'...'9' |
-			c@'a'...'f' |
-			c@'A'...'F' => {
+			c@'0'..='9' |
+			c@'a'..='f' |
+			c@'A'..='F' => {
 				if let Some(d) = c.to_digit(base) {
 					n *= base as u64;
 					n += d as u64;
@@ -251,9 +251,9 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 		if self.consume('.') {
 			while_next!{self,
 				'_' => {},
-				c@'0'...'9' |
-				c@'a'...'f' |
-				c@'A'...'F' => {
+				c@'0'..='9' |
+				c@'a'..='f' |
+				c@'A'..='F' => {
 					if let Some(d) = c.to_digit(base) {
 						numerator *= base as u64;
 						numerator += d as u64;
@@ -334,7 +334,7 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 			'+' => Token::Add,
 			':' => Token::Call,
 			'0' => self.num(),
-			n@'1'...'9' => self.num_base(10, n),
+			n@'1'..='9' => self.num_base(10, n),
 			'=' => match self.next() {
 				Some('=') => Token::Eq,
 				Some(c) => { self.unget(c); Token::Assign },
@@ -450,9 +450,9 @@ impl<Input: Iterator<Item=char>> Lexer<Input> {
 					Some('n') => s.push('\n'),
 					Some('t') => s.push('\t'),
 					Some('0') => s.push('\0'),
-					Some(c@'a'...'z') |
-					Some(c@'A'...'Z') |
-					Some(c@'0'...'9') =>
+					Some(c@'a'..='z') |
+					Some(c@'A'..='Z') |
+					Some(c@'0'..='9') =>
 						// Unknown escape sequence.
 						return Token::Unexpected(c),
 					Some(c) => s.push(c),

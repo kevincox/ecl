@@ -7,7 +7,7 @@ pub fn get(n: f64) -> crate::Val { crate::Val::new_inline(crate::Inline::Num(n))
 impl crate::Value for f64 {
 	fn type_str(&self) -> &'static str { "num" }
 
-	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_f64(*self)
 	}

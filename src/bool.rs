@@ -5,7 +5,7 @@ pub fn get(b: bool) -> crate::Val { crate::Val::new_inline(crate::Inline::Bool(b
 impl crate::Value for bool {
 	fn type_str(&self) -> &'static str { "bool" }
 
-	fn serialize(&self,  _: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self,  _: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		s.erased_serialize_bool(*self)
 	}

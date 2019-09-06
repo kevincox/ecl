@@ -1,6 +1,6 @@
 use std;
 
-static BUILTINS: &[(&str, &(Fn() -> crate::Val + Sync))] = &[
+static BUILTINS: &[(&str, &(dyn Fn() -> crate::Val + Sync))] = &[
 	("nil", &|| crate::nil::get()),
 	("cond", &|| new("if", |v| cond(v))),
 	("error", &|| new("error", |msg|

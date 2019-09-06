@@ -17,7 +17,7 @@ fn fail_fast() -> bool {
 }
 
 pub fn scan_dir(dir: &str, ext: &'static str)
-	-> Box<Iterator<Item=std::path::PathBuf>>
+	-> Box<dyn Iterator<Item=std::path::PathBuf>>
 {
 	let dir = format!("tests/{}", dir);
 

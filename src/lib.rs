@@ -47,7 +47,7 @@ pub trait Value:
 	fn structural_lookup(&self, _depth: usize, key: &dict::Key) -> Val {
 		crate::err::Err::new(format!("Can't lookup {} in {:?}", key, self))
 	}
-	fn serialize(&self, _v: &mut Vec<*const Value>, _s: &mut erased_serde::Serializer)
+	fn serialize(&self, _v: &mut Vec<*const dyn Value>, _s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> { panic!("Can't serialize {:?}", self) }
 	fn get_str(&self) -> Option<&str> { None }
 	fn get_num(&self) -> Option<f64> { None }
@@ -58,8 +58,8 @@ pub trait Value:
 	fn not(&self) -> Val { err::Err::new(format!("Can't bool NOT {:?}", self)) }
 	fn call(&self, arg: Val) -> Val
 		{ err::Err::new(format!("Can't call {:?} with {:?}", self, arg)) }
-	fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> { None }
-	fn reverse_iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> { None }
+	fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<dyn Iterator<Item=Val> + 'a>)> { None }
+	fn reverse_iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<dyn Iterator<Item=Val> + 'a>)> { None }
 	fn reverse(&self) -> Val { err::Err::new(format!("Can't reverse {:?}", self)) }
 }
 
@@ -82,29 +82,29 @@ pub trait SameOps: std::fmt::Debug {
 }
 
 pub trait SameOpsTrait: std::fmt::Debug {
-	fn as_any(&self) -> &std::any::Any;
+	fn as_any(&self) -> &dyn std::any::Any;
 
-	fn add(&self, that: &Value) -> Val {
+	fn add(&self, that: &dyn Value) -> Val {
 		err::Err::new(format!("Can't add {:?} and {:?}", self, that))
 	}
 
-	fn subtract(&self, that: &Value) -> Val {
+	fn subtract(&self, that: &dyn Value) -> Val {
 		err::Err::new(format!("Can't subtract {:?} and {:?}", self, that))
 	}
 
-	fn eq(&self, that: &Value) -> Val {
+	fn eq(&self, that: &dyn Value) -> Val {
 		bool::get(self.cmp(that)? == std::cmp::Ordering::Equal)
 	}
 
-	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
+	fn cmp(&self, that: &dyn Value) -> Result<std::cmp::Ordering,Val> {
 		Err(err::Err::new(format!("Can't compare {:?} and {:?}", self, that)))
 	}
 }
 
 impl<T: SameOps + Value> SameOpsTrait for T {
-	fn as_any(&self) -> &std::any::Any { self }
+	fn as_any(&self) -> &dyn std::any::Any { self }
 
-	fn add(&self, that: &Value) -> Val {
+	fn add(&self, that: &dyn Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::add(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
@@ -112,7 +112,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		}
 	}
 
-	fn subtract(&self, that: &Value) -> Val {
+	fn subtract(&self, that: &dyn Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::subtract(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
@@ -120,7 +120,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		}
 	}
 
-	fn eq(&self, that: &Value) -> Val {
+	fn eq(&self, that: &dyn Value) -> Val {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::eq(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
@@ -128,7 +128,7 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 		}
 	}
 
-	fn cmp(&self, that: &Value) -> Result<std::cmp::Ordering,Val> {
+	fn cmp(&self, that: &dyn Value) -> Result<std::cmp::Ordering,Val> {
 		if self.type_str() as *const str == that.type_str() as *const str {
 			SameOps::cmp(self, that.as_any().downcast_ref::<Self>().unwrap())
 		} else {
@@ -140,15 +140,15 @@ impl<T: SameOps + Value> SameOpsTrait for T {
 #[derive(Clone,Debug)]
 pub enum Inline {
 	Bool(bool),
-	Heap(std::rc::Weak<Value>),
+	Heap(std::rc::Weak<dyn Value>),
 	Nil,
 	Num(f64),
 }
 
 impl std::ops::Deref for Inline {
-	type Target = Value;
+	type Target = dyn Value;
 
-	fn deref(&self) -> &Value {
+	fn deref(&self) -> &dyn Value {
 		match *self {
 			Inline::Bool(ref b) => b,
 			Inline::Heap(ref weak) => {
@@ -199,12 +199,12 @@ impl Val {
 		Self::new(mem::PoolHandle::new(), value)
 	}
 
-	fn value(&self) -> Result<&Value,Val> {
+	fn value(&self) -> Result<&dyn Value,Val> {
 		let this = self.deref();
 		if this.is_err() { Err(self.clone()) } else { Ok(this) }
 	}
 
-	fn deref(&self) -> &Value { &*self.value }
+	fn deref(&self) -> &dyn Value { &*self.value }
 
 	fn merge(&self, val: Val) -> Val {
 		self.pool.merge(val.pool);
@@ -337,7 +337,7 @@ impl Val {
 		self.value()?.to_bool()
 	}
 
-	pub fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<Iterator<Item=Val> + 'a>)> {
+	pub fn iter<'a>(&'a self) -> Option<(mem::PoolHandle, Box<dyn Iterator<Item=Val> + 'a>)> {
 		i_promise_this_will_stay_alive(&*self.deref()).iter()
 	}
 
@@ -389,8 +389,8 @@ impl Val {
 		self.merge(val)
 	}
 
-	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const Value>) -> SerializeVal<'a> {
-		let selfp = &*self.deref() as *const Value;
+	pub fn rec_ser<'a>(&self, visited: &'a mut Vec<*const dyn Value>) -> SerializeVal<'a> {
+		let selfp = &*self.deref() as *const dyn Value;
 		if visited.contains(&selfp) { panic!("Recursive structure detected."); }
 		visited.push(selfp);
 
@@ -425,7 +425,7 @@ impl std::ops::Try for Val {
 
 pub struct SerializeVal<'a> {
 	val: Val,
-	visited: std::cell::RefCell<&'a mut Vec<*const Value>>,
+	visited: std::cell::RefCell<&'a mut Vec<*const dyn Value>>,
 }
 
 impl<'a> Drop for SerializeVal<'a> {
@@ -446,7 +446,7 @@ fn unerase<E: serde::ser::Error>(e: erased_serde::Error) -> E {
 
 impl serde::Serialize for Val {
 	fn serialize<S: serde::Serializer>(&self, s: &mut S) -> Result<(), S::Error> {
-		let mut v: Vec<*const Value> = vec![];
+		let mut v: Vec<*const dyn Value> = vec![];
 		self.rec_ser(unsafe{ std::mem::transmute(&mut v) }).serialize(s)
 	}
 }

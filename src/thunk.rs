@@ -2,7 +2,7 @@ use std;
 use std::rc::Rc;
 
 pub enum State<T: 'static> {
-	Code(T, &'static Fn(T) -> crate::Val),
+	Code(T, &'static dyn Fn(T) -> crate::Val),
 	Working,
 	Val(crate::Inline),
 }
@@ -12,8 +12,8 @@ pub struct Thunk<T: 'static>(std::cell::RefCell<State<T>>);
 impl<T: 'static> Thunk<T> {
 	pub fn new(
 		data: T,
-		code: &'static Fn(T) -> crate::Val,
-	) -> Rc<Thunky> {
+		code: &'static dyn Fn(T) -> crate::Val,
+	) -> Rc<dyn Thunky> {
 		Rc::new(Thunk(std::cell::RefCell::new(State::Code(data, code))))
 	}
 
@@ -22,12 +22,12 @@ impl<T: 'static> Thunk<T> {
 	}
 }
 
-pub fn shim(v: crate::Val) -> Rc<Thunky> {
+pub fn shim(v: crate::Val) -> Rc<dyn Thunky> {
 	Thunk::<()>::shim(v.value)
 }
 
-pub fn bytecode(parent: Rc<crate::Parent>, code: crate::bytecode::Value) -> Rc<Thunky> {
-	const F: &Fn((Rc<crate::Parent>, crate::bytecode::Value)) -> crate::Val =
+pub fn bytecode(parent: Rc<crate::Parent>, code: crate::bytecode::Value) -> Rc<dyn Thunky> {
+	const F: &dyn Fn((Rc<crate::Parent>, crate::bytecode::Value)) -> crate::Val =
 		&|(parent, val)| val.eval(parent);
 
 	Thunk::new((parent, code), F)

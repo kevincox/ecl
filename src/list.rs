@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 pub struct List {
 	pool: crate::mem::WeakPoolHandle,
-	data: Vec<Rc<crate::thunk::Thunky>>,
+	data: Vec<Rc<dyn crate::thunk::Thunky>>,
 }
 
 impl List {
@@ -23,7 +23,7 @@ impl List {
 		})
 	}
 
-	pub fn of_vals(pool: crate::mem::PoolHandle, data: Vec<Rc<crate::thunk::Thunky>>) -> crate::Val {
+	pub fn of_vals(pool: crate::mem::PoolHandle, data: Vec<Rc<dyn crate::thunk::Thunky>>) -> crate::Val {
 		crate::Val::new(pool.clone(), List{pool: pool.downgrade(), data})
 	}
 
@@ -31,7 +31,7 @@ impl List {
 		self.data.get(i).map(|i| i.eval(self.pool.upgrade()))
 	}
 
-	fn iter<'a>(&'a self) -> (crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>) {
+	fn iter<'a>(&'a self) -> (crate::mem::PoolHandle, Box<dyn Iterator<Item=crate::Val> + 'a>) {
 		let pool = self.pool.upgrade();
 		(pool.clone(), Box::new(self.data.iter().map(move |v| v.eval(pool.clone()))))
 	}
@@ -46,7 +46,7 @@ impl crate::Value for List {
 		self.data[k].eval(self.pool.upgrade())
 	}
 
-	fn serialize(&self, visited: &mut Vec<*const crate::Value>, s: &mut erased_serde::Serializer)
+	fn serialize(&self, visited: &mut Vec<*const dyn crate::Value>, s: &mut dyn erased_serde::Serializer)
 		-> Result<(),erased_serde::Error> {
 		let len = self.data.len();
 		let mut state = r#try!(s.erased_serialize_seq_fixed_size(len));
@@ -56,11 +56,11 @@ impl crate::Value for List {
 		s.erased_serialize_seq_end(state)
 	}
 
-	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>)> {
+	fn iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<dyn Iterator<Item=crate::Val> + 'a>)> {
 		Some(self.iter())
 	}
 
-	fn reverse_iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<Iterator<Item=crate::Val> + 'a>)> {
+	fn reverse_iter<'a>(&'a self) -> Option<(crate::mem::PoolHandle, Box<dyn Iterator<Item=crate::Val> + 'a>)> {
 		let pool = self.pool.upgrade();
 		Some((
 			pool.clone(),
