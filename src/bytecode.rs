@@ -1052,7 +1052,7 @@ mod tests {
 	#[test]
 	fn compile_global() {
 		assert_eq!(
-			compile_to_vec(crate::Almost::Nil),
-			Ok(b"ECL\0v001\x18\0\0\0\0\0\0\0\x1A\0\0\0\0\0\0\0\x00\x01\x35".as_ref().into()));
+			compile_to_vec(crate::Almost::Nil).unwrap(),
+			b"ECL\0v001\x18\0\0\0\0\0\0\0\x1A\0\0\0\0\0\0\0\x00\x01\x35".to_vec());
 	}
 }

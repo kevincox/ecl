@@ -495,12 +495,12 @@ mod tests {
 
 		let v = eval("<str>", "{a=4 b = 0}");
 		assert_eq!(v.is_empty().get_bool(), Some(false));
-		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
-		assert_eq!(v.index_str("b"), crate::Val::new_atomic(0.0));
+		assert_eq!(v.index_str("a").get_num(), Some(4.0));
+		assert_eq!(v.index_str("b").get_num(), Some(0.0));
 
 		let v = eval("<str>", "{a=4 b=a}");
 		assert_eq!(v.is_empty().get_bool(), Some(false));
-		assert_eq!(v.index_str("a"), crate::Val::new_atomic(4.0));
-		assert_eq!(v.index_str("b"), crate::Val::new_atomic(4.0));
+		assert_eq!(v.index_str("a").get_num(), Some(4.0));
+		assert_eq!(v.index_str("b").get_num(), Some(4.0));
 	}
 }

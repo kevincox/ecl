@@ -8,7 +8,6 @@ local a = {
 index = a.b.f:a.b.i
 math = a.b.f:4 + a.b.f:5 + a.b.f:6
 
-cmp-eq-false = "1" == 1
 cmp-eq-true = 1 == 1
 cmp-ge-eq = 3 >= 2
 cmp-ge-false = 1 >= 2

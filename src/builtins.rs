@@ -144,14 +144,14 @@ mod tests {
 	#[test]
 	fn assert_once_once() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)).get_num(), Some(5.1));
 	}
 
 	#[test]
 	#[should_panic(expected="Called twice")]
 	fn assert_once_twice() {
 		let v = get("_testing_assert_cache_eval");
-		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
-		assert_eq!(v.call(crate::Val::new_atomic(5.1)), crate::Val::new_atomic(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)).get_num(), Some(5.1));
+		assert_eq!(v.call(crate::Val::new_atomic(5.1)).get_num(), Some(5.1));
 	}
 }

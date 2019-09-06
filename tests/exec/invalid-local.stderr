@@ -1,3 +1,4 @@
-Failed to parse "invalid-local.ecl": ParseError { typ: Unexpected(1.11, Add, []), msg: "parsing local var" }
+Failed to parse "invalid-local.ecl": parsing local var Unexpected(1.11, Add, [])
+
 
 Error occurred.

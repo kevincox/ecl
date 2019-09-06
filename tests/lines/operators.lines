@@ -1,5 +1,4 @@
 	DICT	{
-cmp-eq-false	BOOL	false
 cmp-eq-true	BOOL	true
 cmp-ge-eq	BOOL	true
 cmp-ge-false	BOOL	false

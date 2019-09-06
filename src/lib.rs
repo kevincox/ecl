@@ -649,13 +649,13 @@ mod tests {
 		assert_eq!(eval("<str>", "[]").is_empty().get_bool(), Some(true));
 		let v = eval("<str>", "[0d29 0b1.1]");
 		assert_eq!(v.is_empty().get_bool(), Some(false));
-		assert_eq!(v.index_int(0), Val::new_atomic(29.0));
-		assert_eq!(v.index_int(1), Val::new_atomic(1.5));
+		assert_eq!(v.index_int(0).get_num(), Some(29.0));
+		assert_eq!(v.index_int(1).get_num(), Some(1.5));
 	}
 
 	#[test]
 	fn ident() {
-		assert_eq!(eval("<str>","{b = 4}.b"), Val::new_atomic(4.0));
+		assert_eq!(eval("<str>","{b = 4}.b").get_num(), Some(4.0));
 	}
 
 	#[test]

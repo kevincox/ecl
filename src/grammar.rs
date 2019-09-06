@@ -891,36 +891,36 @@ mod tests {
 
 	#[test]
 	fn num_decimal() {
-		assert_eq!(crate::eval("<str>", "(10)"), crate::Val::new_atomic(10.0));
-		assert_eq!(crate::eval("<str>", "(0d10)"), crate::Val::new_atomic(10.0));
-		assert_eq!(crate::eval("<str>", "(10.4)"), crate::Val::new_atomic(10.4));
-		assert_eq!(crate::eval("<str>", "(10.4e6)"), crate::Val::new_atomic(10400000.0));
-		assert_eq!(crate::eval("<str>", "(10.4e+6)"), crate::Val::new_atomic(10400000.0));
-		assert_eq!(crate::eval("<str>", "(10.4e-6)"), crate::Val::new_atomic(0.0000104));
-		assert_eq!(crate::eval("<str>", "(104_000__000_e-6_)"), crate::Val::new_atomic(104.0));
-		assert_eq!(crate::eval("<str>", "(1M)"), crate::Val::new_atomic(1_000_000.0));
-		assert_eq!(crate::eval("<str>", "(1ki)"), crate::Val::new_atomic(1024.0));
-		assert_eq!(crate::eval("<str>", "(4u)"), crate::Val::new_atomic(0.000_004));
-		assert_eq!(crate::eval("<str>", "(2 - 1)"), crate::Val::new_atomic(1.0));
+		assert_eq!(crate::eval("<str>", "(10)").get_num(), Some(10.0));
+		assert_eq!(crate::eval("<str>", "(0d10)").get_num(), Some(10.0));
+		assert_eq!(crate::eval("<str>", "(10.4)").get_num(), Some(10.4));
+		assert_eq!(crate::eval("<str>", "(10.4e6)").get_num(), Some(10400000.0));
+		assert_eq!(crate::eval("<str>", "(10.4e+6)").get_num(), Some(10400000.0));
+		assert_eq!(crate::eval("<str>", "(10.4e-6)").get_num(), Some(0.0000104));
+		assert_eq!(crate::eval("<str>", "(104_000__000_e-6_)").get_num(), Some(104.0));
+		assert_eq!(crate::eval("<str>", "(1M)").get_num(), Some(1_000_000.0));
+		assert_eq!(crate::eval("<str>", "(1ki)").get_num(), Some(1024.0));
+		assert_eq!(crate::eval("<str>", "(4u)").get_num(), Some(0.000_004));
+		assert_eq!(crate::eval("<str>", "(2 - 1)").get_num(), Some(1.0));
 	}
 
 	#[test]
 	fn num_binary() {
-		assert_eq!(crate::eval("<str>", "(0b10)"), crate::Val::new_atomic(2.0));
-		assert_eq!(crate::eval("<str>", "(0b10.1)"), crate::Val::new_atomic(2.5));
+		assert_eq!(crate::eval("<str>", "(0b10)").get_num(), Some(2.0));
+		assert_eq!(crate::eval("<str>", "(0b10.1)").get_num(), Some(2.5));
 		assert_eq!(parse("<str>", "(0b10.1e6)".chars()), Err(ParseError{
 			typ: ErrorType::Unexpected(
 				Loc{line: 1, col: 8}, Token::Unexpected('e'), &[]),
 			msg: "parsing atom",
 		}));
-		assert_eq!(crate::eval("<str>", "(0b1M)"), crate::Val::new_atomic(1_000_000.0));
-		assert_eq!(crate::eval("<str>", "(0b1u)"), crate::Val::new_atomic(0.000_001));
+		assert_eq!(crate::eval("<str>", "(0b1M)").get_num(), Some(1_000_000.0));
+		assert_eq!(crate::eval("<str>", "(0b1u)").get_num(), Some(0.000_001));
 	}
 
 	#[test]
 	fn num_hex() {
-		assert_eq!(crate::eval("<str>", "(0x10)"), crate::Val::new_atomic(16.0));
-		assert_eq!(crate::eval("<str>", "(0x8.8)"), crate::Val::new_atomic(8.5));
-		assert_eq!(crate::eval("<str>", "(0x00.1)"), crate::Val::new_atomic(0.0625));
+		assert_eq!(crate::eval("<str>", "(0x10)").get_num(), Some(16.0));
+		assert_eq!(crate::eval("<str>", "(0x8.8)").get_num(), Some(8.5));
+		assert_eq!(crate::eval("<str>", "(0x00.1)").get_num(), Some(0.0625));
 	}
 }
