@@ -890,19 +890,14 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(std::cmp::Ordering) -> bool,
 	) -> Result<(), crate::Val> {
-		let (left, right) = self.eval_binop(off as usize, desc)
-			.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
+		let loc = self.module.loc(off as usize);
+		self.assert_binop(assert_loc, off, desc, |left, right| {
+			let ord = left.cmp(right.clone())
+				.map_err(|e| e.annotate_at(loc, &format!("At {}", desc)))
+				.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
 
-		let ord = left.cmp(right.clone())
-			.map_err(|e| e.annotate_at(self.module.loc(off as usize), &format!("At {}", desc)))
-			.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
-
-		if !f(ord) {
-			Err(crate::err::Err::new_at(assert_loc,
-				format!("Assertion failed left {} right:\nleft:  {:?}\nright: {:?}", desc, left, right)))
-		} else {
-			Ok(())
-		}
+			crate::bool::get(f(ord))
+		})
 	}
 }
 
