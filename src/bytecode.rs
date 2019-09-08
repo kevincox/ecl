@@ -705,15 +705,15 @@ impl<'a> EvalContext<'a> {
 				let id = self.cursor.read_varint();
 				crate::builtins::get_id(id)
 			}
-			Op::Add => self.eval_binop(off, "addition", crate::Val::add),
-			Op::Call => self.eval_binop(off, "call", crate::Val::call),
+			Op::Add => self.eval_binop(off, "addition").map(|(l, r)| l.add(r))?,
+			Op::Call => self.eval_binop(off, "call").map(|(l, r)| l.call(r))?,
 			Op::Ge => {
 				self.eval_cmp(off, ">=", |o| o != std::cmp::Ordering::Less)
 			}
 			Op::Gt => {
 				self.eval_cmp(off, ">", |o| o == std::cmp::Ordering::Greater)
 			}
-			Op::Eq => self.eval_binop(off, "==", crate::Val::eq),
+			Op::Eq => self.eval_binop(off, "==").map(|(l, r)| l.eq(r))?,
 			Op::Lt => {
 				self.eval_cmp(off, "<", |o| o == std::cmp::Ordering::Less)
 			}
@@ -773,7 +773,7 @@ impl<'a> EvalContext<'a> {
 					self.parent.clone(),
 					Func::new(self.module.clone(), bodyoff))
 			}
-			Op::Index => self.eval_binop(off, "index", crate::Val::index),
+			Op::Index => self.eval_binop(off, "index").map(|(l, r)| l.index(r))?,
 			Op::Interpolate => {
 				let mut buf = String::new();
 
@@ -796,7 +796,7 @@ impl<'a> EvalContext<'a> {
 				}
 				crate::list::List::new(self.parent.clone(), items)
 			}
-			Op::Ne => self.eval_binop(off, "!=", crate::Val::ne),
+			Op::Ne => self.eval_binop(off, "!=").map(|(l, r)| l.ne(r))?,
 			Op::Neg => {
 				self.continue_eval().neg()
 			}
@@ -842,20 +842,16 @@ impl<'a> EvalContext<'a> {
 				// eprintln!("  {:?}", s);
 				crate::Val::new_atomic(s)
 			}
-			Op::Sub => self.eval_binop(off, "subtraction", crate::Val::subtract),
+			Op::Sub => self.eval_binop(off, "subtraction").map(|(l, r)| l.subtract(r))?,
 		}
 	}
 
-	fn eval_binop(&mut self,
-		off: usize,
-		desc: &str,
-		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
-	) -> crate::Val {
+	fn eval_binop(&mut self, off: usize, desc: &str) -> Result<(crate::Val, crate::Val), crate::Val> {
 		let left = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
 		let right = self.continue_eval()
 			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
-		f(&left, right)
+		Ok((left, right))
 	}
 
 	fn assert_binop(&mut self,
@@ -864,13 +860,8 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
 	) -> Result<(), crate::Val> {
-		let loc = self.module.loc(off as usize);
-		let left = self.continue_eval()
-			.annotate_at_with(|| (loc, format!("On left side of {}", desc)))?;
-		let right = self.continue_eval()
-			.annotate_at_with(|| (loc, format!("On right side of {}", desc)))?;
-		let val = f(&left, right.clone())
-			.to_bool()?;
+		let (left, right) = self.eval_binop(off as usize, desc)?;
+		let val = f(&left, right.clone()).to_bool()?;
 		if !val.get_bool().unwrap() {
 			Err(crate::err::Err::new_at(assert_loc,
 				format!("Assertion failed left {} right:\nleft:  {:?}\nright: {:?}", desc, left, right)))
@@ -884,13 +875,10 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(std::cmp::Ordering) -> bool,
 	) -> crate::Val {
-		let left = self.continue_eval()
-			.annotate_at_with(|| (self.module.loc(off), format!("On left side of {}", desc)))?;
-		let right = self.continue_eval()
-			.annotate_at_with(|| (self.module.loc(off), format!("On right side of {}", desc)))?;
+		let (left, right) = self.eval_binop(off, desc)?;
 
 		let ord = left.cmp(right)
-			.map_err(|e| e.annotate_at_with(|| (self.module.loc(off), format!("At {}", desc))))?;
+			.map_err(|e| e.annotate_at(self.module.loc(off as usize), &format!("At {}", desc)))?;
 
 		crate::bool::get(f(ord))
 	}
@@ -901,14 +889,10 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(std::cmp::Ordering) -> bool,
 	) -> Result<(), crate::Val> {
-		let loc = self.module.loc(off as usize);
-		let left = self.continue_eval()
-			.annotate_at_with(|| (loc, format!("On left side of {}", desc)))?;
-		let right = self.continue_eval()
-			.annotate_at_with(|| (loc, format!("On right side of {}", desc)))?;
+		let (left, right) = self.eval_binop(off as usize, desc)?;
 
 		let ord = left.cmp(right.clone())
-			.map_err(|e| e.annotate_at_with(|| (loc, format!("At {}", desc))))?;
+			.map_err(|e| e.annotate_at(self.module.loc(off as usize), &format!("At {}", desc)))?;
 
 		if !f(ord) {
 			Err(crate::err::Err::new_at(assert_loc,
