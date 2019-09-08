@@ -860,7 +860,8 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(&crate::Val, crate::Val) -> crate::Val,
 	) -> Result<(), crate::Val> {
-		let (left, right) = self.eval_binop(off as usize, desc)?;
+		let (left, right) = self.eval_binop(off as usize, desc)
+			.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
 		let val = f(&left, right.clone()).to_bool()?;
 		if !val.get_bool().unwrap() {
 			Err(crate::err::Err::new_at(assert_loc,
@@ -889,10 +890,12 @@ impl<'a> EvalContext<'a> {
 		desc: &str,
 		f: impl FnOnce(std::cmp::Ordering) -> bool,
 	) -> Result<(), crate::Val> {
-		let (left, right) = self.eval_binop(off as usize, desc)?;
+		let (left, right) = self.eval_binop(off as usize, desc)
+			.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
 
 		let ord = left.cmp(right.clone())
-			.map_err(|e| e.annotate_at(self.module.loc(off as usize), &format!("At {}", desc)))?;
+			.map_err(|e| e.annotate_at(self.module.loc(off as usize), &format!("At {}", desc)))
+			.map_err(|e| e.annotate_at(assert_loc, "Evaluating assertion."))?;
 
 		if !f(ord) {
 			Err(crate::err::Err::new_at(assert_loc,
